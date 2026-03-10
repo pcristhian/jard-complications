@@ -24,3 +24,51 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+<<<<<<< HEAD
+=======
+
+@keyframes move {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-move {
+  animation: move 6s linear infinite;
+}
+
+/* Para transiciones suaves del texto */
+.sidebar-text-transition {
+  transition: opacity 0.2s ease, width 0.3s ease;
+}
+
+/* Evitar que el contenido se desborde durante la transición */
+.sidebar-content {
+  min-width: 0;
+}
+
+/* Tooltips para cuando está colapsado */
+[title] {
+  position: relative;
+}
+
+[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-left: 8px;
+}
+>>>>>>> 08c9acb82890a62e6709e6fab4f08c9ec3d643e6
