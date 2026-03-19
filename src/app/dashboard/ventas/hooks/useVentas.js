@@ -137,6 +137,30 @@ export const useVentas = () => {
             setLoading(false);
         }
     };
+    const obtenerVendedores = async () => {
+        try {
+            const currentSucursal = getCurrentSucursal();
+            if (!currentSucursal) {
+                console.log('No hay sucursal seleccionada');
+                return []; // ⚠️ SIEMPRE retorna un array
+            }
+
+            const { data, error: supabaseError } = await supabase
+                .from('usuarios')
+                .select('id, nombre')
+                .eq('sucursal_id', currentSucursal.id)
+                .order('nombre');
+
+            if (supabaseError) {
+                throw new Error(`Error al obtener vendedores: ${supabaseError.message}`);
+            }
+
+            return data || []; // ⚠️ SIEMPRE retorna un array
+        } catch (err) {
+            console.error('Error obteniendo vendedores:', err);
+            return []; // ⚠️ SIEMPRE retorna un array, incluso en error
+        }
+    };
 
     // Crear nueva venta
     const crearVenta = async (ventaData) => {
@@ -156,16 +180,20 @@ export const useVentas = () => {
             if (!ventaData.producto_id) {
                 throw new Error('Debe seleccionar un producto');
             }
+            if (!ventaData.promotor_id) { // <-- VALIDAR QUE SE RECIBA EL PROMOTOR
+                throw new Error('Debe seleccionar un vendedor');
+            }
 
             const ventaCompleta = {
                 ...ventaData,
-                promotor_id: currentUser.id,
+                // Usar el promotor_id recibido en lugar de currentUser.id
+                promotor_id: ventaData.promotor_id, // <-- USAR EL PROMOTOR SELECCIONADO
                 sucursal_id: currentSucursal.id,
                 fecha_venta: new Date().toISOString(),
                 estado: 'activa',
                 depositado: false,
                 confirmacion_depositado: false,
-                cantidad: ventaData.cantidad || 1 // ← Agregar cantidad
+                cantidad: ventaData.cantidad || 1
             };
 
             const { data, error: supabaseError } = await supabase
@@ -633,6 +661,7 @@ export const useVentas = () => {
         filtrarVentasActivas,
         obtenerVentasDelUsuarioActual,
         obtenerEstadisticas,
+        obtenerVendedores,
 
         // Utilidades
         refetch: obtenerMisVentas

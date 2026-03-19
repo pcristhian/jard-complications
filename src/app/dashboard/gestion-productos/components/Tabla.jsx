@@ -130,19 +130,23 @@ export default function Tabla({
                                 {/**  //NOMBRE Y DESCRIPCION */}
                                 <td className="px-1 py-3 w-min text-sm text-start text-gray-900 font-semibold uppercase"
                                     style={{ maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {producto.nombre}
-                                    <div className="relative w-full h-6 overflow-hidden">
-                                        <h3
-                                            className="
-                                                absolute left-0 top-0 whitespace-nowrap text-gray-600
-                                                transition-none
-                                                group-hover:transition-transform group-hover:duration-[6000ms] group-hover:ease-linear
-                                                group-hover:-translate-x-full text-xs
-                                            "
-                                        >
-                                            {producto.descripcion || '-'}
-                                        </h3>
+                                    <div className="flex items-center h-full min-h-[3rem]">
+                                        {producto.nombre}
                                     </div>
+                                    {producto.descripcion && (
+                                        <div className="relative w-full h-6 overflow-hidden">
+                                            <h3
+                                                className="
+                    absolute left-0 top-0 whitespace-nowrap text-gray-600
+                    transition-none
+                    group-hover:transition-transform group-hover:duration-[6000ms] group-hover:ease-linear
+                    group-hover:-translate-x-full text-xs
+                "
+                                            >
+                                                {producto.descripcion}
+                                            </h3>
+                                        </div>
+                                    )}
                                 </td>
                                 <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-900">
                                     {producto.sucursales?.nombre || 'N/A'}
@@ -161,11 +165,10 @@ export default function Tabla({
                                 </td>
                                 <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-900">
                                     <span className="inline-flex px-2 py-1 font-semibold rounded-full">
-
                                         {producto.comision_variable ? `Bs. ${parseFloat(producto.comision_variable).toFixed(2)}`
-                                            : producto.categorias.reglas_comision.comision_base ?
+                                            : producto.categorias?.reglas_comision?.comision_base ?
                                                 `Bs. ${parseFloat(producto.categorias.reglas_comision.comision_base).toFixed(2)}`
-                                                : '—'}
+                                                : '-'}
                                     </span>
                                 </td>
                                 <td className="px-2 py-3 text-center whitespace-nowrap">

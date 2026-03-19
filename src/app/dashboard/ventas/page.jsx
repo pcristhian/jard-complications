@@ -15,6 +15,7 @@ export default function VentasPage() {
         sucursalCargada,
         rolNombre,
         ventas,
+        obtenerVendedores,
         crearVenta,
         anularVenta,
         actualizarDepositado,
@@ -22,7 +23,6 @@ export default function VentasPage() {
         filtrarVentasPorCategoria,
         filtrarVentasPorBusqueda,
         filtrarVentasFecha,
-
         obtenerMisVentas
     } = useVentas();
 
@@ -45,6 +45,13 @@ export default function VentasPage() {
             .map(venta => venta.categoria_nombre)
         )].sort();
         return categorias;
+    };
+    const obtenerVendedoresUnicos = () => {
+        const vendedores = [...new Set(ventas
+            .filter(venta => venta.vendedor_nombre && venta.vendedor_nombre.trim() !== '')
+            .map(venta => venta.vendedor_nombre)
+        )].sort();
+        return vendedores;
     };
 
     const [mostrarSoloActivas, setMostrarSoloActivas] = useState(true);
@@ -136,6 +143,7 @@ export default function VentasPage() {
                 onCreateVenta={crearVenta}
                 currentUser={currentUser}
                 currentSucursal={currentSucursal}
+                obtenerVendedores={obtenerVendedores}
             />
         </div>
     );

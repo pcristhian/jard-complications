@@ -8,16 +8,21 @@ export default function ModalNuevaVenta({
     productos,
     onCreateVenta,
     currentUser,
-    currentSucursal
+    currentSucursal,
+    obtenerVendedores
 }) {
     const [busqueda, setBusqueda] = useState("");
     const [productoSeleccionado, setProductoSeleccionado] = useState(null);
     const [carrito, setCarrito] = useState([]);
+    const [vendedorSeleccionado, setVendedorSeleccionado] = useState(null); // <-- NUEVO ESTADO
     const [formProducto, setFormProducto] = useState({
         cantidad: 1,
         descuento_unitario: "0",
         observaciones: ""
     });
+    const [vendedores, setVendedores] = useState([]);
+    const [loadingVendedores, setLoadingVendedores] = useState(false);
+
     const [creando, setCreando] = useState(false);
 
     // Filtrar productos en tiempo real
@@ -28,11 +33,13 @@ export default function ModalNuevaVenta({
     );
 
     // Reset form cuando se abre/cierra el modal
+    // Reset form cuando se abre/cierra el modal
     useEffect(() => {
         if (abierto) {
             setBusqueda("");
             setProductoSeleccionado(null);
             setCarrito([]);
+            setVendedorSeleccionado(null); // <-- AGREGAR ESTA LÍNEA
             setFormProducto({
                 cantidad: 1,
                 descuento_unitario: "0",
@@ -40,6 +47,36 @@ export default function ModalNuevaVenta({
             });
         }
     }, [abierto]);
+
+    useEffect(() => {
+        const cargarVendedores = async () => {
+            // Solo cargar si hay una sucursal seleccionada
+            if (!currentSucursal?.id) {
+                setVendedores([]);
+                setVendedorSeleccionado(null);
+                return;
+            }
+
+            setLoadingVendedores(true);
+            try {
+                console.log('Cargando vendedores para sucursal:', currentSucursal.id); // Debug
+                const resultado = await obtenerVendedores();
+                setVendedores(resultado);
+
+                // Resetear selección cuando cambia la sucursal
+                setVendedorSeleccionado(null);
+
+            } catch (error) {
+                console.error('Error cargando vendedores:', error);
+                setVendedores([]);
+                toast.error('Error al cargar vendedores');
+            } finally {
+                setLoadingVendedores(false);
+            }
+        };
+
+        cargarVendedores();
+    }, [currentSucursal?.id, obtenerVendedores]); // <-- Dependencia en currentSucursal.id
 
     const handleSeleccionarProducto = (producto) => {
         setProductoSeleccionado(producto);
@@ -102,7 +139,9 @@ export default function ModalNuevaVenta({
                     total_precio_venta: item.total_linea,
                     descuento_venta: item.descuento_unitario * item.cantidad,
                     observaciones: item.observaciones,
-                    cantidad: item.cantidad
+                    cantidad: item.cantidad,
+                    promotor_id: vendedorSeleccionado // <-- AGREGAR EL VENDEDOR SELECCIONADO
+
                 });
             }
 
@@ -151,14 +190,53 @@ export default function ModalNuevaVenta({
                         <div className="flex justify-between items-center mb-3">
                             <h2 className="text-xl font-bold text-gray-900">Nueva Venta</h2>
                         </div>
+
+                        {/* Info de sucursal y select de vendedores */}
                         <div className="bg-stone-100 p-3 rounded-md mb-4">
-                            <p className="text-sm text-gray-600">
-                                <strong>Vendedor:</strong> {currentUser.nombre}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                                <strong>Sucursal:</strong> {currentSucursal.nombre}
-                            </p>
+                            <div className="flex items-center gap-4">
+                                <p className="text-sm text-gray-600">
+                                    <strong>Sucursal:</strong> {currentSucursal?.nombre}
+                                </p>
+
+                                <div className="flex items-center gap-2">
+                                    <label htmlFor="vendedorSelect" className="text-sm font-medium text-gray-700">
+                                        Vendedor:
+                                    </label>
+                                    <select
+                                        id="vendedorSelect"
+                                        value={vendedorSeleccionado || ''}
+                                        onChange={(e) => setVendedorSeleccionado(e.target.value ? Number(e.target.value) : null)}
+                                        className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-1.5 px-3"
+                                        disabled={loadingVendedores}
+                                    >
+                                        <option value="">Seleccionar vendedor...</option>
+                                        {vendedores.map(vendedor => (
+                                            <option key={vendedor.id} value={vendedor.id}>
+                                                {vendedor.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {loadingVendedores && (
+                                        <span className="text-sm text-gray-500">Cargando...</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Mensaje de error si no hay vendedores */}
+                            {!loadingVendedores && vendedores.length === 0 && (
+                                <p className="text-sm text-red-500 mt-2">
+                                    No hay vendedores disponibles en esta sucursal
+                                </p>
+                            )}
+
+                            {/* Mensaje de advertencia si no se selecciona vendedor */}
+                            {vendedorSeleccionado === null && vendedores.length > 0 && (
+                                <p className="text-sm text-yellow-600 mt-2">
+                                    ⚠️ Debe seleccionar un vendedor para continuar
+                                </p>
+                            )}
                         </div>
+
                         <div className="relative w-full mb-1 flex items-center gap-3">
                             <span>Buscar: </span>
                             <input
@@ -519,7 +597,7 @@ export default function ModalNuevaVenta({
                             </button>
                             <button
                                 onClick={handleSubmit}
-                                disabled={creando || carrito.length === 0}
+                                disabled={creando || carrito.length === 0 || !vendedorSeleccionado} // <-- MODIFICADO
                                 className="flex-1 bg-blue-600 hover:bg-blue-700 cursor-pointer text-white py-3 px-4 rounded-md transition-colors font-semibold disabled:opacity-50"
                             >
                                 {creando ? "Procesando..." : `Realizar Venta (${carrito.length})`}
