@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-
+import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 export default function Tabla({
     productos,
     onEditar,
@@ -12,6 +12,8 @@ export default function Tabla({
 }) {
     const [scrollProgress, setScrollProgress] = useState(0);
     const tableContainerRef = useRef(null);
+    const { values } = useMultiLocalStorageListener(["currentUser"]);
+    const { currentUser } = values;
 
     // Efecto para el scroll
     useEffect(() => {
@@ -181,8 +183,15 @@ export default function Tabla({
                                 </td>
                                 <td className="px-2 py-3 text-center whitespace-nowrap text-sm font-medium space-x-2">
                                     <button
-                                        onClick={() => onEditar(producto)}
-                                        className="text-sky-900 cursor-pointer hover:text-sky-600 bg-sky-100 rounded-full px-2 py-1"
+                                        onClick={() => currentUser?.roles?.nombre === 'admin' && onEditar(producto)}
+                                        disabled={currentUser?.roles?.nombre !== 'admin'}
+                                        className={`
+            rounded-full px-2 py-1 transition-colors
+            ${currentUser?.roles?.nombre === 'admin'
+                                                ? 'text-sky-900 cursor-pointer hover:text-sky-600 bg-sky-100'
+                                                : 'text-gray-400 cursor-not-allowed bg-gray-100'
+                                            }
+        `}
                                     >
                                         Editar
                                     </button>

@@ -7,6 +7,7 @@ export default function Tabla({
     onActualizarDepositado,
     onActualizarConfirmacionDepositado,
     currentUser,
+    rolNombre,
     obtenerMisVentas,
     currentSucursal,
     ventas,
@@ -255,10 +256,10 @@ export default function Tabla({
                                 Codigo
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Nombre de Producto
+                                Producto
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Vendedor/a
+                                Promotor/a
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Categoria
@@ -267,14 +268,16 @@ export default function Tabla({
                                 Cantidad
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Precio <br /> Venta
+                                Precio
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Comision
                             </th>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Observaciones
-                            </th>
+                            {rolNombre === "admin" && (
+                                <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                                    Observaciones
+                                </th>
+                            )}
 
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Deposito <br /> Confirmado
@@ -286,11 +289,10 @@ export default function Tabla({
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {ventasSeguras.map((venta) => (
-
                             <tr key={venta.id} className="hover:bg-gray-50 relative group">
-                                <td className="px-1 py-2 text-sm text-center text-gray-900">
+                                <td className="px-1 py-1 text-sm text-center text-gray-900">
                                     {new Date(venta.fecha_venta).toLocaleDateString()} <br />
-                                    <span className="text-xs hidden group-hover:inline">
+                                    <span className="text-xs text-orange-600">
                                         {new Date(venta.fecha_venta).toLocaleTimeString([], { hour12: false })}
                                     </span>
                                 </td>
@@ -352,24 +354,16 @@ export default function Tabla({
                                         </span>
                                     }
                                 </td>
-                                <td className={`
+                                {rolNombre === "admin" && (
+                                    <td className={`
                                         ${venta.observaciones ? 'px-1 py-2 text-sm text-center text-orange-600' : 'px-1 py-2 text-sm text-center text-gray-700 font-bold'}`}>
-                                    {venta.observaciones ?
-                                        <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
-                                            "{venta.observaciones}"</span>
-                                        : <span> - </span>}
-                                </td>
+                                        {venta.observaciones ?
+                                            <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
+                                                "{venta.observaciones}"</span>
+                                            : <span> - </span>}
+                                    </td>
+                                )}
                                 <td className="px-1 py-2 text-center whitespace-nowrap">
-                                    {/* <input
-                                        type="checkbox"
-                                        checked={venta.depositado}
-                                        readOnly
-                                        className={`h-4 w-4 text-blue-600 rounded ${venta.estado === 'activa' ? 'cursor-pointer' : 'cursor-not-allowed'} ${actualizandoConfirmacion === venta.id.toString() ? 'opacity-50' : ''}`}
-                                        style={{
-                                            accentColor: venta.depositado ? '#486db2ff' : '#ec1b1bff'
-                                        }}
-                                    /> */}
-
                                     <input
                                         type="checkbox"
                                         checked={venta.confirmacion_depositado}

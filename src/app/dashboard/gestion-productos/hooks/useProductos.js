@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client'; // Ajusta la ruta según tu configuración
+import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener';
 
 export const useProductos = (sucursalId) => {
     const [productos, setProductos] = useState([]);
@@ -52,6 +53,15 @@ export const useProductos = (sucursalId) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Listener para localStorage
+    const { values: localStorageValues } = useMultiLocalStorageListener([
+        'currentUser'
+    ]);
+    // Obtener usuario actual desde localStorage
+    const getCurrentUser = () => {
+        return localStorageValues.currentUser?.roles?.nombre || null;
     };
 
 
@@ -334,6 +344,7 @@ export const useProductos = (sucursalId) => {
         categorias,
         loading,
         error,
+        currentUser: getCurrentUser(),
         crearProducto,
         actualizarProducto,
         eliminarProducto,

@@ -137,6 +137,7 @@ export default function VentasPage() {
                 onActualizarConfirmacionDepositado={actualizarConfirmacionDepositado}
                 obtenerMisVentas={obtenerMisVentas}
                 currentUser={currentUser}
+                rolNombre={rolNombre}
                 currentSucursal={currentSucursal}
                 ventas={ventasFiltradas}
                 filtrarVentasPorCategoria={filtrarVentasPorCategoria}

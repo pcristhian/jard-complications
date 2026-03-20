@@ -3,12 +3,19 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { Toaster } from 'react-hot-toast'
 import { SucursalProvider } from '@/contexts/SucursalContext'
-const inter = Inter({ subsets: ['latin'] })
+import PageTitleHandler from '@/components/title/PageTitleHandler' // 👈 Importamos el componente
+
 
 export const metadata = {
   title: 'Jard Complications',
   description: 'Sistema de gestión integral para Jard Complications',
 }
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'], // Los grosores que necesitas
+  display: 'swap', // Mejor experiencia de carga
+})
+
 
 export default function RootLayout({ children }) {
   return (
@@ -17,8 +24,9 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <SucursalProvider>
             {children}
+            <PageTitleHandler />
             <Toaster
-              position="buttom-right"
+              position="bottom-right"
               reverseOrder={false}
               toastOptions={{
                 duration: 4000,
