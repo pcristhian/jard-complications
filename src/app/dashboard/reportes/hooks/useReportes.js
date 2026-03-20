@@ -11,8 +11,12 @@ export const useReportes = () => {
         categoria: null, // Cambiado de 'todas' a null
         mes: null, // Cambiado de 'todos' a null
         usuario: null, // Cambiado de 'todos' a null
+        sucursal: null, // Nuevo filtro para sucursal
         busqueda: ''
     });
+
+
+    const [sucursales, setSucursales] = useState([]);
 
     // Obtener datos para la tabla principal con filtros
     // hooks/useReportes.js - Actualizar fetchReportData para incluir IDs
@@ -57,6 +61,7 @@ export const useReportes = () => {
         )
       `);
 
+            // hooks/useReportes.js - Dentro de fetchReportData, después del filtro de usuario
             // Aplicar filtros
             if (filters.categoria && filters.categoria !== '') {
                 query = query.eq('productos.categoria_id', filters.categoria);
@@ -74,6 +79,11 @@ export const useReportes = () => {
 
             if (filters.usuario && filters.usuario !== '') {
                 query = query.eq('promotor_id', filters.usuario);
+            }
+
+            // ← AGREGAR filtro de sucursal
+            if (filters.sucursal && filters.sucursal !== '') {
+                query = query.eq('sucursal_id', filters.sucursal);
             }
 
             const { data: result, error } = await query.order('fecha_venta', { ascending: false });
@@ -306,42 +316,50 @@ export const useReportes = () => {
             setLoading(false);
         }
     }, [fetchReportData, fetchProductosPorSucursal, fetchProductosMasVendidos, filters]);
-    // Obtener opciones para filtros
+
+
+    // hooks/useReportes.js - Modificar fetchFilterOptions
     const fetchFilterOptions = useCallback(async () => {
         try {
-            const [categorias, usuarios] = await Promise.all([
+            const [categorias, usuarios, sucursalesData] = await Promise.all([
                 supabase.from('categorias').select('id, nombre').eq('activo', true),
-                supabase.from('usuarios').select('id, nombre').eq('activo', true)
+                supabase.from('usuarios').select('id, nombre').eq('activo', true),
+                supabase.from('sucursales').select('id, nombre').eq('activo', true)
             ]);
+
+            setSucursales(sucursalesData.data || []); // ← Guardar en estado
 
             return {
                 categorias: categorias.data || [],
-                usuarios: usuarios.data || []
+                usuarios: usuarios.data || [],
+                sucursales: sucursalesData.data || []
             };
         } catch (err) {
             console.error('Error en fetchFilterOptions:', err);
             setError(err.message);
-            return { categorias: [], usuarios: [] };
+            return { categorias: [], usuarios: [], sucursales: [] };
         }
     }, []);
 
-    // Verificar si hay filtros activos
+    // hooks/useReportes.js - Modificar hasActiveFilters
     const hasActiveFilters = useMemo(() => {
         return filters.categoria !== '' ||
             filters.mes !== '' ||
             filters.usuario !== '' ||
+            filters.sucursal !== '' || // ← AGREGAR
             filters.busqueda !== '';
     }, [filters]);
 
     // Limpiar filtros
+    // hooks/useReportes.js - Modificar clearFilters
     const clearFilters = useCallback(() => {
         setFilters({
             categoria: null,
             mes: null,
             usuario: null,
+            sucursal: null, // ← AGREGAR
             busqueda: ''
         });
-        // Recargar datos sin filtros
         fetchReportData();
     }, [fetchReportData]);
 
@@ -375,6 +393,7 @@ export const useReportes = () => {
         loading,
         error,
         data,
+        sucursales,
         filters,
         hasActiveFilters,
         monthOptions,

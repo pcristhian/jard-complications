@@ -9,6 +9,7 @@ export default function Tabla({
     onFilterChange,
     categorias = [],
     usuarios = [],
+    sucursales = [],
     monthOptions = []
 }) {
     const [showFilters, setShowFilters] = useState(true);
@@ -55,6 +56,12 @@ export default function Tabla({
             return true;
         });
     }, [data, filters]);
+
+    const getSucursalNombre = (sucursalId) => {
+        if (!sucursalId) return '';
+        const sucursal = sucursales.find(s => s.id === parseInt(sucursalId));
+        return sucursal?.nombre || sucursalId;
+    };
 
     // Calcular estadísticas basadas en los datos filtrados
     const estadisticas = useMemo(() => {
@@ -178,6 +185,24 @@ export default function Tabla({
                             className="mt-4 pt-4 border-t border-gray-200"
                         >
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Filtro por sucursal */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Sucursal
+                                    </label>
+                                    <select
+                                        value={filters.sucursal || ''}
+                                        onChange={(e) => onFilterChange('sucursal', e.target.value)}
+                                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    >
+                                        <option value="">Todas las sucursales</option>
+                                        {sucursales.map((suc) => (
+                                            <option key={suc.id} value={suc.id}>
+                                                {suc.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                                 {/* Filtro por categoría */}
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -258,6 +283,23 @@ export default function Tabla({
                             {Object.values(filters).some(v => v && v !== '') && (
                                 <div className="mt-3 flex items-center justify-between">
                                     <div className="flex items-center gap-2 flex-wrap">
+                                        {filters.sucursal && filters.sucursal !== '' && (
+                                            <motion.span
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full"
+                                            >
+                                                Sucursal: {getSucursalNombre(filters.sucursal)}
+                                                <button
+                                                    onClick={() => onFilterChange('sucursal', '')}
+                                                    className="ml-1 hover:text-purple-900"
+                                                >
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </motion.span>
+                                        )}
                                         {filters.categoria && filters.categoria !== '' && (
                                             <motion.span
                                                 initial={{ scale: 0 }}

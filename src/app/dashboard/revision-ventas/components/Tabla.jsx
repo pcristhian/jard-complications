@@ -375,15 +375,18 @@ export default function Tabla({
                                         }}
                                     />
                                 </td>
-                                <td className="px-2 py-2 whitespace-nowrap text-center text-sm">
-                                    {venta.estado === "activa" ? (
-                                        <span className="inline-block bg-green-100 text-green-800 font-semibold text-xs px-3 py-1 rounded-lg shadow-sm">
-                                            activa
-                                        </span>
-                                    ) : (
-                                        <span className="inline-block bg-orange-100 text-orange-800 font-semibold text-xs px-3 py-1 rounded-lg shadow-sm">
-                                            anulada
-                                        </span>
+                                <td className="px-2 whitespace-nowrap text-center text-sm font-medium">
+                                    {venta.estado === "activa" && (
+                                        <button
+                                            onClick={() => handleAnularVenta(venta.id)}
+                                            disabled={anulando === venta.id}
+                                            className="bg-red-600 hover:bg-red-700 rounded-full cursor-pointer text-white px-3 py-2 rounded text-sm disabled:opacity-50"
+                                        >
+                                            {anulando === venta.id ? "Anulando..." : "Anular"}
+                                        </button>
+                                    )}
+                                    {venta.estado === "anulada" && (
+                                        <span className="text-gray-400 text-sm">Anulada</span>
                                     )}
                                 </td>
 
