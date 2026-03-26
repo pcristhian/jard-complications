@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import { useVentas } from "./hooks/useVentas";
 import Header from "./components/Header";
 import Tabla from "./components/Tabla";
+import ModalNuevaVenta from "./components/ModalNuevaVenta";
 import ModalComisionesPorUsuario from "./components/ModalComisionesPorUsuario";
 import FiltroVentas from "./components/FiltrosVentas";
 export default function VentasPage() {
@@ -16,6 +17,7 @@ export default function VentasPage() {
         rolNombre,
         ventas,
         crearVenta,
+        obtenerVendedores,
         anularVenta,
         actualizarDepositado,
         actualizarConfirmacionDepositado,
@@ -27,6 +29,7 @@ export default function VentasPage() {
     } = useVentas();
 
     const [modalAbierto, setModalAbierto] = useState(false);
+    const [modalVenta, setModalVenta] = useState(false);
     const [filtroCategoria, setFiltroCategoria] = useState(''); // ← Estado para el filtro
     const [filtroUsuarios, setFiltroUsuarios] = useState(''); // ← Nuevo estado
     const [terminoBusqueda, setTerminoBusqueda] = useState(''); // ← Nuevo estado
@@ -109,6 +112,7 @@ export default function VentasPage() {
         <div className="min-h-screen p-3 space-y-1 text-gray-800 text-gray-500">
             <Header
                 onMostrarComisiones={() => setModalAbierto(true)}
+                onNuevaVenta={() => setModalVenta(true)}
                 currentSucursal={currentSucursal}
                 rolNombre={rolNombre}
                 currentUser={currentUser}
@@ -147,6 +151,15 @@ export default function VentasPage() {
             <ModalComisionesPorUsuario
                 abierto={modalAbierto}
                 onCerrar={() => setModalAbierto(false)}
+            />
+            <ModalNuevaVenta
+                abierto={modalVenta}
+                onCerrar={() => setModalVenta(false)}
+                productos={productos}
+                onCreateVenta={crearVenta}
+                currentUser={currentUser}
+                currentSucursal={currentSucursal}
+                obtenerVendedores={obtenerVendedores}
             />
         </div>
     );

@@ -169,7 +169,7 @@ export const useVentas = () => {
 
             const ventaCompleta = {
                 ...ventaData,
-                promotor_id: currentUser.id,
+                promotor_id: ventaData.promotor_id,
                 sucursal_id: currentSucursal.id,
                 fecha_venta: new Date().toISOString(),
                 estado: 'activa',
@@ -218,6 +218,30 @@ export const useVentas = () => {
             throw err;
         } finally {
             setLoading(false);
+        }
+    };
+    const obtenerVendedores = async () => {
+        try {
+            const currentSucursal = getCurrentSucursal();
+            if (!currentSucursal) {
+                console.log('No hay sucursal seleccionada');
+                return []; // ⚠️ SIEMPRE retorna un array
+            }
+
+            const { data, error: supabaseError } = await supabase
+                .from('usuarios')
+                .select('id, nombre')
+                .eq('sucursal_id', currentSucursal.id)
+                .order('nombre');
+
+            if (supabaseError) {
+                throw new Error(`Error al obtener vendedores: ${supabaseError.message}`);
+            }
+
+            return data || []; // ⚠️ SIEMPRE retorna un array
+        } catch (err) {
+            console.error('Error obteniendo vendedores:', err);
+            return []; // ⚠️ SIEMPRE retorna un array, incluso en error
         }
     };
 
@@ -635,6 +659,8 @@ export const useVentas = () => {
         // Acciones de depósito
         actualizarDepositado,
         actualizarConfirmacionDepositado,
+
+        obtenerVendedores,
 
         // Consultas
         obtenerVentaPorId,

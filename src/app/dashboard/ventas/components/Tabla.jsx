@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { WifiOff, RefreshCw, X } from 'lucide-react';
+import { WifiOff, RefreshCw, X, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from "react-hot-toast";
 export default function Tabla({
     onAnularVenta,
@@ -23,6 +23,9 @@ export default function Tabla({
     const [mostrarModalAnulacion, setMostrarModalAnulacion] = useState(false);
     const [motivoAnulacion, setMotivoAnulacion] = useState("");
     const [ventaAAnular, setVentaAAnular] = useState(null);
+
+    const [motivoRapido, setMotivoRapido] = useState(null);
+
 
 
 
@@ -58,8 +61,16 @@ export default function Tabla({
     const handleAnularVenta = (ventaId) => {
         setVentaAAnular(ventaId);
         setMotivoAnulacion("");
+        setMotivoRapido(null);
         setMostrarModalAnulacion(true);
     };
+    const MOTIVOS_RAPIDOS = [
+        "Error en el monto",
+        "Pedido duplicado",
+        "Solicitud del cliente",
+        "Producto no disponible",
+    ];
+
     const confirmarAnulacion = async () => {
         if (!motivoAnulacion.trim()) {
             toast.custom((t) => (
@@ -221,13 +232,13 @@ export default function Tabla({
                     <thead className="sticky top-0 bg-gray-500 z-50 text-white">
                         <tr>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Fecha <br /> Venta
+                                Fecha
                             </th>
                             <th className="px-2 py-3 text-start text-xs font-medium uppercase tracking-wider">
                                 Codigo
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Nombre de Producto
+                                Producto
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Categoria
@@ -235,21 +246,21 @@ export default function Tabla({
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Cantidad
                             </th>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Precio <br /> Venta
+                            <th className="px-1 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                                Precio
                             </th>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                            <th className="px-1 py-3 text-left text-xs font-medium uppercase tracking-wider">
                                 Comision
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Observaciones
                             </th>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                            {/* <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Depositado
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Deposito <br /> Confirmado
-                            </th>
+                            </th> */}
                             <th className="px-2 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Anular <br /> Venta
                             </th>
@@ -257,10 +268,10 @@ export default function Tabla({
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {ventasSeguras.map((venta) => (
-                            <tr key={venta.id} className="hover:bg-gray-50 py-4 relative group">
-                                <td className="px-1 text-sm text-center text-gray-900">
+                            <tr key={venta.id} className="hover:bg-sky-100 py-4 relative group">
+                                <td className="px-1 text-sm font-semibold text-center text-gray-900">
                                     {new Date(venta.fecha_venta).toLocaleDateString()} <br />
-                                    <span className="text-xs hidden group-hover:inline">
+                                    <span className="text-xs text-orange-500 bg-orange-100 px-1 rounded">
                                         {new Date(venta.fecha_venta).toLocaleTimeString([], { hour12: false })}
                                     </span>
                                 </td>
@@ -299,11 +310,11 @@ export default function Tabla({
                                         </>
                                     )}
                                 </td>
-                                <td className="px-1 text-center text-sm font-semibold">
+                                <td className="px-1 text-left text-sm font-semibold">
                                     {venta.productos?.comision_variable ?
                                         <span>Bs. {parseFloat(venta.productos?.comision_variable).toFixed(2)}</span>
                                         :
-                                        <span className="px-1 py-4 text-center text-sm text-gray-900">
+                                        <span className="px-1 py-4 text-left text-sm text-gray-900">
                                             {(() => {
                                                 const reglas = venta.productos?.categorias?.reglas_comision
                                                 return reglas?.comision_base > 0
@@ -322,7 +333,7 @@ export default function Tabla({
                                     ${venta.observaciones ? 'px-1 text-sm text-center text-green-700' : 'px-1 py-4 text-sm text-center text-gray-700 font-bold'}`}>
                                     {venta.observaciones ? <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>{venta.observaciones}</span> : <span> - </span>}
                                 </td>
-                                <td className="px-1 text-center whitespace-nowrap">
+                                {/* <td className="px-1 text-center whitespace-nowrap">
                                     <input
                                         type="checkbox"
                                         checked={venta.depositado}
@@ -333,8 +344,8 @@ export default function Tabla({
                                             accentColor: venta.depositado ? '#3059a5ff' : '#ef4444'
                                         }}
                                     />
-                                </td>
-                                <td className="px-1 text-center whitespace-nowrap">
+                                </td> */}
+                                {/* <td className="px-1 text-center whitespace-nowrap">
                                     <span
                                         className={
                                             venta.estado !== "activa"
@@ -349,19 +360,44 @@ export default function Tabla({
                                                 : '✘'
                                         }
                                     </span>
-                                </td>
+                                </td> */}
                                 <td className="px-2 whitespace-nowrap text-center text-sm font-medium">
                                     {venta.estado === "activa" && (
                                         <button
                                             onClick={() => handleAnularVenta(venta.id)}
                                             disabled={anulando === venta.id}
-                                            className="bg-red-600 hover:bg-red-700 rounded-full cursor-pointer text-white px-3 py-2 rounded text-sm disabled:opacity-50"
+                                            className={`
+        inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-medium
+        border transition-all duration-150
+        ${anulando === venta.id
+                                                    ? "border-red-300 text-red-400 bg-red-50 opacity-60 cursor-not-allowed"
+                                                    : "border-red-600 text-red-700 hover:bg-red-50 hover:border-red-700 active:scale-95 cursor-pointer"
+                                                }
+      `}
                                         >
-                                            {anulando === venta.id ? "Anulando..." : "Anular"}
+                                            {anulando === venta.id ? (
+                                                <>
+                                                    <svg className="animate-spin w-3 h-3" viewBox="0 0 12 12" fill="none">
+                                                        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14 6" />
+                                                    </svg>
+                                                    Anulando...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
+                                                        <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                                    </svg>
+                                                    Anular
+                                                </>
+                                            )}
                                         </button>
                                     )}
+
                                     {venta.estado === "anulada" && (
-                                        <span className="text-gray-400 text-sm">Anulada</span>
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs text-gray-400 bg-gray-100 border border-gray-200">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                            Anulada
+                                        </span>
                                     )}
                                 </td>
                             </tr>
@@ -370,51 +406,100 @@ export default function Tabla({
                 </table>
             </div>
             {mostrarModalAnulacion && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 1.06 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.08 }}
-                    transition={{ duration: 0.3 }}
-                    className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50"
-                >
+                <AnimatePresence>
                     <motion.div
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
-                        className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4"
                     >
-                        <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">
-                            Anular Venta
-                        </h2>
+                        <motion.div
+                            initial={{ scale: 0.94, opacity: 0, y: 8 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.94, opacity: 0, y: 8 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+                        >
+                            {/* Header */}
+                            <div className="flex flex-col items-center gap-2 px-6 pt-6 pb-4 border-b border-gray-100">
+                                <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center">
+                                    <AlertCircle className="w-5 h-5 text-red-700" />
+                                </div>
+                                <h2 className="text-base font-medium text-gray-900">Anular venta</h2>
+                                <p className="text-sm text-gray-500 text-center leading-snug">
+                                    Esta acción no se puede deshacer.<br />
+                                    Selecciona o escribe el motivo.
+                                </p>
+                            </div>
 
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Motivo de anulación
-                        </label>
+                            {/* Body */}
+                            <div className="px-6 py-4 flex flex-col gap-4">
+                                {/* Chips */}
+                                <div>
+                                    <p className="text-xs font-medium text-gray-500 mb-2">Motivo rápido</p>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        {MOTIVOS_RAPIDOS.map((m) => (
+                                            <button
+                                                key={m}
+                                                onClick={() => {
+                                                    setMotivoRapido(prev => prev === m ? null : m);
+                                                    if (!motivoAnulacion) setMotivoAnulacion(m);
+                                                }}
+                                                className={`text-xs px-3 py-2 rounded-lg border text-center transition-all ${motivoRapido === m
+                                                    ? "border-red-600 bg-red-50 text-red-800 font-medium"
+                                                    : "border-gray-200 text-gray-500 hover:border-red-400 hover:text-red-700 hover:bg-red-50"
+                                                    }`}
+                                            >
+                                                {m}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
 
-                        <textarea
-                            className="w-full border rounded-lg p-3 h-32 focus:ring-2 focus:ring-red-500"
-                            placeholder="Escriba el motivo..."
-                            value={motivoAnulacion}
-                            onChange={(e) => setMotivoAnulacion(e.target.value)}
-                        />
+                                {/* Textarea */}
+                                <div>
+                                    <p className="text-xs font-medium text-gray-500 mb-1">
+                                        Detalle adicional{" "}
+                                        <span className="font-normal opacity-60">(opcional)</span>
+                                    </p>
+                                    <textarea
+                                        className="w-full border border-gray-200 rounded-lg p-3 h-20 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 resize-none"
+                                        placeholder="Describe el motivo con más detalle..."
+                                        maxLength={200}
+                                        value={motivoAnulacion}
+                                        onChange={(e) => setMotivoAnulacion(e.target.value)}
+                                    />
+                                    <p className={`text-right text-xs mt-0.5 ${motivoAnulacion.length > 160 ? "text-amber-600" : "text-gray-400"
+                                        }`}>
+                                        {motivoAnulacion.length} / 200
+                                    </p>
+                                </div>
+                            </div>
 
-                        <div className="flex justify-end gap-3 mt-4">
-                            <button
-                                onClick={() => setMostrarModalAnulacion(false)}
-                                className="px-4 py-2 bg-gray-200 cursor-pointer hover:bg-gray-300 rounded-lg"
-                            >
-                                Cancelar
-                            </button>
-
-                            <button
-                                onClick={confirmarAnulacion}
-                                className="px-4 py-2 bg-red-600  cursor-pointer hover:bg-red-700 text-white rounded-lg"
-                            >
-                                {anulando === ventaAAnular ? "Anulando..." : "Anular"}
-                            </button>
-                        </div>
+                            {/* Footer */}
+                            <div className="flex gap-2 px-6 pb-5">
+                                <button
+                                    onClick={() => { setMostrarModalAnulacion(false); setMotivoRapido(null); }}
+                                    className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmarAnulacion}
+                                    disabled={(!motivoRapido && motivoAnulacion.trim().length < 3) || anulando === ventaAAnular}
+                                    className="flex-[2] py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                                >
+                                    {anulando === ventaAAnular ? (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            Anulando...
+                                        </>
+                                    ) : "Anular venta"}
+                                </button>
+                            </div>
+                        </motion.div>
                     </motion.div>
-                </motion.div>
+                </AnimatePresence>
             )}
 
         </motion.div >
