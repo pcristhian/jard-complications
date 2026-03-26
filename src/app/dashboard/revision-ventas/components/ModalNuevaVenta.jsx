@@ -187,37 +187,53 @@ export default function ModalNuevaVenta({
                 {/* Lado Izquierdo - Búsqueda y Selección de Productos */}
                 <div className="w-1/2 bg-lima-50 border-r border-gray-200 flex flex-col">
                     <div className="p-3 pb-1 border-b border-gray-50">
-                        <div className="flex justify-between items-center mb-3">
+                        <div className="flex justify-between items-center mb-1">
                             <h2 className="text-xl font-bold text-gray-900">Nueva Venta</h2>
                         </div>
 
                         {/* Info de sucursal y select de vendedores */}
-                        <div className="bg-stone-100 p-3 rounded-md mb-4">
+                        <div className="bg-stone-100 p-3 rounded-md mb-2">
                             <div className="flex items-center gap-4">
-                                <p className="text-sm text-gray-600">
-                                    <strong>Sucursal:</strong> {currentSucursal?.nombre}
+                                <p className="inline-flex items-center gap-2 text-sm border-l-[3px] border-blue-400 bg-blue-50 px-3 py-1 rounded-r-lg">
+                                    <span className="font-semibold text-blue-700">Sucursal</span>
+                                    <span className="text-blue-300">/</span>
+                                    <span className="font-medium text-blue-900">{currentSucursal?.nombre}</span>
                                 </p>
+                                <div className="inline-flex items-center border-l-[3px] border-blue-400 bg-blue-50 px-3 py-1.5 rounded-r-lg gap-3">
+                                    <span className="font-semibold text-blue-700 text-sm whitespace-nowrap">Promotor</span>
+                                    <span className="text-blue-300 text-sm">/</span>
 
-                                <div className="flex items-center gap-2">
-                                    <label htmlFor="vendedorSelect" className="text-sm font-medium text-gray-700">
-                                        Vendedor:
-                                    </label>
                                     <select
                                         id="vendedorSelect"
                                         value={vendedorSeleccionado || ''}
                                         onChange={(e) => setVendedorSeleccionado(e.target.value ? Number(e.target.value) : null)}
-                                        className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-1.5 px-3"
                                         disabled={loadingVendedores}
+                                        className="text-sm text-blue-900 bg-transparent border-none outline-none focus:ring-0 cursor-pointer py-0 px-0 font-medium"
                                     >
-                                        <option value="">Seleccionar vendedor...</option>
+                                        <option value="">Seleccionar promotor...</option>
                                         {vendedores.map(vendedor => (
                                             <option key={vendedor.id} value={vendedor.id}>
                                                 {vendedor.nombre}
                                             </option>
                                         ))}
                                     </select>
+
                                     {loadingVendedores && (
-                                        <span className="text-sm text-gray-500">Cargando...</span>
+                                        <>
+                                            <style>{`
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      .spinner {
+        width: 14px; height: 14px; border-radius: 50%;
+        border: 2px solid #bfdbfe;
+        border-top-color: #3b82f6;
+        animation: spin .7s linear infinite;
+        flex-shrink: 0;
+      }
+    `}</style>
+                                            <span className="spinner" />
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -229,11 +245,44 @@ export default function ModalNuevaVenta({
                                 </p>
                             )}
 
-                            {/* Mensaje de advertencia si no se selecciona vendedor */}
+                            {/* Mensaje de advertencia si no se selecciona vendedor
                             {vendedorSeleccionado === null && vendedores.length > 0 && (
                                 <p className="text-sm text-yellow-600 mt-2">
                                     ⚠️ Debe seleccionar un vendedor para continuar
                                 </p>
+                            )} */}
+                            {vendedorSeleccionado === null && vendedores.length > 0 && (
+                                <>
+                                    <style>{`
+      @keyframes pulse-border {
+        0%, 100% { border-color: #fca5a5; opacity: 1; }
+        50% { border-color: #ef4444; opacity: .75; }
+      }
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+      .warn-alert {
+        display: inline-flex; align-items: center; gap: 8px;
+        margin-top: 8px; padding: 6px 12px;
+        border-radius: 8px; background: #fff1f2;
+        border: 1.5px solid #fca5a5;
+        animation: pulse-border 1.4s ease-in-out infinite;
+      }
+      .warn-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: #ef4444; flex-shrink: 0;
+        animation: blink 1.4s ease-in-out infinite;
+      }
+    `}</style>
+
+                                    <div className="warn-alert">
+                                        <span className="warn-dot" />
+                                        <p className="text-sm font-medium text-red-700 leading-snug">
+                                            Debe seleccionar un promotor para continuar
+                                        </p>
+                                    </div>
+                                </>
                             )}
                         </div>
 
@@ -262,7 +311,35 @@ export default function ModalNuevaVenta({
                     {!productoSeleccionado && (
                         <div className="flex-1 overflow-y-auto p-2 pt-1 ">
                             {productosFiltrados.length === 0 ? (
-                                <p className="text-gray-500 text-center">No se encontraron productos</p>
+                                <>
+                                    <style>{`
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-6px); }
+      }
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .empty-wrap { animation: fade-in .3s ease-out both; }
+      .empty-icon { animation: float 2.8s ease-in-out infinite; }
+    `}</style>
+
+                                    <div className="empty-wrap flex flex-col items-center justify-center py-10 gap-3">
+                                        <div className="empty-icon">
+                                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                                                <rect x="8" y="14" width="32" height="26" rx="4" stroke="#93c5fd" strokeWidth="2" fill="#eff6ff" />
+                                                <path d="M16 14v-2a8 8 0 0116 0v2" stroke="#93c5fd" strokeWidth="2" strokeLinecap="round" />
+                                                <path d="M18 26h12M18 32h7" stroke="#bfdbfe" strokeWidth="2" strokeLinecap="round" />
+                                                <circle cx="36" cy="36" r="8" fill="#eff6ff" stroke="#93c5fd" strokeWidth="1.5" />
+                                                <path d="M33 36h6M36 33v6" stroke="#93c5fd" strokeWidth="1.5" strokeLinecap="round" />
+                                            </svg>
+                                        </div>
+
+                                        <p className="text-sm font-medium text-slate-500">Sin resultados</p>
+                                        <p className="text-xs text-slate-400">Intenta con otro nombre o código</p>
+                                    </div>
+                                </>
                             ) : (
                                 <div className="space-y-2">
                                     {productosFiltrados.map((producto) => (

@@ -66,6 +66,18 @@ export default function Tabla({
         "Producto no disponible",
     ];
 
+    const COLORES = [
+        "text-blue-300 bg-blue-950",
+        "text-violet-300 bg-violet-950",
+        "text-amber-300 bg-amber-950",
+        "text-rose-300 bg-rose-950",
+        "text-teal-300 bg-teal-950",
+        "text-orange-300 bg-orange-950",
+    ]
+    const colorCaja = (caja) => {
+        const hash = [...caja].reduce((acc, c) => acc + c.charCodeAt(0), 0)
+        return COLORES[hash % COLORES.length]
+    }
 
     const handleAnularVenta = (ventaId) => {
         setVentaAAnular(ventaId);
@@ -297,37 +309,54 @@ export default function Tabla({
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-slate-900 divide-y divide-slate-800">
                         {ventasSeguras.map((venta) => (
-                            <tr key={venta.id} className="hover:bg-gray-50 relative group">
-                                <td className="px-1 py-1 text-sm text-center text-gray-900">
-                                    {new Date(venta.fecha_venta).toLocaleDateString()} <br />
-                                    <span className="text-xs text-orange-600">
+                            <tr key={venta.id}
+                                className="hover:bg-slate-800/60 transition-colors duration-150 group">
+                                <td className="px-1 py-1 text-center">
+                                    <span className="text-xs font-medium text-slate-400 block">
+                                        {new Date(venta.fecha_venta).toLocaleDateString()}
+                                    </span>
+                                    <span className="text-[11px] text-amber-400 font-medium">
                                         {new Date(venta.fecha_venta).toLocaleTimeString([], { hour12: false })}
                                     </span>
                                 </td>
-                                <td className="px-2 py-2 w-min text-sm font-medium text-gray-900">
-                                    {venta.producto_codigo}
+                                <td className="px-2 py-2">
+                                    <span className="text-xs font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
+                                        {venta.producto_codigo}
+                                    </span>
                                 </td>
-                                <td className="px-1 py-2 w-min text-sm text-start text-gray-900"
-                                    style={{ maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {venta.producto_nombre}
+                                <td className="px-3 py-3 max-w-[260px]">
+                                    <span className="text-sm text-slate-300 truncate block leading-snug">
+                                        {venta.producto_nombre}
+                                    </span>
                                 </td>
-                                <td className="px-1 py-2 text-center text-sm whitespace-nowrap leading-[1]">
-                                    {venta.usuarios?.nombre} <br />
-                                    {venta.rol_nombre !== 'promotor' ?
-                                        <span className="text-blue-600 font-semibold text-[12px]"> {venta.rol_nombre}</span>
-                                        : <span className="text-green-600 font-semibold text-[12px]"> {venta.usuarios?.caja}</span>
-                                    }
+                                <td className="px-3 py-3 text-center">
+                                    <span className="text-xs font-medium text-slate-200 block leading-snug">
+                                        {venta.usuarios?.nombre}
+                                    </span>
+                                    {venta.rol_nombre !== "promotor" ? (
+                                        <span className="inline-block mt-0.5 text-[10px] font-semibold text-indigo-300 bg-indigo-950 px-1.5 py-0.5 rounded-full">
+                                            {venta.rol_nombre}
+                                        </span>
+                                    ) : (
+                                        <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${colorCaja(venta.usuarios?.caja)}`}>
+                                            {venta.usuarios?.caja}
+                                        </span>
+                                    )}
                                 </td>
-                                <td className="px-1 py-2 text-sm text-center text-gray-900">
-                                    {venta.categoria_nombre}
+                                <td className="px-3 py-3 text-center">
+                                    <span className="text-sm text-slate-400">{venta.categoria_nombre}</span>
                                 </td>
-                                <td className="px-1 py-2 text-sm text-center font-semibold text-gray-900">
-                                    {venta.cantidad || "sin datos"}
+                                <td className="px-3 py-3 text-center">
+                                    <span className="text-sm font-semibold text-slate-100">
+                                        {venta.cantidad || "—"}
+                                    </span>
                                 </td>
-                                <td className="px-1 py-2 text-sm text-gray-900 text-start">
-                                    <span className="font-semibold"> Bs. {parseFloat(venta.total_precio_venta).toFixed(2)}</span><br />
+                                <td className="px-1 py-2 text-sm text-slate-200 text-start">
+                                    <span className="font-semibold">
+                                        Bs. {parseFloat(venta.total_precio_venta).toFixed(2)}
+                                    </span><br />
                                     {venta.descuento_venta ? (
                                         <span className="text-[12px] font-semibold text-orange-600">
                                             Bs. - {parseFloat(venta.descuento_venta).toFixed(2)} desc. <br />
@@ -352,7 +381,7 @@ export default function Tabla({
                                     {venta.productos?.comision_variable ?
                                         <span>Bs. {parseFloat(venta.productos?.comision_variable).toFixed(2)}</span>
                                         :
-                                        <span className="px-1 py-2 text-center text-sm text-gray-900">
+                                        <span className="px-1 py-2 text-center text-sm text-slate-200">
                                             {(() => {
                                                 const reglas = venta.productos?.categorias?.reglas_comision
                                                 return reglas?.comision_base > 0
@@ -366,14 +395,11 @@ export default function Tabla({
                                 </td>
                                 {rolNombre === "admin" && (
                                     <td className={`
-                                        ${venta.observaciones ? 'px-1 py-2 text-sm text-center text-orange-600' : 'px-1 py-2 text-sm text-center text-gray-700 font-bold'}`}>
+                                        ${venta.observaciones ? 'px-1 py-2 text-sm text-center text-slate-500' : 'px-1 py-2 text-sm text-center text-slate-200 font-bold'}`}>
                                         {venta.observaciones ?
                                             <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
                                                 "{venta.observaciones}"</span>
                                             : <span> - </span>}
-                                        {venta.motivoAnulacion ?
-                                            <span className="text-red-600 block mt-1 text-xs">Motivo anulación: {venta.motivoAnulacion}</span>
-                                            : <span>  </span>}
                                     </td>
                                 )}
                                 <td className="px-1 py-2 text-center whitespace-nowrap">
