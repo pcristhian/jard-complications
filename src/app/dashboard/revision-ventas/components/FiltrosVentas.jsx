@@ -215,7 +215,7 @@ const FiltrosVentas = ({
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="bg-slate-900 divide-slate-700 px-3 py-2.5 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
+            className="bg-gray-800 divide-gray-700  px-3 py-2.5 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
         >
             <div className="flex flex-wrap items-center justify-between gap-3">
 

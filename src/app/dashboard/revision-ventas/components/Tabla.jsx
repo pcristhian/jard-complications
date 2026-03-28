@@ -457,7 +457,7 @@ export default function Tabla({
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="bg-slate-900 divide-y divide-slate-800">
+                    <tbody className="bg-gray-900 divide-y divide-gray-800">
                         {ventasToShow.map((venta, index) => (
                             <tr key={venta.id}
                                 className="hover:bg-slate-800/60 transition-colors duration-150 group">

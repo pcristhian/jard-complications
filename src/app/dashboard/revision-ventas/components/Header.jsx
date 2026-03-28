@@ -71,7 +71,7 @@ export default function Header({
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="bg-slate-900 divide-slate-700 p-3 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
+            className="bg-gray-800 divide-gray-700 p-3 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
         >
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 

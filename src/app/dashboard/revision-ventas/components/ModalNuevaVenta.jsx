@@ -1,6 +1,6 @@
 // src/app/dashboard/ventas/components/ModalNuevaVenta.jsx
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 export default function ModalNuevaVenta({
     abierto,
@@ -25,14 +25,55 @@ export default function ModalNuevaVenta({
 
     const [creando, setCreando] = useState(false);
 
-    // Filtrar productos en tiempo real
-    const productosFiltrados = productos.filter(producto =>
-        producto.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-        producto.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
-        producto.precio.toString().includes(busqueda)
-    );
 
-    // Reset form cuando se abre/cierra el modal
+    //para mostrar solo 10 productos en el modal y evitar saturar la interfaz, el resto se puede buscar con el filtro de búsqueda
+    const [productosVisibles, setProductosVisibles] = useState([]);
+    const [displayCount, setDisplayCount] = useState(10); // Mostrar inicialmente 10 productos
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const productosListRef = useRef(null);
+    const loadMoreTriggerRef = useRef(null);
+
+
+    // Filtrar productos en tiempo real - esto ya lo tienes
+    const productosFiltrados = useMemo(() => {
+        return productos.filter(producto =>
+            producto.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+            producto.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
+            producto.precio.toString().includes(busqueda)
+        );
+    }, [productos, busqueda]);
+
+
+    const loadMoreProducts = useCallback(async () => {
+        if (isLoadingMore || !hasMore) return;
+
+        setIsLoadingMore(true);
+
+        // Simular un pequeño delay para mejor UX (opcional)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Incrementar en 10 productos
+        setDisplayCount(prev => Math.min(prev + 10, productosFiltrados.length));
+        setIsLoadingMore(false);
+    }, [isLoadingMore, hasMore, productosFiltrados.length]);
+
+
+    // Actualizar productos visibles cuando cambia el filtro o el contador
+    useEffect(() => {
+        // Resetear cuando cambia la búsqueda
+        setDisplayCount(10);
+        setHasMore(true);
+        setProductosVisibles(productosFiltrados.slice(0, 10));
+    }, [productosFiltrados]);
+
+    // Actualizar cuando cambia displayCount
+    useEffect(() => {
+        const nuevosVisibles = productosFiltrados.slice(0, displayCount);
+        setProductosVisibles(nuevosVisibles);
+        setHasMore(displayCount < productosFiltrados.length);
+    }, [productosFiltrados, displayCount]);
+
     // Reset form cuando se abre/cierra el modal
     useEffect(() => {
         if (abierto) {
@@ -47,6 +88,27 @@ export default function ModalNuevaVenta({
             });
         }
     }, [abierto]);
+    // Observador de intersección para infinite scroll
+    useEffect(() => {
+        if (!loadMoreTriggerRef.current) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !isLoadingMore && !productoSeleccionado) {
+                    loadMoreProducts();
+                }
+            },
+            { threshold: 0.1, rootMargin: "100px" } // Activar cuando esté a 100px del final
+        );
+
+        observer.observe(loadMoreTriggerRef.current);
+
+        return () => {
+            if (loadMoreTriggerRef.current) {
+                observer.unobserve(loadMoreTriggerRef.current);
+            }
+        };
+    }, [hasMore, isLoadingMore, loadMoreProducts, productoSeleccionado, productosFiltrados]);
 
     useEffect(() => {
         const cargarVendedores = async () => {
@@ -161,6 +223,7 @@ export default function ModalNuevaVenta({
             [name]: value
         }));
     };
+
     const totalVenta = carrito.reduce((sum, item) => sum + item.total_linea, 0);
     const totalDescuentos = carrito.reduce((sum, item) => sum + (item.descuento_unitario * item.cantidad), 0);
 
@@ -342,7 +405,7 @@ export default function ModalNuevaVenta({
                                 </>
                             ) : (
                                 <div className="space-y-2">
-                                    {productosFiltrados.map((producto) => (
+                                    {productosVisibles.map((producto) => (
                                         <div
                                             key={producto.id}
                                             onClick={() => handleSeleccionarProducto(producto)}
@@ -350,7 +413,7 @@ export default function ModalNuevaVenta({
                                                 }`}
                                         >
                                             <div className="flex justify-between items-start gap-5 group">
-                                                <div className=" flex-1 text-left">
+                                                <div className="flex-1 text-left">
                                                     <div className="relative w-full h-6 overflow-hidden">
                                                         <h3
                                                             className="
@@ -366,7 +429,6 @@ export default function ModalNuevaVenta({
                                                     <p className="text-sm text-gray-600">Código: {producto.codigo}</p>
                                                     <p className="text-sm text-gray-600">Categoría: {producto.categorias?.nombre}</p>
                                                     <p className="text-sm text-gray-600">Stock: {producto.stock_actual}</p>
-
                                                 </div>
                                                 <div className="text-right flex flex-col gap-1">
                                                     <p className="font-bold text-green-600">Bs. {producto.precio.toFixed(2)}</p>
@@ -374,6 +436,29 @@ export default function ModalNuevaVenta({
                                             </div>
                                         </div>
                                     ))}
+
+                                    {/* Trigger para infinite scroll */}
+                                    {hasMore && !productoSeleccionado && (
+                                        <div ref={loadMoreTriggerRef} className="py-4 flex justify-center items-center">
+                                            {isLoadingMore ? (
+                                                <div className="flex items-center gap-2 text-gray-500">
+                                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                                                    <span className="text-sm">Cargando más productos...</span>
+                                                </div>
+                                            ) : (
+                                                <div className="h-8" /> // Espacio invisible para el observer
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Indicador de fin de lista */}
+                                    {!hasMore && productosFiltrados.length > 10 && (
+                                        <div className="py-4 text-center">
+                                            <p className="text-xs text-gray-500">
+                                                Mostrando {productosFiltrados.length} de {productosFiltrados.length} productos
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
