@@ -480,10 +480,23 @@ export default function Tabla({
                                         {venta.producto_codigo}
                                     </span>
                                 </td>
-                                <td className="px-3 py-3 max-w-[260px]">
-                                    <span className="text-sm text-slate-300 truncate block leading-snug">
-                                        {venta.producto_nombre}
-                                    </span>
+                                <td className="px-1 py-3 max-w-[260px] overflow-hidden">
+                                    <div className="relative group">
+                                        <span className="
+            absolute left-0 top-0 whitespace-nowrap text-sm text-slate-300 block leading-snug
+            transition-none
+            group-hover:transition-transform   
+            group-hover:duration-[6000ms] 
+            group-hover:ease-linear  
+            group-hover:-translate-x-full
+        ">
+                                            {venta.producto_nombre}
+                                        </span>
+                                        {/* Placeholder invisible para mantener la altura */}
+                                        <span className="invisible whitespace-nowrap text-sm text-slate-300 block leading-snug">
+                                            {venta.producto_nombre}
+                                        </span>
+                                    </div>
                                 </td>
                                 <td className="px-3 py-3 text-center">
                                     <span className="text-xs font-medium text-slate-200 block leading-snug">
