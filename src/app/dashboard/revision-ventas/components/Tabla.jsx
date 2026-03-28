@@ -1,7 +1,8 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { WifiOff, RefreshCw, X, AlertCircle, Loader2 } from 'lucide-react';
+import { WifiOff, RefreshCw, X, AlertCircle, Loader2, Hash } from 'lucide-react';
 import { toast } from "react-hot-toast";
+
 export default function Tabla({
     onAnularVenta,
     onActualizarDepositado,
@@ -17,24 +18,82 @@ export default function Tabla({
     const [anulando, setAnulando] = useState(null);
     const [actualizando, setActualizando] = useState(null);
     const [actualizandoConfirmacion, setActualizandoConfirmacion] = useState(null);
+
+    // Estados para infinite scroll
+    const [displayCount, setDisplayCount] = useState(20);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+
     const ventasSeguras = Array.isArray(ventas) ? ventas : [];
+
+    // Calcular ventas a mostrar basado en displayCount
+    const ventasToShow = useMemo(() => {
+        return ventasSeguras.slice(0, displayCount);
+    }, [ventasSeguras, displayCount]);
+
+    // Verificar si hay más datos para cargar
+    useEffect(() => {
+        setHasMore(displayCount < ventasSeguras.length);
+    }, [displayCount, ventasSeguras.length]);
+
+    // Resetear displayCount cuando cambien las ventas (por filtros)
+    useEffect(() => {
+        setDisplayCount(20);
+        setHasMore(true);
+        setIsLoadingMore(false);
+    }, [ventasSeguras.length]);
+
     //para barra de progreso en tabla
     const [scrollProgress, setScrollProgress] = useState(0);
     const tableContainerRef = useRef(null);
+    const loadMoreTriggerRef = useRef(null);
 
     //estados para modal anulacion
     const [mostrarModalAnulacion, setMostrarModalAnulacion] = useState(false);
     const [motivoAnulacion, setMotivoAnulacion] = useState("");
     const [ventaAAnular, setVentaAAnular] = useState(null);
-
     const [motivoRapido, setMotivoRapido] = useState(null);
+
+    // Función para cargar más registros
+    const loadMore = useCallback(async () => {
+        if (isLoadingMore || !hasMore) return;
+
+        setIsLoadingMore(true);
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        setDisplayCount(prev => Math.min(prev + 20, ventasSeguras.length));
+        setIsLoadingMore(false);
+    }, [isLoadingMore, hasMore, ventasSeguras.length]);
+
+    // Observador de intersección para infinite scroll
+    useEffect(() => {
+        if (!loadMoreTriggerRef.current) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+                    loadMore();
+                }
+            },
+            { threshold: 0.1, rootMargin: "100px" }
+        );
+
+        observer.observe(loadMoreTriggerRef.current);
+
+        return () => {
+            if (loadMoreTriggerRef.current) {
+                observer.unobserve(loadMoreTriggerRef.current);
+            }
+        };
+    }, [hasMore, isLoadingMore, loadMore, ventasToShow.length]);
 
     useEffect(() => {
         obtenerMisVentas();
         setLoading(false);
     }, [currentUser, currentSucursal]);
 
-    // Nuevo efecto para el scroll
+    // Efecto para el scroll (barra de progreso)
     useEffect(() => {
         const tableContainer = tableContainerRef.current;
 
@@ -57,7 +116,7 @@ export default function Tabla({
                 tableContainer.removeEventListener('scroll', handleScroll);
             }
         };
-    }, [ventas]); // Se recalcula cuando cambian las ventas
+    }, [ventasToShow]);
 
     const MOTIVOS_RAPIDOS = [
         "Error en el monto",
@@ -73,11 +132,13 @@ export default function Tabla({
         "text-rose-300 bg-rose-950",
         "text-teal-300 bg-teal-950",
         "text-orange-300 bg-orange-950",
-    ]
+    ];
+
     const colorCaja = (caja) => {
-        const hash = [...caja].reduce((acc, c) => acc + c.charCodeAt(0), 0)
-        return COLORES[hash % COLORES.length]
-    }
+        if (!caja) return COLORES[0];
+        const hash = [...caja].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+        return COLORES[hash % COLORES.length];
+    };
 
     const handleAnularVenta = (ventaId) => {
         setVentaAAnular(ventaId);
@@ -85,7 +146,9 @@ export default function Tabla({
         setMotivoRapido(null);
         setMostrarModalAnulacion(true);
     };
+
     const motivoFinal = motivoRapido || motivoAnulacion.trim();
+
     const confirmarAnulacion = async () => {
         if (!motivoFinal) {
             toast.custom((t) => (
@@ -101,7 +164,6 @@ export default function Tabla({
                     <span className="font-medium">¡Atención! Debe ingresar un motivo.</span>
                 </motion.div>
             ), { position: 'top-right', duration: 400 });
-
             return;
         }
 
@@ -119,22 +181,6 @@ export default function Tabla({
         }
     };
 
-
-
-    const handleToggleDepositado = async (ventaId, currentValue) => {
-        const nuevoValor = !currentValue;
-        const ventaIdStr = ventaId.toString();
-
-        try {
-            setActualizando(ventaIdStr);
-            await onActualizarDepositado(ventaId, nuevoValor);
-
-        } catch (err) {
-            alert("Error al actualizar depósito: " + err.message);
-        } finally {
-            setActualizando(null);
-        }
-    };
     const handleToggleConfirmacionDepositado = async (ventaId, currentValue) => {
         const nuevoValor = !currentValue;
         const ventaIdStr = ventaId.toString();
@@ -151,7 +197,6 @@ export default function Tabla({
                 }
             );
         } catch (err) {
-            // Toast de error
             toast.error(`Error al actualizar depósito: ${err.message}`, {
                 duration: 4000,
             });
@@ -160,6 +205,7 @@ export default function Tabla({
         }
     };
 
+    // Renderizado condicional (loading, offline, sin datos, error)
     if (loading) {
         return (
             <motion.div
@@ -168,7 +214,6 @@ export default function Tabla({
                 transition={{ duration: 0.22, ease: "easeOut" }}
                 className="bg-slate-950 border border-slate-800 border-l-[3px] border-l-cyan-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
             >
-                {/* Spinner */}
                 <motion.div
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -177,7 +222,6 @@ export default function Tabla({
                 >
                     <div className="w-7 h-7 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
                 </motion.div>
-
                 <motion.p
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -186,7 +230,6 @@ export default function Tabla({
                 >
                     Cargando ventas
                 </motion.p>
-
                 <motion.p
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -210,7 +253,6 @@ export default function Tabla({
                     transition={{ duration: 0.22, ease: "easeOut" }}
                     className="bg-slate-950 border border-slate-800 border-l-[3px] border-l-amber-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
                 >
-                    {/* Ícono con animación de pulso infinita */}
                     <motion.div
                         initial={{ scale: 0.7, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
@@ -224,8 +266,6 @@ export default function Tabla({
                             <WifiOff className="w-7 h-7 text-amber-400" />
                         </motion.div>
                     </motion.div>
-
-                    {/* Textos */}
                     <motion.p
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -234,7 +274,6 @@ export default function Tabla({
                     >
                         Sin conexión a internet
                     </motion.p>
-
                     <motion.p
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -243,8 +282,6 @@ export default function Tabla({
                     >
                         Revisa tu conexión e inténtalo nuevamente.
                     </motion.p>
-
-                    {/* Botón reintentar */}
                     <motion.button
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -261,7 +298,7 @@ export default function Tabla({
         );
     }
 
-    if (ventas.length === 0) {
+    if (ventasSeguras.length === 0) {
         return (
             <motion.div
                 initial={{ opacity: 0, y: 12 }}
@@ -269,7 +306,6 @@ export default function Tabla({
                 transition={{ duration: 0.22, ease: "easeOut" }}
                 className="bg-slate-950 border border-slate-800 border-l-[3px] border-l-cyan-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
             >
-                {/* Ícono animado */}
                 <motion.div
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -281,7 +317,6 @@ export default function Tabla({
                             d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6M3 17h18M5 17V9a2 2 0 012-2h10a2 2 0 012 2v8" />
                     </svg>
                 </motion.div>
-
                 <motion.p
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -290,7 +325,6 @@ export default function Tabla({
                 >
                     No hay ventas registradas
                 </motion.p>
-
                 <motion.p
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -311,7 +345,6 @@ export default function Tabla({
                 transition={{ duration: 0.22, ease: "easeOut" }}
                 className="bg-slate-950 border border-slate-800 border-l-[3px] border-l-red-500 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
             >
-                {/* Ícono */}
                 <motion.div
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -323,7 +356,6 @@ export default function Tabla({
                             d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                     </svg>
                 </motion.div>
-
                 <motion.p
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -332,7 +364,6 @@ export default function Tabla({
                 >
                     Ocurrió un error
                 </motion.p>
-
                 <motion.p
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -341,7 +372,6 @@ export default function Tabla({
                 >
                     {error}
                 </motion.p>
-
                 <motion.button
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -360,7 +390,7 @@ export default function Tabla({
         );
     }
 
-
+    // Renderizado principal con infinite scroll y números consecutivos
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -383,11 +413,18 @@ export default function Tabla({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="sticky top-0 bg-slate-600 z-50 text-white">
                         <tr>
+                            {/* Nueva columna de número consecutivo */}
+                            <th className="px-2 py-3 text-center text-xs font-medium uppercase tracking-wider w-16">
+                                <div className="flex items-center justify-center gap-1">
+                                    <Hash className="w-3 h-3" />
+                                    <span>N°</span>
+                                </div>
+                            </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Fecha
                             </th>
                             <th className="px-2 py-3 text-start text-xs font-medium uppercase tracking-wider">
-                                Codigo
+                                Código
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Producto
@@ -396,7 +433,7 @@ export default function Tabla({
                                 Promotor/a
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Categoria
+                                Categoría
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Cantidad
@@ -405,14 +442,13 @@ export default function Tabla({
                                 Precio
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Comision
+                                Comisión
                             </th>
                             {rolNombre === "admin" && (
                                 <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                     Observaciones
                                 </th>
                             )}
-
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Depositado
                             </th>
@@ -422,9 +458,15 @@ export default function Tabla({
                         </tr>
                     </thead>
                     <tbody className="bg-slate-900 divide-y divide-slate-800">
-                        {ventasSeguras.map((venta) => (
+                        {ventasToShow.map((venta, index) => (
                             <tr key={venta.id}
                                 className="hover:bg-slate-800/60 transition-colors duration-150 group">
+                                {/* Celda del número consecutivo */}
+                                <td className="px-2 py-2 text-center">
+                                    <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/50 px-2 py-1 rounded-md">
+                                        #{index + 1}
+                                    </span>
+                                </td>
                                 <td className="px-1 py-1 text-center">
                                     <span className="text-xs font-medium text-slate-400 block">
                                         {new Date(venta.fecha_venta).toLocaleDateString()}
@@ -479,7 +521,6 @@ export default function Tabla({
                                                     </span>
                                                 </>
                                             )}  </span>
-
                                     ) : ''}
                                     {venta.cantidad > 1 && (
                                         <>
@@ -495,7 +536,7 @@ export default function Tabla({
                                         :
                                         <span className="px-1 py-2 text-center text-sm text-slate-200">
                                             {(() => {
-                                                const reglas = venta.productos?.categorias?.reglas_comision
+                                                const reglas = venta.productos?.categorias?.reglas_comision;
                                                 return reglas?.comision_base > 0
                                                     ? <span>
                                                         Bs. {parseFloat(reglas.comision_base).toFixed(2)}
@@ -532,13 +573,13 @@ export default function Tabla({
                                             onClick={() => handleAnularVenta(venta.id)}
                                             disabled={anulando === venta.id}
                                             className={`
-        inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-medium
-        border transition-all duration-150
-        ${anulando === venta.id
+                                                inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-medium
+                                                border transition-all duration-150
+                                                ${anulando === venta.id
                                                     ? "border-red-300 text-red-400 bg-red-50 opacity-60 cursor-not-allowed"
                                                     : "border-red-600 text-red-700 hover:bg-red-50 hover:border-red-700 active:scale-95 cursor-pointer"
                                                 }
-      `}
+                                            `}
                                         >
                                             {anulando === venta.id ? (
                                                 <>
@@ -557,7 +598,6 @@ export default function Tabla({
                                             )}
                                         </button>
                                     )}
-
                                     {venta.estado === "anulada" && (
                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-gray-400 bg-gray-950 border border-gray-800">
                                             <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -565,12 +605,36 @@ export default function Tabla({
                                         </span>
                                     )}
                                 </td>
-
                             </tr>
                         ))}
                     </tbody>
                 </table>
+
+                {/* Trigger para infinite scroll */}
+                {hasMore && (
+                    <div ref={loadMoreTriggerRef} className="py-4 flex justify-center items-center">
+                        {isLoadingMore ? (
+                            <div className="flex items-center gap-2 text-slate-400">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span className="text-sm">Cargando más ventas...</span>
+                            </div>
+                        ) : (
+                            <div className="h-8" />
+                        )}
+                    </div>
+                )}
+
+                {/* Indicador de que ya no hay más datos */}
+                {!hasMore && ventasSeguras.length > 20 && (
+                    <div className="py-4 text-center">
+                        <p className="text-xs text-slate-500">
+                            Mostrando {ventasSeguras.length} de {ventasSeguras.length} ventas
+                        </p>
+                    </div>
+                )}
             </div>
+
+            {/* Modal de anulación (sin cambios) */}
             {mostrarModalAnulacion && (
                 <AnimatePresence>
                     <motion.div
@@ -586,7 +650,6 @@ export default function Tabla({
                             transition={{ type: "spring", stiffness: 300, damping: 25 }}
                             className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
                         >
-                            {/* Header */}
                             <div className="flex flex-col items-center gap-2 px-6 pt-6 pb-4 border-b border-gray-100">
                                 <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center">
                                     <AlertCircle className="w-5 h-5 text-red-700" />
@@ -597,10 +660,7 @@ export default function Tabla({
                                     Selecciona o escribe el motivo.
                                 </p>
                             </div>
-
-                            {/* Body */}
                             <div className="px-6 py-4 flex flex-col gap-4">
-                                {/* Chips */}
                                 <div>
                                     <p className="text-xs font-medium text-gray-500 mb-2">Motivo rápido</p>
                                     <div className="grid grid-cols-2 gap-1.5">
@@ -610,7 +670,7 @@ export default function Tabla({
                                                 onClick={() => {
                                                     const nuevo = motivoRapido === m ? null : m;
                                                     setMotivoRapido(nuevo);
-                                                    setMotivoAnulacion(nuevo ?? "");  // siempre sincroniza, limpia si deselecciona
+                                                    setMotivoAnulacion(nuevo ?? "");
                                                 }}
                                                 className={`text-xs px-3 py-2 rounded-lg border text-center transition-all ${motivoRapido === m
                                                     ? "border-red-600 bg-red-50 text-red-800 font-medium"
@@ -622,8 +682,6 @@ export default function Tabla({
                                         ))}
                                     </div>
                                 </div>
-
-                                {/* Textarea */}
                                 <div>
                                     <p className="text-xs font-medium text-gray-500 mb-1">
                                         Detalle adicional{" "}
@@ -642,8 +700,6 @@ export default function Tabla({
                                     </p>
                                 </div>
                             </div>
-
-                            {/* Footer */}
                             <div className="flex gap-2 px-6 pb-5">
                                 <button
                                     onClick={() => { setMostrarModalAnulacion(false); setMotivoRapido(null); }}
@@ -668,7 +724,6 @@ export default function Tabla({
                     </motion.div>
                 </AnimatePresence>
             )}
-
-        </motion.div >
+        </motion.div>
     );
 }
