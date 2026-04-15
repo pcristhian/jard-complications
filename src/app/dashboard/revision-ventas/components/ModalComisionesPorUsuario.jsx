@@ -171,7 +171,7 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                                                 <Award className="w-6 h-6 text-white" />
                                             </div>
                                             <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                                                Comisiones por Usuario
+                                                Comisiones por Promotor
                                             </h2>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
@@ -181,7 +181,7 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                                             </div>
                                             <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-lg border border-gray-200">
                                                 <Users className="w-4 h-4 text-emerald-500" />
-                                                <span>{ventas.length} vendedores</span>
+                                                <span>{ventas.length} promotores</span>
                                             </div>
                                             <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-lg border border-gray-200">
                                                 <Package className="w-4 h-4 text-amber-500" />

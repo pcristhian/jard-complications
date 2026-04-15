@@ -211,21 +211,25 @@ export default function Tabla({
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, ease: "easeOut" }}
-                className="bg-slate-950 border border-slate-800 border-l-[3px] border-l-cyan-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
+                className="bg-white border border-gray-200 border-l-[3px] border-l-blue-500 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh] shadow-sm"
             >
                 <motion.div
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 20 }}
-                    className="flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 border border-slate-700 mb-6"
+                    className="flex items-center justify-center w-16 h-16 rounded-full bg-gray-50 border border-gray-200 mb-6"
                 >
-                    <div className="w-7 h-7 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
+                    <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                        className="w-7 h-7 rounded-full border-2 border-gray-200 border-t-blue-500"
+                    />
                 </motion.div>
                 <motion.p
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.18, duration: 0.18, ease: "easeOut" }}
-                    className="text-slate-200 text-base font-semibold mb-1"
+                    className="text-gray-800 text-base font-semibold mb-1"
                 >
                     Cargando ventas
                 </motion.p>
@@ -233,7 +237,7 @@ export default function Tabla({
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.24, duration: 0.18, ease: "easeOut" }}
-                    className="text-slate-500 text-sm"
+                    className="text-gray-500 text-sm"
                 >
                     Esto tomará solo un momento...
                 </motion.p>
@@ -250,7 +254,7 @@ export default function Tabla({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.22, ease: "easeOut" }}
-                    className="bg-slate-950 border border-slate-800 border-l-[3px] border-l-amber-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
+                    className="bg-white border border-slate-800 border-l-[3px] border-l-amber-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
                 >
                     <motion.div
                         initial={{ scale: 0.7, opacity: 0 }}
@@ -303,15 +307,15 @@ export default function Tabla({
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, ease: "easeOut" }}
-                className="bg-slate-950 border border-slate-800 border-l-[3px] border-l-cyan-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
+                className="bg-white border border-gray-200 border-l-[3px] border-l-blue-500 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh] shadow-sm"
             >
                 <motion.div
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 20 }}
-                    className="flex items-center justify-center mx-auto mb-6 w-16 h-16 rounded-full bg-slate-800 border border-slate-700"
+                    className="flex items-center justify-center mx-auto mb-6 w-16 h-16 rounded-full bg-gray-50 border border-gray-200"
                 >
-                    <svg className="w-7 h-7 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                             d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6M3 17h18M5 17V9a2 2 0 012-2h10a2 2 0 012 2v8" />
                     </svg>
@@ -320,7 +324,7 @@ export default function Tabla({
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.18, duration: 0.18, ease: "easeOut" }}
-                    className="text-slate-200 text-base font-semibold mb-1"
+                    className="text-gray-800 text-base font-semibold mb-1"
                 >
                     No hay ventas registradas
                 </motion.p>
@@ -328,7 +332,7 @@ export default function Tabla({
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.24, duration: 0.18, ease: "easeOut" }}
-                    className="text-slate-500 text-sm"
+                    className="text-gray-500 text-sm"
                 >
                     Comience creando una nueva venta
                 </motion.p>
