@@ -154,7 +154,7 @@ export default function Header({
                                     variants={btnVariants}
                                     onClick={onMostrarComisiones}
                                     // disabled={currentUser?.roles?.nombre !== 'admin'}
-                                    className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                    className="inline-flex items-center gap-2 bg-indigo-100 hover:bg-slate-700 border border-slate-700 text-black px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                                 >
                                     <span className="bg-slate-700 p-1 rounded-md">
                                         <DollarSign className="w-3.5 h-3.5 text-cyan-400" />
