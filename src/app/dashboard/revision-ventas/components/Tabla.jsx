@@ -414,7 +414,7 @@ export default function Tabla({
                     <thead className="sticky top-0 bg-slate-600 z-50 text-white">
                         <tr>
                             {/* Nueva columna de número consecutivo */}
-                            <th className="px-2 py-3 text-center text-xs font-medium uppercase tracking-wider w-16">
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-12">
                                 <div className="flex items-center justify-center gap-1">
                                     <Hash className="w-3 h-3" />
                                     <span>N°</span>
@@ -457,21 +457,21 @@ export default function Tabla({
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="bg-gray-900 divide-y divide-gray-800">
+                    <tbody className="bg-amber-50/30 divide-y divide-amber-200/50">
                         {ventasToShow.map((venta, index) => (
                             <tr key={venta.id}
-                                className="hover:bg-slate-800/60 transition-colors duration-150 group">
+                                className="hover:bg-amber-50 transition-colors duration-150 group">
                                 {/* Celda del número consecutivo */}
-                                <td className="px-2 py-2 text-center">
-                                    <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/50 px-2 py-1 rounded-md">
+                                <td className="px-1 py-2 text-center">
+                                    <span className="text-xs font-mono font-bold text-black bg-cyan-950/50 px-2 py-1 rounded-md">
                                         #{index + 1}
                                     </span>
                                 </td>
                                 <td className="px-1 py-1 text-center">
-                                    <span className="text-xs font-medium text-slate-400 block">
+                                    <span className="text-xs font-bold text-black block">
                                         {new Date(venta.fecha_venta).toLocaleDateString()}
                                     </span>
-                                    <span className="text-[11px] text-amber-400 font-medium">
+                                    <span className="text-[11px] text-amber-600 font-semibold   block">
                                         {new Date(venta.fecha_venta).toLocaleTimeString([], { hour12: false })}
                                     </span>
                                 </td>
@@ -483,7 +483,7 @@ export default function Tabla({
                                 <td className="px-1 py-3 max-w-[260px] overflow-hidden">
                                     <div className="relative group">
                                         <span className="
-            absolute left-0 top-0 whitespace-nowrap text-sm text-slate-300 block leading-snug
+            absolute left-0 top-0 whitespace-nowrap text-sm text-black block leading-snug
             transition-none
             group-hover:transition-transform   
             group-hover:duration-[6000ms] 
@@ -492,14 +492,13 @@ export default function Tabla({
         ">
                                             {venta.producto_nombre}
                                         </span>
-                                        {/* Placeholder invisible para mantener la altura */}
                                         <span className="invisible whitespace-nowrap text-sm text-slate-300 block leading-snug">
                                             {venta.producto_nombre}
                                         </span>
                                     </div>
                                 </td>
                                 <td className="px-3 py-3 text-center">
-                                    <span className="text-xs font-medium text-slate-200 block leading-snug">
+                                    <span className="text-xs font-semibold text-black block leading-snug">
                                         {venta.usuarios?.nombre}
                                     </span>
                                     {venta.rol_nombre !== "promotor" ? (
@@ -513,14 +512,14 @@ export default function Tabla({
                                     )}
                                 </td>
                                 <td className="px-3 py-3 text-center">
-                                    <span className="text-sm text-slate-400">{venta.categoria_nombre}</span>
+                                    <span className="text-sm text-black">{venta.categoria_nombre}</span>
                                 </td>
                                 <td className="px-3 py-3 text-center">
-                                    <span className="text-sm font-semibold text-slate-100">
+                                    <span className="text-sm font-semibold text-black">
                                         {venta.cantidad || "—"}
                                     </span>
                                 </td>
-                                <td className="px-1 py-2 text-sm text-slate-200 text-start">
+                                <td className="px-1 py-2 text-sm text-black text-start">
                                     <span className="font-semibold">
                                         Bs. {parseFloat(venta.total_precio_venta).toFixed(2)}
                                     </span><br />
@@ -547,7 +546,7 @@ export default function Tabla({
                                     {venta.productos?.comision_variable ?
                                         <span>Bs. {parseFloat(venta.productos?.comision_variable).toFixed(2)}</span>
                                         :
-                                        <span className="px-1 py-2 text-center text-sm text-slate-200">
+                                        <span className="px-1 py-2 text-center text-sm text-black font-semibold">
                                             {(() => {
                                                 const reglas = venta.productos?.categorias?.reglas_comision;
                                                 return reglas?.comision_base > 0
@@ -561,7 +560,7 @@ export default function Tabla({
                                 </td>
                                 {rolNombre === "admin" && (
                                     <td className={`
-                                        ${venta.observaciones ? 'px-1 py-2 text-sm text-center text-slate-500' : 'px-1 py-2 text-sm text-center text-slate-200 font-bold'}`}>
+                                        ${venta.observaciones ? 'px-1 py-2 text-sm text-center text-black' : 'px-1 py-2 text-sm text-center text-black font-medium'}`}>
                                         {venta.observaciones ?
                                             <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
                                                 "{venta.observaciones}"</span>
@@ -590,7 +589,7 @@ export default function Tabla({
                                                 border transition-all duration-150
                                                 ${anulando === venta.id
                                                     ? "border-red-300 text-red-400 bg-red-50 opacity-60 cursor-not-allowed"
-                                                    : "border-red-600 text-red-700 hover:bg-red-50 hover:border-red-700 active:scale-95 cursor-pointer"
+                                                    : "border-red-600 text-red-700 hover:bg-red-500 hover:border-red-700 hover:text-white active:scale-95 cursor-pointer"
                                                 }
                                             `}
                                         >
