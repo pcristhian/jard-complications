@@ -126,11 +126,10 @@ export default function Tabla({
     ];
 
     const COLORES = [
-        "text-blue-300 bg-blue-950",
-        "text-violet-300 bg-violet-950",
-        "text-amber-300 bg-amber-950",
-        "text-rose-300 bg-rose-950",
-        "text-teal-300 bg-teal-950",
+        "text-white bg-violet-950",
+        "text-white bg-fuchsia-900",
+        "text-white bg-teal-600",
+        "text-white bg-neutral-800",
         "text-orange-300 bg-orange-950",
     ];
 
@@ -560,9 +559,9 @@ export default function Tabla({
                                 </td>
                                 {rolNombre === "admin" && (
                                     <td className={`
-                                        ${venta.observaciones ? 'px-1 py-2 text-sm text-center text-black' : 'px-1 py-2 text-sm text-center text-black font-medium'}`}>
+                                        ${venta.observaciones ? 'px-1 py-2 text-[12px] text-center text-indigo-700' : 'px-1 py-2 text-sm text-center text-black'}`}>
                                         {venta.observaciones ?
-                                            <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
+                                            <span style={{ maxWidth: "190px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
                                                 "{venta.observaciones}"</span>
                                             : <span> - </span>}
                                     </td>
