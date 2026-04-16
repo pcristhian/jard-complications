@@ -149,7 +149,7 @@ export default function Header({
                                 initial="hidden"
                                 animate="visible"
                             >
-                                <motion.button
+                                {/* <motion.button
                                     custom={0}
                                     variants={btnVariants}
                                     onClick={onMostrarComisiones}
@@ -171,7 +171,7 @@ export default function Header({
                                 >
                                     <span className="text-base leading-none">+</span>
                                     Nueva venta
-                                </motion.button>
+                                </motion.button> */}
                             </motion.div>
                         )}
                     </AnimatePresence>

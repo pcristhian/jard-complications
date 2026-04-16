@@ -16,16 +16,16 @@ import {
 } from 'lucide-react'
 
 const menuItems = [
-    {
-        id: 'ventas',
-        name: 'Registro de Ventas',
-        icon: ShoppingCart,
-        roles: [1, 2, 3],
-        path: '/dashboard/ventas'
-    },
+    // {
+    //     id: 'ventas',
+    //     name: 'Registro de Ventas',
+    //     icon: ShoppingCart,
+    //     roles: [1, 2, 3],
+    //     path: '/dashboard/ventas'
+    // },
     {
         id: 'revision-ventas',
-        name: 'Revisión de Ventas',
+        name: 'Registro de Ventas',
         icon: ShoppingCart,
         roles: [1, 2, 3],
         path: '/dashboard/revision-ventas'
@@ -46,7 +46,7 @@ const menuItems = [
     },
     {
         id: 'inventario',
-        name: 'Traslados de Productos',
+        name: 'Traspaso de Productos',
         icon: Package,
         roles: [1, 2, 3],
         path: '/dashboard/control-traslados'
