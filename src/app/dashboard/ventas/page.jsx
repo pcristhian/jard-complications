@@ -6,6 +6,7 @@ import { useVentas } from "./hooks/useVentas";
 import Header from "./components/Header";
 import Tabla from "./components/Tabla";
 import ModalNuevaVenta from "./components/ModalNuevaVenta";
+import ModalComisionesPorUsuario from "./components/ModalComisionesPorUsuario";
 import FiltroVentas from "./components/FiltrosVentas";
 export default function VentasPage() {
     const {
@@ -15,25 +16,31 @@ export default function VentasPage() {
         sucursalCargada,
         rolNombre,
         ventas,
-        obtenerVendedores,
         crearVenta,
+        obtenerVendedores,
         anularVenta,
         actualizarDepositado,
         actualizarConfirmacionDepositado,
         filtrarVentasPorCategoria,
+        filtrarVentasPorUsuarios,
         filtrarVentasPorBusqueda,
         filtrarVentasFecha,
         obtenerMisVentas
     } = useVentas();
 
     const [modalAbierto, setModalAbierto] = useState(false);
+    const [modalVenta, setModalVenta] = useState(false);
     const [filtroCategoria, setFiltroCategoria] = useState(''); // ← Estado para el filtro
+    const [filtroUsuarios, setFiltroUsuarios] = useState(''); // ← Nuevo estado
     const [terminoBusqueda, setTerminoBusqueda] = useState(''); // ← Nuevo estado
     const [filtroFecha, setFiltroFecha] = useState(null);
 
     const manejarFiltroCategoria = (categoria) => {
         setFiltroCategoria(categoria);
     };
+    const manejarFiltroUsuarios = (usuario) => {
+        setFiltroUsuarios(usuario);
+    }
 
     const manejarBusqueda = (termino) => {
         setTerminoBusqueda(termino);
@@ -46,12 +53,12 @@ export default function VentasPage() {
         )].sort();
         return categorias;
     };
-    const obtenerVendedoresUnicos = () => {
-        const vendedores = [...new Set(ventas
-            .filter(venta => venta.vendedor_nombre && venta.vendedor_nombre.trim() !== '')
-            .map(venta => venta.vendedor_nombre)
+    const obtenerUsuariosUnicos = () => {
+        const usuarios = [...new Set(ventas
+            .filter(venta => venta.usuarios?.nombre && venta.usuarios?.nombre.trim() !== '')
+            .map(venta => venta.usuarios?.nombre)
         )].sort();
-        return vendedores;
+        return usuarios;
     };
 
     const [mostrarSoloActivas, setMostrarSoloActivas] = useState(true);
@@ -64,12 +71,13 @@ export default function VentasPage() {
         if (filtroCategoria) {
             ventasFiltradas = filtrarVentasPorCategoria(ventasFiltradas, filtroCategoria);
         }
-
+        if (filtroUsuarios) {
+            ventasFiltradas = filtrarVentasPorUsuarios(ventasFiltradas, filtroUsuarios);
+        }
         // Luego aplicar búsqueda
         if (terminoBusqueda) {
             ventasFiltradas = filtrarVentasPorBusqueda(ventasFiltradas, terminoBusqueda);
         }
-
         // Finalmente aplicar filtro de fecha
         if (filtroFecha) {
             ventasFiltradas = filtrarVentasFecha(ventasFiltradas, filtroFecha);
@@ -77,9 +85,8 @@ export default function VentasPage() {
         if (mostrarSoloActivas) {
             ventasFiltradas = ventasFiltradas.filter(v => v.estado === "activa");
         }
-
         return ventasFiltradas;
-    }, [ventas, filtroCategoria, terminoBusqueda, filtroFecha, mostrarSoloActivas]);
+    }, [ventas, filtroCategoria, filtroUsuarios, terminoBusqueda, filtroFecha, mostrarSoloActivas]);
 
     if (!currentUser) {
         return (
@@ -104,17 +111,21 @@ export default function VentasPage() {
     return (
         <div className="min-h-screen p-3 space-y-1 text-gray-800 text-gray-500">
             <Header
-                onNuevaVenta={() => setModalAbierto(true)}
+                onMostrarComisiones={() => setModalAbierto(true)}
+                onNuevaVenta={() => setModalVenta(true)}
                 currentSucursal={currentSucursal}
                 rolNombre={rolNombre}
                 currentUser={currentUser}
             />
             <FiltroVentas
                 filtroCategoria={filtroCategoria}
+                filtroUsuarios={filtroUsuarios}
+                onFiltroUsuariosChange={manejarFiltroUsuarios}
                 onFiltroCategoriaChange={manejarFiltroCategoria}
                 terminoBusqueda={terminoBusqueda}
                 onBusquedaChange={manejarBusqueda}
                 categorias={obtenerCategoriasUnicas()}
+                usuarios={obtenerUsuariosUnicos()}
                 totalVentas={ventas.length}
                 ventasFiltradas={ventasFiltradas}
                 filtroFecha={filtroFecha}
@@ -130,15 +141,20 @@ export default function VentasPage() {
                 onActualizarConfirmacionDepositado={actualizarConfirmacionDepositado}
                 obtenerMisVentas={obtenerMisVentas}
                 currentUser={currentUser}
+                rolNombre={rolNombre}
                 currentSucursal={currentSucursal}
                 ventas={ventasFiltradas}
                 filtrarVentasPorCategoria={filtrarVentasPorCategoria}
                 mostrarSoloActivas={mostrarSoloActivas}
             />
 
-            <ModalNuevaVenta
+            <ModalComisionesPorUsuario
                 abierto={modalAbierto}
                 onCerrar={() => setModalAbierto(false)}
+            />
+            <ModalNuevaVenta
+                abierto={modalVenta}
+                onCerrar={() => setModalVenta(false)}
                 productos={productos}
                 onCreateVenta={crearVenta}
                 currentUser={currentUser}

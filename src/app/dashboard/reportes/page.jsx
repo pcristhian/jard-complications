@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { useReportes } from "./hooks/useReportes";
 import Header from "./components/Header";
 import Tabla from "./components/Tabla";
-import { useVentas } from "../ventas/hooks/useVentas";
+import { useVentas } from "../dashboard/hooks/useDashboardData";
 
 export default function ReportesPage() {
     // Comentamos temporalmente el código de reportes mientras trabajamos en el módulo

@@ -1,0 +1,355 @@
+// src/app/dashboard/components/ModalMeta.jsx
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase/client';
+
+export default function ModalMeta({ isOpen, onClose, categories, currentMonth }) {
+    // Estado local para las metas (sin guardar inmediatamente)
+    const [localMetas, setLocalMetas] = useState({});
+    const [localTypes, setLocalTypes] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [message, setMessage] = useState(null);
+
+    const getMonthNumber = (monthName) => {
+        const meses = {
+            'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4,
+            'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8,
+            'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+        };
+        return meses[monthName] || 1;
+    };
+
+    // Cargar metas desde la BD
+    const cargarMetas = async () => {
+        if (!categories?.length) return;
+
+        setLoading(true);
+        const mesNumero = getMonthNumber(selectedMonth);
+
+        try {
+            const { data, error } = await supabase
+                .from('metas_categorias')
+                .select('*')
+                .eq('mes', mesNumero)
+                .eq('anio', selectedYear);
+
+            if (error) throw error;
+
+            const metasMap = {};
+            const typesMap = {};
+
+            data?.forEach(meta => {
+                metasMap[meta.categoria_id] = meta.valor_meta;
+                typesMap[meta.categoria_id] = meta.tipo_meta;
+            });
+
+            setLocalMetas(metasMap);
+
+            // Establecer tipos por categoría
+            const types = {};
+            categories.forEach(cat => {
+                const defaultType = ['Celulares', 'Ropa', 'Zapatos', 'Accesorios'].includes(cat.name)
+                    ? 'quantity' : 'revenue';
+                types[cat.id] = typesMap[cat.id] || defaultType;
+            });
+            setLocalTypes(types);
+
+        } catch (error) {
+            console.error('Error cargando metas:', error);
+            setMessage({ type: 'error', text: 'Error al cargar metas' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Guardar todas las metas de una vez
+    const guardarTodo = async () => {
+        setSaving(true);
+        const mesNumero = getMonthNumber(selectedMonth);
+        let hasError = false;
+
+        try {
+            // Procesar cada categoría
+            for (const category of categories) {
+                const categoriaId = category.id;
+                const valorMeta = localMetas[categoriaId] || null;
+                const tipoMeta = localTypes[categoriaId] || 'quantity';
+
+                // Buscar si ya existe
+                const { data: existing } = await supabase
+                    .from('metas_categorias')
+                    .select('id')
+                    .eq('categoria_id', categoriaId)
+                    .eq('mes', mesNumero)
+                    .eq('anio', selectedYear);
+
+                if (valorMeta && valorMeta > 0) {
+                    // Guardar o actualizar
+                    if (existing && existing.length > 0) {
+                        await supabase
+                            .from('metas_categorias')
+                            .update({
+                                tipo_meta: tipoMeta,
+                                valor_meta: valorMeta,
+                                updated_at: new Date()
+                            })
+                            .eq('id', existing[0].id);
+                    } else {
+                        await supabase
+                            .from('metas_categorias')
+                            .insert({
+                                categoria_id: categoriaId,
+                                mes: mesNumero,
+                                anio: selectedYear,
+                                tipo_meta: tipoMeta,
+                                valor_meta: valorMeta
+                            });
+                    }
+                } else {
+                    // Eliminar si existe y no tiene valor
+                    if (existing && existing.length > 0) {
+                        await supabase
+                            .from('metas_categorias')
+                            .delete()
+                            .eq('id', existing[0].id);
+                    }
+                }
+            }
+
+            setMessage({ type: 'success', text: '✅ Metas guardadas correctamente' });
+            setTimeout(() => {
+                setMessage(null);
+                onClose();
+                window.location.reload();
+            }, 1500);
+
+        } catch (error) {
+            console.error('Error guardando:', error);
+            setMessage({ type: 'error', text: '❌ Error al guardar metas' });
+            hasError = true;
+        } finally {
+            setSaving(false);
+            if (!hasError) {
+                // Recargar después de un delay
+            }
+        }
+    };
+
+    // Actualizar meta localmente (sin guardar en BD)
+    const handleMetaChange = (categoriaId, value) => {
+        const cleanValue = value.replace(/[^0-9]/g, '');
+        const numValue = cleanValue === '' ? null : parseInt(cleanValue, 10);
+
+        setLocalMetas(prev => {
+            if (numValue === null || isNaN(numValue)) {
+                const newMetas = { ...prev };
+                delete newMetas[categoriaId];
+                return newMetas;
+            }
+            return { ...prev, [categoriaId]: numValue };
+        });
+    };
+
+    // Actualizar tipo localmente
+    const handleTypeChange = (categoriaId, type) => {
+        setLocalTypes(prev => ({ ...prev, [categoriaId]: type }));
+    };
+
+    // Cambiar mes/año
+    const handleMonthYearChange = () => {
+        cargarMetas();
+    };
+
+    useEffect(() => {
+        if (isOpen && categories?.length) {
+            cargarMetas();
+        }
+    }, [isOpen, selectedMonth, selectedYear]);
+
+    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const years = [2023, 2024, 2025, 2026];
+
+    if (!categories?.length) return null;
+
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <>
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 z-50"
+                        onClick={onClose}
+                    />
+
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
+                                   bg-white rounded-xl shadow-2xl z-50 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+                    >
+                        {/* Header */}
+                        <div className="px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white flex-shrink-0">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-2xl">🎯</span>
+                                    <h2 className="text-xl font-bold">Configurar Metas</h2>
+                                </div>
+                                <button onClick={onClose} className="text-white/80 hover:text-white">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Selectores */}
+                        <div className="px-6 py-4 bg-gray-50 border-b flex-shrink-0">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Mes</label>
+                                    <select
+                                        value={selectedMonth}
+                                        onChange={(e) => {
+                                            setSelectedMonth(e.target.value);
+                                            handleMonthYearChange();
+                                        }}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        {meses.map(month => (
+                                            <option key={month} value={month}>{month}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Año</label>
+                                    <select
+                                        value={selectedYear}
+                                        onChange={(e) => {
+                                            setSelectedYear(parseInt(e.target.value));
+                                            handleMonthYearChange();
+                                        }}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        {years.map(year => (
+                                            <option key={year} value={year}>{year}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Mensaje */}
+                        {message && (
+                            <div className={`px-6 py-2 border-b ${message.type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                <p className={`text-sm ${message.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                                    {message.text}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Lista de categorías */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {loading ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                                    <p className="text-gray-500 mt-2">Cargando metas...</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {categories.map((category) => {
+                                        const currentType = localTypes[category.id] || 'quantity';
+                                        const currentValue = localMetas[category.id] || '';
+
+                                        return (
+                                            <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <div
+                                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+                                                        style={{ backgroundColor: `${category.color}15` }}
+                                                    >
+                                                        {getCategoryIcon(category.name)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-gray-800">{category.name}</p>
+                                                        <p className="text-[10px] text-gray-400">
+                                                            Ventas actuales: {currentType === 'quantity'
+                                                                ? `${(category.totalUnits || 0).toLocaleString()} unidades`
+                                                                : `$${(category.sales || 0).toLocaleString()}`
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-3">
+                                                    <select
+                                                        value={currentType}
+                                                        onChange={(e) => handleTypeChange(category.id, e.target.value)}
+                                                        className="text-xs px-2 py-1 border rounded-lg bg-white"
+                                                    >
+                                                        <option value="quantity">📦 Cantidad</option>
+                                                        <option value="revenue">💰 Ingresos</option>
+                                                    </select>
+
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        value={currentValue}
+                                                        onChange={(e) => handleMetaChange(category.id, e.target.value)}
+                                                        className="w-28 px-2 py-1 border rounded-lg text-right"
+                                                        placeholder="Sin meta"
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer con botón Guardar */}
+                        <div className="px-6 py-4 bg-gray-50 border-t flex justify-between items-center flex-shrink-0">
+                            <div className="flex-1">
+                                <p className="text-xs text-gray-400">
+                                    💡 Las metas se guardan cuando presionas "Guardar Cambios"
+                                </p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={onClose}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={guardarTodo}
+                                    disabled={saving}
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium shadow-sm"
+                                >
+                                    {saving ? 'Guardando...' : '💾 Guardar Cambios'}
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </>
+            )}
+        </AnimatePresence>
+    );
+}
+
+function getCategoryIcon(categoryName) {
+    const icons = {
+        'Celulares': '📱', 'Ropa': '👕', 'Electrónicos': '💻',
+        'Zapatos': '👟', 'Libros': '📚', 'Accesorios': '⌚',
+        'Hogar': '🏠', 'Deportes': '⚽', 'Juguetes': '🎮',
+        'Salud': '💊', 'Belleza': '💄', 'Alimentos': '🍔',
+        'Bebidas': '🥤', 'Sin Categoría': '📦',
+    };
+    return icons[categoryName] || '📦';
+}

@@ -1,11 +1,14 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { WifiOff, RefreshCw, X, AlertCircle, Loader2 } from 'lucide-react';
+import { WifiOff, RefreshCw, X, AlertCircle, Loader2, Hash } from 'lucide-react';
 import { toast } from "react-hot-toast";
+
 export default function Tabla({
     onAnularVenta,
     onActualizarDepositado,
+    onActualizarConfirmacionDepositado,
     currentUser,
+    rolNombre,
     obtenerMisVentas,
     currentSucursal,
     ventas,
@@ -14,27 +17,83 @@ export default function Tabla({
     const [error, setError] = useState(null);
     const [anulando, setAnulando] = useState(null);
     const [actualizando, setActualizando] = useState(null);
+    const [actualizandoConfirmacion, setActualizandoConfirmacion] = useState(null);
+
+    // Estados para infinite scroll
+    const [displayCount, setDisplayCount] = useState(20);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+
     const ventasSeguras = Array.isArray(ventas) ? ventas : [];
+
+    // Calcular ventas a mostrar basado en displayCount
+    const ventasToShow = useMemo(() => {
+        return ventasSeguras.slice(0, displayCount);
+    }, [ventasSeguras, displayCount]);
+
+    // Verificar si hay más datos para cargar
+    useEffect(() => {
+        setHasMore(displayCount < ventasSeguras.length);
+    }, [displayCount, ventasSeguras.length]);
+
+    // Resetear displayCount cuando cambien las ventas (por filtros)
+    useEffect(() => {
+        setDisplayCount(20);
+        setHasMore(true);
+        setIsLoadingMore(false);
+    }, [ventasSeguras.length]);
+
     //para barra de progreso en tabla
     const [scrollProgress, setScrollProgress] = useState(0);
     const tableContainerRef = useRef(null);
+    const loadMoreTriggerRef = useRef(null);
 
     //estados para modal anulacion
     const [mostrarModalAnulacion, setMostrarModalAnulacion] = useState(false);
     const [motivoAnulacion, setMotivoAnulacion] = useState("");
     const [ventaAAnular, setVentaAAnular] = useState(null);
-
     const [motivoRapido, setMotivoRapido] = useState(null);
 
+    // Función para cargar más registros
+    const loadMore = useCallback(async () => {
+        if (isLoadingMore || !hasMore) return;
 
+        setIsLoadingMore(true);
 
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        setDisplayCount(prev => Math.min(prev + 20, ventasSeguras.length));
+        setIsLoadingMore(false);
+    }, [isLoadingMore, hasMore, ventasSeguras.length]);
+
+    // Observador de intersección para infinite scroll
+    useEffect(() => {
+        if (!loadMoreTriggerRef.current) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+                    loadMore();
+                }
+            },
+            { threshold: 0.1, rootMargin: "100px" }
+        );
+
+        observer.observe(loadMoreTriggerRef.current);
+
+        return () => {
+            if (loadMoreTriggerRef.current) {
+                observer.unobserve(loadMoreTriggerRef.current);
+            }
+        };
+    }, [hasMore, isLoadingMore, loadMore, ventasToShow.length]);
 
     useEffect(() => {
         obtenerMisVentas();
         setLoading(false);
     }, [currentUser, currentSucursal]);
 
-    // Nuevo efecto para el scroll
+    // Efecto para el scroll (barra de progreso)
     useEffect(() => {
         const tableContainer = tableContainerRef.current;
 
@@ -57,13 +116,8 @@ export default function Tabla({
                 tableContainer.removeEventListener('scroll', handleScroll);
             }
         };
-    }, [ventas]);
-    const handleAnularVenta = (ventaId) => {
-        setVentaAAnular(ventaId);
-        setMotivoAnulacion("");
-        setMotivoRapido(null);
-        setMostrarModalAnulacion(true);
-    };
+    }, [ventasToShow]);
+
     const MOTIVOS_RAPIDOS = [
         "Error en el monto",
         "Pedido duplicado",
@@ -71,8 +125,31 @@ export default function Tabla({
         "Producto no disponible",
     ];
 
+    const COLORES = [
+        "text-white bg-violet-950",
+        "text-white bg-fuchsia-900",
+        "text-white bg-teal-600",
+        "text-white bg-neutral-800",
+        "text-orange-300 bg-orange-950",
+    ];
+
+    const colorCaja = (caja) => {
+        if (!caja) return COLORES[0];
+        const hash = [...caja].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+        return COLORES[hash % COLORES.length];
+    };
+
+    const handleAnularVenta = (ventaId) => {
+        setVentaAAnular(ventaId);
+        setMotivoAnulacion("");
+        setMotivoRapido(null);
+        setMostrarModalAnulacion(true);
+    };
+
+    const motivoFinal = motivoRapido || motivoAnulacion.trim();
+
     const confirmarAnulacion = async () => {
-        if (!motivoAnulacion.trim()) {
+        if (!motivoFinal) {
             toast.custom((t) => (
                 <motion.div
                     initial={{ opacity: 0, x: 50 }}
@@ -86,14 +163,13 @@ export default function Tabla({
                     <span className="font-medium">¡Atención! Debe ingresar un motivo.</span>
                 </motion.div>
             ), { position: 'top-right', duration: 400 });
-
             return;
         }
 
         setAnulando(ventaAAnular);
 
         try {
-            await onAnularVenta(ventaAAnular, motivoAnulacion);
+            await onAnularVenta(ventaAAnular, motivoFinal);
             await obtenerMisVentas();
         } catch (err) {
             alert("Error al anular venta: " + err.message);
@@ -104,80 +180,120 @@ export default function Tabla({
         }
     };
 
-
-
-    const handleToggleDepositado = async (ventaId, currentValue) => {
+    const handleToggleConfirmacionDepositado = async (ventaId, currentValue) => {
         const nuevoValor = !currentValue;
         const ventaIdStr = ventaId.toString();
 
         try {
-            setActualizando(ventaIdStr);
-            await onActualizarDepositado(ventaId, nuevoValor);
+            setActualizandoConfirmacion(ventaIdStr);
+            await onActualizarConfirmacionDepositado(ventaId, nuevoValor);
 
+            toast.success(
+                `Confirmación ${nuevoValor ? 'activada' : 'desactivada'} correctamente`,
+                {
+                    duration: 3000,
+                    icon: nuevoValor ? '✅' : '↩️',
+                }
+            );
         } catch (err) {
-            alert("Error al actualizar depósito: " + err.message);
+            toast.error(`Error al actualizar depósito: ${err.message}`, {
+                duration: 4000,
+            });
         } finally {
-            setActualizando(null);
+            setActualizandoConfirmacion(null);
         }
     };
+
+    // Renderizado condicional (loading, offline, sin datos, error)
     if (loading) {
         return (
-            <div className="bg-white p-8 rounded-lg shadow text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Cargando mis ventas...</p>
-            </div>
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="bg-white border border-gray-200 border-l-[3px] border-l-blue-500 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh] shadow-sm"
+            >
+                <motion.div
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 20 }}
+                    className="flex items-center justify-center w-16 h-16 rounded-full bg-gray-50 border border-gray-200 mb-6"
+                >
+                    <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                        className="w-7 h-7 rounded-full border-2 border-gray-200 border-t-blue-500"
+                    />
+                </motion.div>
+                <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.18, duration: 0.18, ease: "easeOut" }}
+                    className="text-gray-800 text-base font-semibold mb-1"
+                >
+                    Cargando ventas
+                </motion.p>
+                <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.24, duration: 0.18, ease: "easeOut" }}
+                    className="text-gray-500 text-sm"
+                >
+                    Esto tomará solo un momento...
+                </motion.p>
+            </motion.div>
         );
     }
 
     if (!navigator.onLine) {
         return (
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
                 <motion.div
-                    initial={{ opacity: 0, y: -120 }}
+                    key="offline"
+                    initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-xl shadow-lg border border-yellow-200 text-center"
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.22, ease: "easeOut" }}
+                    className="bg-white border border-slate-800 border-l-[3px] border-l-amber-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
                 >
                     <motion.div
-                        animate={{
-                            scale: [1, 1.1, 1],
-                            rotate: [0, -5, 5, 0]
-                        }}
-                        transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            repeatDelay: 3
-                        }}
-                        className="inline-block mb-4"
+                        initial={{ scale: 0.7, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 20 }}
+                        className="flex items-center justify-center mx-auto mb-6 w-16 h-16 rounded-full bg-slate-800 border border-slate-700"
                     >
-                        <WifiOff className="w-12 h-12 text-yellow-600 mx-auto" />
+                        <motion.div
+                            animate={{ scale: [1, 1.12, 1], rotate: [0, -6, 6, 0] }}
+                            transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 2, ease: "easeInOut" }}
+                        >
+                            <WifiOff className="w-7 h-7 text-amber-400" />
+                        </motion.div>
                     </motion.div>
-
-                    <motion.h3
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                        className="text-yellow-800 text-xl font-bold mb-2"
+                    <motion.p
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.18, duration: 0.18, ease: "easeOut" }}
+                        className="text-slate-200 text-base font-semibold mb-1"
                     >
                         Sin conexión a internet
-                    </motion.h3>
-
+                    </motion.p>
                     <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.4 }}
-                        className="text-yellow-700 mb-4"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.24, duration: 0.18, ease: "easeOut" }}
+                        className="text-slate-500 text-sm mb-6"
                     >
                         Revisa tu conexión e inténtalo nuevamente.
                     </motion.p>
-
                     <motion.button
-                        initial={{ scale: 5 }}
-                        animate={{ scale: 1 }}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3, duration: 0.18, ease: "easeOut" }}
+                        whileTap={{ scale: 0.96 }}
                         onClick={() => window.location.reload()}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded-full font-medium flex items-center justify-center gap-2 mx-auto transition-colors"
+                        className="inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-slate-900 px-5 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
-                        <RefreshCw className="w-4 h-4" />
+                        <RefreshCw className="w-3.5 h-3.5" />
                         Reintentar
                     </motion.button>
                 </motion.div>
@@ -185,30 +301,99 @@ export default function Tabla({
         );
     }
 
-    if (ventas.length === 0) {
+    if (ventasSeguras.length === 0) {
         return (
-            <div className="bg-white p-8 rounded-lg shadow text-center">
-                <p className="text-gray-500 text-lg">No hay ventas registradas</p>
-                <p className="text-gray-400">Comience creando una nueva venta</p>
-            </div>
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="bg-white border border-gray-200 border-l-[3px] border-l-blue-500 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh] shadow-sm"
+            >
+                <motion.div
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 20 }}
+                    className="flex items-center justify-center mx-auto mb-6 w-16 h-16 rounded-full bg-gray-50 border border-gray-200"
+                >
+                    <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                            d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6M3 17h18M5 17V9a2 2 0 012-2h10a2 2 0 012 2v8" />
+                    </svg>
+                </motion.div>
+                <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.18, duration: 0.18, ease: "easeOut" }}
+                    className="text-gray-800 text-base font-semibold mb-1"
+                >
+                    No hay ventas registradas
+                </motion.p>
+                <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.24, duration: 0.18, ease: "easeOut" }}
+                    className="text-gray-500 text-sm"
+                >
+                    Comience creando una nueva venta
+                </motion.p>
+            </motion.div>
         );
     }
 
     if (error) {
         return (
-            <div className="bg-red-50 border border-red-200 p-6 rounded-lg">
-                <p className="text-red-600 font-semibold">Error: {error}</p>
-                <button
-                    onClick={obtenerMisVentas}
-                    className="mt-4 bg-red-600 text-white px-4 py-2 rounded"
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="bg-slate-950 border border-slate-800 border-l-[3px] border-l-red-500 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]"
+            >
+                <motion.div
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 20 }}
+                    className="flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 border border-slate-700 mb-6"
                 >
+                    <svg className="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                            d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                </motion.div>
+                <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.18, duration: 0.18, ease: "easeOut" }}
+                    className="text-slate-200 text-base font-semibold mb-1"
+                >
+                    Ocurrió un error
+                </motion.p>
+                <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.24, duration: 0.18, ease: "easeOut" }}
+                    className="text-slate-500 text-sm mb-6 max-w-xs"
+                >
+                    {error}
+                </motion.p>
+                <motion.button
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3, duration: 0.18, ease: "easeOut" }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={obtenerMisVentas}
+                    className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-red-800 text-red-400 px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
                     Reintentar
-                </button>
-            </div>
+                </motion.button>
+            </motion.div>
         );
     }
 
-
+    // Renderizado principal con infinite scroll y números consecutivos
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -229,70 +414,121 @@ export default function Tabla({
                 className="overflow-x-auto max-h-[73vh] overflow-y-auto"
             >
                 <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="sticky top-0 bg-gray-500 z-50 text-white">
+                    <thead className="sticky top-0 bg-slate-600 z-50 text-white">
                         <tr>
+                            {/* Nueva columna de número consecutivo */}
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-12">
+                                <div className="flex items-center justify-center gap-1">
+                                    <Hash className="w-3 h-3" />
+                                    <span>N°</span>
+                                </div>
+                            </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Fecha
                             </th>
                             <th className="px-2 py-3 text-start text-xs font-medium uppercase tracking-wider">
-                                Codigo
+                                Código
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Producto
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Categoria
+                                Promotor/a
+                            </th>
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                                Categoría
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Cantidad
                             </th>
-                            <th className="px-1 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Precio
                             </th>
-                            <th className="px-1 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                                Comision
-                            </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Observaciones
+                                Comisión
                             </th>
-                            {/* <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                            {rolNombre === "admin" && (
+                                <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                                    Observaciones
+                                </th>
+                            )}
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Depositado
                             </th>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Deposito <br /> Confirmado
-                            </th> */}
                             <th className="px-2 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Anular <br /> Venta
+                                Estado
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {ventasSeguras.map((venta) => (
-                            <tr key={venta.id} className="hover:bg-sky-100 py-4 relative group">
-                                <td className="px-1 text-sm font-semibold text-center text-gray-900">
-                                    {new Date(venta.fecha_venta).toLocaleDateString()} <br />
-                                    <span className="text-xs text-orange-500 bg-orange-100 px-1 rounded">
+                    <tbody className="bg-amber-50/30 divide-y divide-amber-200/50">
+                        {ventasToShow.map((venta, index) => (
+                            <tr key={venta.id}
+                                className="hover:bg-amber-50 transition-colors duration-150 group">
+                                {/* Celda del número consecutivo */}
+                                <td className="px-1 py-2 text-center">
+                                    <span className="text-xs font-mono font-bold text-black bg-cyan-950/50 px-2 py-1 rounded-md">
+                                        #{index + 1}
+                                    </span>
+                                </td>
+                                <td className="px-1 py-1 text-center">
+                                    <span className="text-xs font-bold text-black block">
+                                        {new Date(venta.fecha_venta).toLocaleDateString()}
+                                    </span>
+                                    <span className="text-[11px] text-amber-600 font-semibold   block">
                                         {new Date(venta.fecha_venta).toLocaleTimeString([], { hour12: false })}
                                     </span>
                                 </td>
-                                <td className="px-2 w-min text-sm font-medium text-gray-900">
-                                    {venta.producto_codigo}
+                                <td className="px-2 py-2">
+                                    <span className="text-xs tracking-widest font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
+                                        {venta.producto_codigo}
+                                    </span>
                                 </td>
-                                <td className="px-1 w-min text-sm text-start text-gray-900"
-                                    style={{ maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {venta.producto_nombre}
+                                <td className="px-1 py-3 max-w-[260px] overflow-hidden">
+                                    <div className="relative group">
+                                        <span className="
+            absolute left-0 top-0 whitespace-nowrap text-sm text-black block leading-snug
+            transition-none
+            group-hover:transition-transform
+            group-hover:duration-[6000ms]
+            group-hover:ease-linear
+            group-hover:-translate-x-full
+        ">
+                                            {venta.producto_nombre}
+                                        </span>
+                                        <span className="invisible whitespace-nowrap text-sm text-slate-300 block leading-snug">
+                                            {venta.producto_nombre}
+                                        </span>
+                                    </div>
                                 </td>
-                                <td className="px-1 text-sm text-center text-gray-900">
-                                    {venta.categoria_nombre}
+                                <td className="px-3 py-3 text-center">
+                                    <span className="text-xs font-semibold text-black block leading-snug">
+                                        {venta.usuarios?.nombre}
+                                    </span>
+                                    {venta.rol_nombre !== "promotor" ? (
+                                        <span className="inline-block mt-0.5 text-[10px] font-semibold text-indigo-300 bg-indigo-950 px-1.5 py-0.5 rounded-full">
+                                            {venta.rol_nombre}
+                                        </span>
+                                    ) : (
+                                        <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${colorCaja(venta.usuarios?.caja)}`}>
+                                            {venta.usuarios?.caja}
+                                        </span>
+                                    )}
                                 </td>
-                                <td className="px-1 text-sm text-center font-semibold text-gray-900">
-                                    {venta.cantidad || "sin datos"}
+                                <td className="px-3 py-3 text-center">
+                                    <span className="text-sm text-black">{venta.categoria_nombre}</span>
                                 </td>
-                                <td className="px-1 text-sm text-gray-900 text-start">
-                                    <span className="font-semibold"> Bs. {parseFloat(venta.total_precio_venta).toFixed(2)}</span><br />
+                                <td className="px-3 py-3 text-center">
+                                    <span className="text-sm font-semibold text-black">
+                                        {venta.cantidad || "—"}
+                                    </span>
+                                </td>
+                                <td className="px-1 py-2 text-sm text-black text-start">
+                                    <span className="font-semibold">
+                                        Bs. {parseFloat(venta.total_precio_venta).toFixed(2)}
+                                    </span><br />
                                     {venta.descuento_venta ? (
                                         <span className="text-[12px] font-semibold text-orange-600">
-                                            Bs. - {parseFloat(venta.descuento_venta).toFixed(2)} x unid <br />
+                                            Bs. - {parseFloat(venta.descuento_venta).toFixed(2)} desc. <br />
                                             {venta.cantidad === 1 && (
                                                 <>
                                                     <span className="text-blue-500 text-[12px] text-center font-semibold">
@@ -300,7 +536,6 @@ export default function Tabla({
                                                     </span>
                                                 </>
                                             )}  </span>
-
                                     ) : ''}
                                     {venta.cantidad > 1 && (
                                         <>
@@ -310,13 +545,13 @@ export default function Tabla({
                                         </>
                                     )}
                                 </td>
-                                <td className="px-1 text-left text-sm font-semibold">
+                                <td className="px-1 py-2 text-center text-sm font-semibold">
                                     {venta.productos?.comision_variable ?
                                         <span>Bs. {parseFloat(venta.productos?.comision_variable).toFixed(2)}</span>
                                         :
-                                        <span className="px-1 py-4 text-left text-sm text-gray-900">
+                                        <span className="px-1 py-2 text-center text-sm text-black font-semibold">
                                             {(() => {
-                                                const reglas = venta.productos?.categorias?.reglas_comision
+                                                const reglas = venta.productos?.categorias?.reglas_comision;
                                                 return reglas?.comision_base > 0
                                                     ? <span>
                                                         Bs. {parseFloat(reglas.comision_base).toFixed(2)}
@@ -325,55 +560,41 @@ export default function Tabla({
                                             })()}
                                         </span>
                                     }
-                                    <br />
-                                    {venta.cantidad > 1 ?
-                                        <span className="text-blue-500 text-[12px] text-center font-semibold"> x unid</span> : ''}
                                 </td>
-                                <td className={`
-                                    ${venta.observaciones ? 'px-1 text-sm text-center text-green-700' : 'px-1 py-4 text-sm text-center text-gray-700 font-bold'}`}>
-                                    {venta.observaciones ? <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>{venta.observaciones}</span> : <span> - </span>}
-                                </td>
-                                {/* <td className="px-1 text-center whitespace-nowrap">
+                                {rolNombre === "admin" && (
+                                    <td className={`
+                                        ${venta.observaciones ? 'px-1 py-2 text-[12px] text-center text-indigo-700' : 'px-1 py-2 text-sm text-center text-black'}`}>
+                                        {venta.observaciones ?
+                                            <span style={{ maxWidth: "190px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
+                                                "{venta.observaciones}"</span>
+                                            : <span> - </span>}
+                                    </td>
+                                )}
+                                <td className="px-1 py-2 text-center whitespace-nowrap">
                                     <input
                                         type="checkbox"
-                                        checked={venta.depositado}
-                                        onChange={() => handleToggleDepositado(venta.id, venta.depositado)}
-                                        disabled={venta.estado === "anulada" || actualizando === venta.id.toString()}
-                                        className={`h-4 w-4 text-blue-600 rounded ${venta.estado === 'activa' ? 'cursor-pointer' : 'cursor-not-allowed'} ${actualizando === venta.id.toString() ? 'opacity-50' : ''}`}
+                                        checked={venta.confirmacion_depositado}
+                                        onChange={() => handleToggleConfirmacionDepositado(venta.id, venta.confirmacion_depositado)}
+                                        disabled={venta.estado === "anulada" || actualizandoConfirmacion === venta.id.toString()}
+                                        className={`h-4 w-4 text-blue-600 rounded ml-3 ${venta.estado === 'activa' ? 'cursor-pointer' : 'cursor-not-allowed'} ${actualizandoConfirmacion === venta.id.toString() ? 'opacity-50' : ''}`}
                                         style={{
-                                            accentColor: venta.depositado ? '#3059a5ff' : '#ef4444'
+                                            accentColor: venta.confirmacion_depositado ? '#2f9e2fff' : '#ec1b1bff'
                                         }}
                                     />
-                                </td> */}
-                                {/* <td className="px-1 text-center whitespace-nowrap">
-                                    <span
-                                        className={
-                                            venta.estado !== "activa"
-                                                ? 'text-md text-red-600 opacity-50'
-                                                : venta.confirmacion_depositado
-                                                    ? 'text-xl text-green-600'
-                                                    : 'text-sm text-amber-900'
-                                        }>
-                                        {
-                                            venta.estado === "activa"
-                                                ? (venta.confirmacion_depositado ? '✔' : 'Pendiente')
-                                                : '✘'
-                                        }
-                                    </span>
-                                </td> */}
+                                </td>
                                 <td className="px-2 whitespace-nowrap text-center text-sm font-medium">
                                     {venta.estado === "activa" && (
                                         <button
                                             onClick={() => handleAnularVenta(venta.id)}
                                             disabled={anulando === venta.id}
                                             className={`
-        inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-medium
-        border transition-all duration-150
-        ${anulando === venta.id
+                                                inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-medium
+                                                border transition-all duration-150
+                                                ${anulando === venta.id
                                                     ? "border-red-300 text-red-400 bg-red-50 opacity-60 cursor-not-allowed"
-                                                    : "border-red-600 text-red-700 hover:bg-red-50 hover:border-red-700 active:scale-95 cursor-pointer"
+                                                    : "border-red-600 text-red-700 hover:bg-red-500 hover:border-red-700 hover:text-white active:scale-95 cursor-pointer"
                                                 }
-      `}
+                                            `}
                                         >
                                             {anulando === venta.id ? (
                                                 <>
@@ -392,10 +613,9 @@ export default function Tabla({
                                             )}
                                         </button>
                                     )}
-
                                     {venta.estado === "anulada" && (
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs text-gray-400 bg-gray-100 border border-gray-200">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-gray-400 bg-gray-950 border border-gray-800">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                                             Anulada
                                         </span>
                                     )}
@@ -404,7 +624,32 @@ export default function Tabla({
                         ))}
                     </tbody>
                 </table>
+
+                {/* Trigger para infinite scroll */}
+                {hasMore && (
+                    <div ref={loadMoreTriggerRef} className="py-4 flex justify-center items-center">
+                        {isLoadingMore ? (
+                            <div className="flex items-center gap-2 text-slate-400">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span className="text-sm">Cargando más ventas...</span>
+                            </div>
+                        ) : (
+                            <div className="h-8" />
+                        )}
+                    </div>
+                )}
+
+                {/* Indicador de que ya no hay más datos */}
+                {!hasMore && ventasSeguras.length > 20 && (
+                    <div className="py-4 text-center">
+                        <p className="text-xs text-slate-500">
+                            Mostrando {ventasSeguras.length} de {ventasSeguras.length} ventas
+                        </p>
+                    </div>
+                )}
             </div>
+
+            {/* Modal de anulación (sin cambios) */}
             {mostrarModalAnulacion && (
                 <AnimatePresence>
                     <motion.div
@@ -420,7 +665,6 @@ export default function Tabla({
                             transition={{ type: "spring", stiffness: 300, damping: 25 }}
                             className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
                         >
-                            {/* Header */}
                             <div className="flex flex-col items-center gap-2 px-6 pt-6 pb-4 border-b border-gray-100">
                                 <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center">
                                     <AlertCircle className="w-5 h-5 text-red-700" />
@@ -431,10 +675,7 @@ export default function Tabla({
                                     Selecciona o escribe el motivo.
                                 </p>
                             </div>
-
-                            {/* Body */}
                             <div className="px-6 py-4 flex flex-col gap-4">
-                                {/* Chips */}
                                 <div>
                                     <p className="text-xs font-medium text-gray-500 mb-2">Motivo rápido</p>
                                     <div className="grid grid-cols-2 gap-1.5">
@@ -442,8 +683,9 @@ export default function Tabla({
                                             <button
                                                 key={m}
                                                 onClick={() => {
-                                                    setMotivoRapido(prev => prev === m ? null : m);
-                                                    if (!motivoAnulacion) setMotivoAnulacion(m);
+                                                    const nuevo = motivoRapido === m ? null : m;
+                                                    setMotivoRapido(nuevo);
+                                                    setMotivoAnulacion(nuevo ?? "");
                                                 }}
                                                 className={`text-xs px-3 py-2 rounded-lg border text-center transition-all ${motivoRapido === m
                                                     ? "border-red-600 bg-red-50 text-red-800 font-medium"
@@ -455,8 +697,6 @@ export default function Tabla({
                                         ))}
                                     </div>
                                 </div>
-
-                                {/* Textarea */}
                                 <div>
                                     <p className="text-xs font-medium text-gray-500 mb-1">
                                         Detalle adicional{" "}
@@ -475,8 +715,6 @@ export default function Tabla({
                                     </p>
                                 </div>
                             </div>
-
-                            {/* Footer */}
                             <div className="flex gap-2 px-6 pb-5">
                                 <button
                                     onClick={() => { setMostrarModalAnulacion(false); setMotivoRapido(null); }}
@@ -501,7 +739,6 @@ export default function Tabla({
                     </motion.div>
                 </AnimatePresence>
             )}
-
-        </motion.div >
+        </motion.div>
     );
 }

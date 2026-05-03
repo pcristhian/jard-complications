@@ -20,6 +20,8 @@ export const useVentas = () => {
     const getCurrentUser = () => {
         return localStorageValues.currentUser || null;
     };
+
+
     // Obtener sucursal seleccionada desde localStorage
     const getCurrentSucursal = () => {
         return localStorageValues.sucursalSeleccionada || null;
@@ -87,6 +89,7 @@ export const useVentas = () => {
         try {
             setLoading(true);
 
+            const ahora = new Date();
             const { data: ventasData, error: supabaseError } = await supabase
                 .from('ventas')
                 .select(`
@@ -96,21 +99,26 @@ export const useVentas = () => {
             nombre,
             codigo,
             precio,
-            categoria_id,
             comision_variable,
+            categoria_id,
             categorias:categoria_id (
                 id,
                 nombre,
-                reglas_comision             
+                reglas_comision
             )
         ),
         usuarios:promotor_id (
             id,
-            nombre
+            nombre,
+            rol_id,
+            caja,
+            roles:rol_id (
+                id,
+                nombre
+                )
         )
                 `)
                 .eq('sucursal_id', currentSucursal.id)
-                .eq('promotor_id', currentUser.id)
                 .order('fecha_venta', { ascending: false });
 
             if (supabaseError) {
@@ -122,9 +130,11 @@ export const useVentas = () => {
                 ...venta,
                 producto_nombre: venta.productos?.nombre || `Producto ${venta.producto_id}`,
                 comision_variable: venta.productos?.comision_variable || 'no var',
-                producto_precio: venta.productos?.precio || `Precio ${venta.productos?.precio}`,
                 producto_codigo: venta.productos?.codigo || `COD-${venta.producto_id}`,
-                categoria_nombre: venta.productos?.categorias?.nombre || `Categoría ${venta.productos?.categoria_id}`
+                producto_precio: venta.productos?.precio || `Precio ${venta.productos?.precio}`,
+                categoria_nombre: venta.productos?.categorias?.nombre || `Categoría ${venta.productos?.categoria_id}`,
+                usuario_nombre: venta.usuarios?.nombre || `Usuario ${venta.promotor_id}`,
+                rol_nombre: venta.usuarios?.roles?.nombre || `Rol ${venta.usuarios?.rol_id}`
 
             }));
 
@@ -135,30 +145,6 @@ export const useVentas = () => {
             setError(err.message);
         } finally {
             setLoading(false);
-        }
-    };
-    const obtenerVendedores = async () => {
-        try {
-            const currentSucursal = getCurrentSucursal();
-            if (!currentSucursal) {
-                console.log('No hay sucursal seleccionada');
-                return []; // ⚠️ SIEMPRE retorna un array
-            }
-
-            const { data, error: supabaseError } = await supabase
-                .from('usuarios')
-                .select('id, nombre')
-                .eq('sucursal_id', currentSucursal.id)
-                .order('nombre');
-
-            if (supabaseError) {
-                throw new Error(`Error al obtener vendedores: ${supabaseError.message}`);
-            }
-
-            return data || []; // ⚠️ SIEMPRE retorna un array
-        } catch (err) {
-            console.error('Error obteniendo vendedores:', err);
-            return []; // ⚠️ SIEMPRE retorna un array, incluso en error
         }
     };
 
@@ -180,20 +166,16 @@ export const useVentas = () => {
             if (!ventaData.producto_id) {
                 throw new Error('Debe seleccionar un producto');
             }
-            if (!ventaData.promotor_id) { // <-- VALIDAR QUE SE RECIBA EL PROMOTOR
-                throw new Error('Debe seleccionar un vendedor');
-            }
 
             const ventaCompleta = {
                 ...ventaData,
-                // Usar el promotor_id recibido en lugar de currentUser.id
-                promotor_id: ventaData.promotor_id, // <-- USAR EL PROMOTOR SELECCIONADO
+                promotor_id: ventaData.promotor_id,
                 sucursal_id: currentSucursal.id,
                 fecha_venta: new Date().toISOString(),
                 estado: 'activa',
                 depositado: false,
                 confirmacion_depositado: false,
-                cantidad: ventaData.cantidad || 1
+                cantidad: ventaData.cantidad || 1 // ← Agregar cantidad
             };
 
             const { data, error: supabaseError } = await supabase
@@ -236,6 +218,30 @@ export const useVentas = () => {
             throw err;
         } finally {
             setLoading(false);
+        }
+    };
+    const obtenerVendedores = async () => {
+        try {
+            const currentSucursal = getCurrentSucursal();
+            if (!currentSucursal) {
+                console.log('No hay sucursal seleccionada');
+                return []; // ⚠️ SIEMPRE retorna un array
+            }
+
+            const { data, error: supabaseError } = await supabase
+                .from('usuarios')
+                .select('id, nombre')
+                .eq('sucursal_id', currentSucursal.id)
+                .order('nombre');
+
+            if (supabaseError) {
+                throw new Error(`Error al obtener vendedores: ${supabaseError.message}`);
+            }
+
+            return data || []; // ⚠️ SIEMPRE retorna un array
+        } catch (err) {
+            console.error('Error obteniendo vendedores:', err);
+            return []; // ⚠️ SIEMPRE retorna un array, incluso en error
         }
     };
 
@@ -504,11 +510,15 @@ export const useVentas = () => {
         if (!categoria) return ventasArray;
         return ventasArray.filter(venta => venta.categoria_nombre === categoria);
     };
+    const filtrarVentasPorUsuarios = (ventasArray, usuario) => {
+        if (!usuario) return ventasArray;
+        return ventasArray.filter(venta => venta.usuario_nombre === usuario);
+    };
     const filtrarVentasActivas = (ventasArray, estado) => {
         if (!estado) return ventasArray;
         return ventasArray.filter(venta => venta.estado === 'activa');
     }
-    // En useVentas.js - CORREGIR
+
     const filtrarVentasPorBusqueda = (ventasArray, terminoBusqueda) => {
         if (!terminoBusqueda || typeof terminoBusqueda !== 'string' || terminoBusqueda.trim() === '') {
             return ventasArray;
@@ -650,9 +660,12 @@ export const useVentas = () => {
         actualizarDepositado,
         actualizarConfirmacionDepositado,
 
+        obtenerVendedores,
+
         // Consultas
         obtenerVentaPorId,
         filtrarVentasPorCategoria,
+        filtrarVentasPorUsuarios,
         filtrarVentasFecha,
         filtrarVentasPorBusqueda,
         filtrarVentasPorDepositado,
@@ -661,7 +674,6 @@ export const useVentas = () => {
         filtrarVentasActivas,
         obtenerVentasDelUsuarioActual,
         obtenerEstadisticas,
-        obtenerVendedores,
 
         // Utilidades
         refetch: obtenerMisVentas

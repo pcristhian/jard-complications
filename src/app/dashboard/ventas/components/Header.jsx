@@ -1,136 +1,182 @@
 // src/app/dashboard/ventas/components/Header.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
+import { Building2, User, ShieldCheck, DollarSign } from 'lucide-react';
+
+// Variantes definidas fuera del componente para evitar recreación en cada render
+const containerVariants = {
+    hidden: { opacity: 0, y: -12 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: "easeOut" } },
+};
+
+const chipVariants = {
+    hidden: { opacity: 0, y: -4 },
+    visible: (i) => ({
+        opacity: 1,
+        y: 0,
+        transition: { delay: i * 0.06, duration: 0.18, ease: "easeOut" },
+    }),
+};
+
+const btnVariants = {
+    hidden: { opacity: 0, y: -4 },
+    visible: (delay) => ({
+        opacity: 1,
+        y: 0,
+        transition: { delay, duration: 0.18, ease: "easeOut" },
+    }),
+};
+
+const CHIPS = [
+    { icon: Building2, label: "Sucursal", key: "sucursal" },
+    { icon: User, label: "Usuario", key: "usuario" },
+    { icon: ShieldCheck, label: "Rol", key: "rol" },
+];
+
 export default function Header({
+    onMostrarComisiones,
     onNuevaVenta,
     currentSucursal,
     rolNombre,
-    currentUser
+    currentUser,
+    sucursalSeleccionada,
 }) {
-    const [loading, setLoading] = useState(true);
+    const [ready, setReady] = useState(false);
+    // Ref para evitar setState en componente desmontado
+    const mountedRef = useRef(true);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => { mountedRef.current = false; };
+    }, []);
 
     useEffect(() => {
         if (!currentUser || !currentSucursal) return;
-        setLoading(false);
+        // Diferimos un frame para asegurar que el DOM está pintado antes de animar
+        const id = requestAnimationFrame(() => {
+            if (mountedRef.current) setReady(true);
+        });
+        return () => cancelAnimationFrame(id);
     }, [currentUser, currentSucursal]);
 
-    if (loading) {
-        return (
-            <div className="bg-white p-6 rounded-lg shadow">
-                <div className="flex justify-between items-start mb-6">
-                    <div className="flex flex-col mx-5 ">
-                        <h1 className="text-2xl font-bold text-gray-900">
-                            Registro de Ventas
-                        </h1>
-
-                        <p className="text-gray-600 font-semibold">
-                            Sucursal: {currentSucursal?.nombre}
-                        </p>
-
-                        <p className="text-gray-600 font-semibold">
-                            Usuario: {currentUser?.nombre}
-                        </p>
-
-                        <p className="font-semibold">
-                            Rol: {rolNombre}
-                        </p>
-                    </div>
-
-
-
-                    <AnimatePresence>
-                        <motion.div
-                            initial={{ scale: 0, opacity: 0, x: -20 }}
-                            animate={{ scale: 1, opacity: 1, x: 0 }}
-                            exit={{ scale: 0, opacity: 0, x: -20 }}
-                            transition={{
-                                duration: 0.3,
-                                type: "spring",
-                                stiffness: 300,
-                                damping: 20
-                            }}
-                            className='flex items-center gap-2'
-                        >
-                            <button
-                                onClick={onNuevaVenta}
-                                className="bg-blue-600 hover:bg-blue-700 cursor-pointer text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                            >
-                                + Nueva Venta
-                            </button>
-                        </motion.div>
-                    </AnimatePresence>
-                </div>
-                <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-2 text-gray-600">Cargando mis Filtros...</p>
-                </div>
-            </div>
-        );
-    }
+    const chipValues = [
+        currentSucursal?.nombre,
+        currentUser?.nombre,
+        rolNombre,
+    ];
 
     return (
+        // Un solo contenedor siempre montado — sin desmonte/remonte que cause doble animación
         <motion.div
-            initial={{ opacity: 0, y: -40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white p-2 rounded-xl shadow-md border-l-4 border-green-500">
-
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="bg-gray-800 divide-gray-700 p-3 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
+        >
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+
+                {/* Info */}
                 <div className="flex-1">
-                    <h1 className="text-xl font-bold text-gray-900 mb-2">Registro de Ventas</h1>
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                        <div className="inline-flex items-center gap-1 bg-green-100 px-3 py-1 rounded-full">
-                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                            <span className="text-green-600">Sucursal:</span>
-                            <span className="font-semibold text-green-800">{currentSucursal.nombre}</span>
-                        </div>
+                    <h1 className="text-base font-semibold text-slate-100 mb-2">
+                        Revisión de ventas
+                    </h1>
 
-                        <div className="inline-flex items-center gap-1 bg-green-100 px-3 py-1 rounded-full">
-                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            <span className="text-green-600">Usuario:</span>
-                            <span className="font-semibold text-green-800">{currentUser.nombre}</span>
-                        </div>
-
-                        <div className="inline-flex items-center gap-1 bg-green-100 px-3 py-1 rounded-full">
-                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
-                            <span className="text-green-600">Rol:</span>
-                            <span className="font-semibold text-green-700">{rolNombre}</span>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-2 min-h-[28px]">
+                        <AnimatePresence mode="wait">
+                            {!ready ? (
+                                // Skeleton de chips mientras carga
+                                <motion.div
+                                    key="skeleton"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                                    className="flex gap-2"
+                                >
+                                    {[80, 72, 56].map((w) => (
+                                        <div
+                                            key={w}
+                                            className="h-6 rounded-full bg-slate-800 border border-slate-700 animate-pulse"
+                                            style={{ width: w }}
+                                        />
+                                    ))}
+                                </motion.div>
+                            ) : (
+                                <motion.div
+                                    key="chips"
+                                    className="flex flex-wrap items-center gap-2"
+                                    initial="hidden"
+                                    animate="visible"
+                                >
+                                    {CHIPS.map(({ icon: Icon, label }, i) => (
+                                        <motion.div
+                                            key={label}
+                                            custom={i}
+                                            variants={chipVariants}
+                                            className="inline-flex items-center gap-1.5 bg-slate-800 border border-slate-700 px-3 py-1 rounded-full"
+                                        >
+                                            <Icon className="w-3.5 h-3.5 text-cyan-400" />
+                                            <span className="text-slate-400 text-xs">{label}</span>
+                                            <span className="text-slate-100 text-xs font-medium">
+                                                {chipValues[i]}
+                                            </span>
+                                        </motion.div>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 
-                <AnimatePresence>
-                    <motion.div
-                        initial={{ scale: 0, opacity: 0, x: -100 }}
-                        animate={{ scale: 1, opacity: 1, x: 0 }}
-                        exit={{ scale: 0, opacity: 0, x: -20 }}
-                        transition={{
-                            duration: 0.3,
-                            type: "spring",
-                            stiffness: 300,
-                            damping: 20
-                        }}
-                        className="flex items-center gap-2"
-                    >
-                        <button
-                            onClick={onNuevaVenta}
-                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 cursor-pointer text-white pl-3 pr-4 py-2.5 rounded-full font-semibold transition-colors"
-                        >
-                            <div className="bg-white/20 p-1.5 rounded-full">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                            </div>
-                            <span>Nueva Venta</span>
-                        </button>
-                    </motion.div>
-                </AnimatePresence>
+                {/* Acciones */}
+                <div className="flex items-center gap-2">
+                    <AnimatePresence mode="wait">
+                        {!ready ? (
+                            // Skeleton de botones
+                            <motion.div
+                                key="btn-skeleton"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                                className="flex gap-2"
+                            >
+                                <div className="h-8 w-32 rounded-lg bg-slate-800 border border-slate-700 animate-pulse" />
+                                <div className="h-8 w-24 rounded-lg bg-slate-800 animate-pulse" />
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="btns"
+                                className="flex items-center gap-2"
+                                initial="hidden"
+                                animate="visible"
+                            >
+                                <motion.button
+                                    custom={0}
+                                    variants={btnVariants}
+                                    onClick={onMostrarComisiones}
+                                    // disabled={currentUser?.roles?.nombre !== 'admin'}
+                                    className="inline-flex items-center gap-2 bg-indigo-100 hover:bg-slate-700 border border-slate-700 text-black px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                >
+                                    <span className="bg-slate-700 p-1 rounded-md">
+                                        <DollarSign className="w-3.5 h-3.5 text-cyan-400" />
+                                    </span>
+                                    Ver comisiones
+                                </motion.button>
+
+                                <motion.button
+                                    custom={0.06}
+                                    variants={btnVariants}
+                                    onClick={onNuevaVenta}
+                                    whileTap={{ scale: 0.96 }}
+                                    className="inline-flex items-center gap-1.5 bg-cyan-400 hover:bg-cyan-300 text-slate-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                >
+                                    <span className="text-base leading-none">+</span>
+                                    Nueva venta
+                                </motion.button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
             </div>
         </motion.div>
     );

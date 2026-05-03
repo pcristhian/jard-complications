@@ -16,19 +16,19 @@ import {
 } from 'lucide-react'
 
 const menuItems = [
-    // {
-    //     id: 'ventas',
-    //     name: 'Registro de Ventas',
-    //     icon: ShoppingCart,
-    //     roles: [1, 2, 3],
-    //     path: '/dashboard/ventas'
-    // },
     {
-        id: 'revision-ventas',
+        id: 'dashboard',
+        name: 'Dashboard',
+        icon: ShoppingCart,
+        roles: [1, 2, 3],
+        path: '/dashboard/dashboard'
+    },
+    {
+        id: 'ventas',
         name: 'Registro de Ventas',
         icon: ShoppingCart,
         roles: [1, 2, 3],
-        path: '/dashboard/revision-ventas'
+        path: '/dashboard/ventas'
     },
     {
         id: 'productos',
