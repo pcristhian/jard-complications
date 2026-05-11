@@ -31,6 +31,13 @@ const menuItems = [
         path: '/dashboard/ventas'
     },
     {
+        id: 'planeswifi',
+        name: 'Planes WiFi',
+        icon: ShoppingCart,
+        roles: [1, 2, 3],
+        path: '/dashboard/planes-wifi'
+    },
+    {
         id: 'productos',
         name: 'Gestión de Productos',
         icon: Package,

@@ -143,10 +143,6 @@ export default function DashboardPage() {
                             <p className="text-sm text-gray-500">
                                 {currentSucursal?.nombre || 'Sin sucursal'}
                             </p>
-                            {/* <span className="text-gray-300">•</span> */}
-                            {/* <p className="text-sm text-gray-500">
-                                {currentUser?.nombre || 'Usuario'}
-                            </p> */}
                             {dashboardData.stats?.totalVentas > 0 && (
                                 <>
                                     <span className="text-gray-300">•</span>

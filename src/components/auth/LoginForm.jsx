@@ -78,7 +78,7 @@ export default function LoginForm() {
             console.log('🔄 Redirigiendo...');
 
             // Forzar recarga completa para evitar problemas de estado
-            window.location.href = '/dashboard';
+            window.location.href = '/dashboard/dashboard';
         } else {
             toast.error(error || "Credenciales incorrectas");
         }
