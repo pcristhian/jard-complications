@@ -18,7 +18,8 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
         celular_cliente: '',
         costo: '',
         usuario_id: '', // Vendedor
-        observacion: ''
+        observacion: '',
+        fecha: new Date().toISOString().split('T')[0] // Fecha actual por defecto
     });
 
     const [errors, setErrors] = useState({});
@@ -57,7 +58,8 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
                 celular_cliente: '',
                 costo: '',
                 usuario_id: '',
-                observacion: ''
+                observacion: '',
+                fecha: new Date().toISOString().split('T')[0]
             });
             setErrors({});
         }
@@ -89,6 +91,9 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
         if (!formData.costo || formData.costo <= 0) {
             nuevosErrores.costo = 'El costo debe ser mayor a 0';
         }
+        if (!formData.fecha) {
+            nuevosErrores.fecha = 'La fecha es requerida';
+        }
 
         // Validación: si no se selecciona usuario, la observación es obligatoria
         if (!formData.usuario_id) {
@@ -113,17 +118,15 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
         // Construir observación final
         let observacionFinal = formData.observacion || '';
 
-        // Si no se seleccionó usuario y hay observación, esa observación contiene el nombre del vendedor
-        // Si se seleccionó usuario, opcionalmente puede haber observación adicional
-
         const resultado = await onCrearPlan({
             nombre_plan: formData.nombre_plan,
             codigo_cliente: formData.codigo_cliente,
             nombre_cliente: formData.nombre_cliente,
             celular_cliente: formData.celular_cliente,
             costo: parseFloat(formData.costo),
-            usuario_id: formData.usuario_id || null, // Vendedor seleccionado
-            observacion: observacionFinal
+            usuario_id: formData.usuario_id || null,
+            observacion: observacionFinal,
+            fecha: formData.fecha // Enviar la fecha seleccionada
         });
 
         if (resultado.success) {
@@ -165,6 +168,27 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
 
                         <form onSubmit={handleSubmit} className="p-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Fecha del Plan - Nuevo campo */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Fecha del Plan *
+                                    </label>
+                                    <input
+                                        type="date"
+                                        name="fecha"
+                                        value={formData.fecha}
+                                        onChange={handleChange}
+                                        max={new Date().toISOString().split('T')[0]} // No permitir fechas futuras
+                                        className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                    {errors.fecha && (
+                                        <p className="text-red-500 text-xs mt-1">{errors.fecha}</p>
+                                    )}
+                                    <p className="text-gray-400 text-xs mt-1">
+                                        Selecciona la fecha cuando se realizó el plan
+                                    </p>
+                                </div>
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Nombre del Plan *
@@ -238,12 +262,13 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
                                         Costo (Bs) *
                                     </label>
                                     <input
-                                        type="number"
+                                        type="text"
                                         name="costo"
                                         value={formData.costo}
                                         onChange={handleChange}
-                                        step="0.01"
-                                        min="0"
+                                        onInput={(e) => {
+                                            e.target.value = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                        }}
                                         className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         placeholder="0.00"
                                     />
@@ -254,7 +279,7 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Vendedor (Opcional)
+                                        Promotor (Opcional)
                                     </label>
                                     <select
                                         name="usuario_id"
@@ -272,7 +297,7 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
                                     {cargandoUsuarios && (
                                         <p className="text-gray-500 text-xs mt-1">Cargando vendedores...</p>
                                     )}
-                                    <p className="text-gray-400 text-xs mt-1">
+                                    <p className="text-amber-500 text-xs mt-1">
                                         Si no seleccionas un vendedor, debes escribir el nombre en observaciones
                                     </p>
                                 </div>
@@ -297,7 +322,7 @@ export default function ModalNuevoPlanWifi({ abierto, onCerrar, onCrearPlan, loa
                                         <p className="text-red-500 text-xs mt-1">{errors.observacion}</p>
                                     )}
                                     {!formData.usuario_id && !errors.observacion && (
-                                        <p className="text-amber-500 text-xs mt-1">
+                                        <p className="text-red-500 text-xs mt-1">
                                             ⚠️ Campo obligatorio porque no seleccionaste un vendedor
                                         </p>
                                     )}

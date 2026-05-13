@@ -5,12 +5,14 @@ import { supabase } from '@/lib/supabase/client';
 export const usePlanesWifi = () => {
     const [planes, setPlanes] = useState([]);
     const [estados, setEstados] = useState([]);
+    const [usuarios, setUsuarios] = useState([]); // ← Nuevo: lista de usuarios
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         cargarPlanes();
         cargarEstados();
+        cargarUsuarios(); // ← Nuevo: cargar usuarios al inicio
     }, []);
 
     const cargarPlanes = async () => {
@@ -19,10 +21,19 @@ export const usePlanesWifi = () => {
             const { data, error } = await supabase
                 .from('planes_wifi')
                 .select(`
-                    *,
-                    estado:estados_plan_wifi(*),
-                    usuario:usuarios(id, nombre)
-                `)
+                *,
+                estado:estados_plan_wifi(*),
+                usuario:usuarios (
+                    id,
+                    nombre,
+                    caja,
+                    rol_id,
+                    roles (
+                        id,
+                        nombre
+                    )
+                )
+            `)
                 .order('fecha', { ascending: false });
 
             if (error) throw error;
@@ -35,7 +46,6 @@ export const usePlanesWifi = () => {
             setLoading(false);
         }
     };
-
     const cargarEstados = async () => {
         try {
             const { data, error } = await supabase
@@ -47,6 +57,41 @@ export const usePlanesWifi = () => {
             setEstados(data || []);
         } catch (error) {
             console.error('Error cargando estados:', error);
+        }
+    };
+
+    // ← NUEVA FUNCIÓN: Cargar usuarios con sus roles
+    const cargarUsuarios = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('usuarios')
+                .select(`
+        id, 
+        nombre,
+        caja,
+               roles:rol_id (
+            nombre
+        )
+    `)
+                .eq('activo', true)
+                .order('nombre', { ascending: true });
+
+            if (error) throw error;
+
+            // Transformar los datos para tener una estructura más amigable
+            const usuariosConRol = (data || []).map(usuario => ({
+                id: usuario.id,
+                nombre: usuario.nombre,
+                rol_id: usuario.rol_id,
+                caja: usuario.caja,
+                rol_nombre: usuario.roles?.nombre || 'Sin rol'
+            }));
+
+            setUsuarios(usuariosConRol);
+            console.log('Usuarios cargados:', usuariosConRol.length || 0);
+        } catch (error) {
+            console.error('Error cargando usuarios:', error);
+            setUsuarios([]);
         }
     };
 
@@ -75,6 +120,7 @@ export const usePlanesWifi = () => {
         };
     };
 
+    // hooks/usePlanesWifi.js
     const crearPlan = async (planData) => {
         setLoading(true);
         setError(null);
@@ -88,6 +134,17 @@ export const usePlanesWifi = () => {
         }
 
         try {
+            // Usar la fecha proporcionada o la fecha actual si no viene
+            let fechaPlan;
+            if (planData.fecha) {
+                // Si la fecha viene en formato YYYY-MM-DD, convertir a ISO string manteniendo la fecha
+                fechaPlan = new Date(planData.fecha);
+                // Ajustar para mantener la fecha local (evitar problemas de zona horaria)
+                fechaPlan = new Date(fechaPlan.getTime() - fechaPlan.getTimezoneOffset() * 60000);
+            } else {
+                fechaPlan = new Date();
+            }
+
             const datosParaEnviar = {
                 nombre_plan: planData.nombre_plan.trim(),
                 codigo_cliente: planData.codigo_cliente.trim(),
@@ -95,8 +152,8 @@ export const usePlanesWifi = () => {
                 celular_cliente: planData.celular_cliente.trim(),
                 costo: parseFloat(planData.costo),
                 estado_id: 1, // Siempre pendiente al crear
-                fecha: new Date().toISOString(),
-                usuario_id: planData.usuario_id || null, // Vendedor
+                fecha: fechaPlan.toISOString(), // Usar la fecha seleccionada
+                usuario_id: planData.usuario_id || null,
                 observacion: planData.observacion?.trim() || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
@@ -106,10 +163,10 @@ export const usePlanesWifi = () => {
                 .from('planes_wifi')
                 .insert([datosParaEnviar])
                 .select(`
-                    *,
-                    estado:estados_plan_wifi(*),
-                    usuario:usuarios(id, nombre)
-                `)
+                *,
+                estado:estados_plan_wifi(*),
+                usuario:usuarios(id, nombre, rol_id)
+            `)
                 .single();
 
             if (error) throw error;
@@ -149,10 +206,14 @@ export const usePlanesWifi = () => {
                 nombre_cliente: planData.nombre_cliente.trim(),
                 celular_cliente: planData.celular_cliente.trim(),
                 costo: parseFloat(planData.costo),
-                usuario_id: planData.usuario_id !== undefined ? planData.usuario_id : undefined,
                 observacion: planData.observacion?.trim() || null,
                 updated_at: new Date().toISOString()
             };
+
+            // Solo incluir usuario_id si viene en planData
+            if (planData.usuario_id !== undefined) {
+                datosParaEnviar.usuario_id = planData.usuario_id === '' ? null : parseInt(planData.usuario_id);
+            }
 
             const { data, error } = await supabase
                 .from('planes_wifi')
@@ -161,7 +222,7 @@ export const usePlanesWifi = () => {
                 .select(`
                     *,
                     estado:estados_plan_wifi(*),
-                    usuario:usuarios(id, nombre)
+                    usuario:usuarios(id, nombre, caja,  rol_id)
                 `)
                 .single();
 
@@ -185,7 +246,7 @@ export const usePlanesWifi = () => {
         }
     };
 
-    const actualizarEstadoPlan = async (id, estadoId, motivo = null) => {
+    const actualizarEstadoPlan = async (id, estadoId) => {
         setLoading(true);
         setError(null);
 
@@ -200,13 +261,6 @@ export const usePlanesWifi = () => {
                 updated_at: new Date().toISOString()
             };
 
-            if (motivo) {
-                const planActual = planes.find(p => p.id === id);
-                const observacionActual = planActual?.observacion || '';
-                const estadoNombre = estados.find(e => e.id === estadoId)?.nombre;
-                datosParaEnviar.observacion = `${observacionActual}\n[${new Date().toLocaleString()}] Estado cambiado a: ${estadoNombre} - ${motivo}`.trim();
-            }
-
             const { data, error } = await supabase
                 .from('planes_wifi')
                 .update(datosParaEnviar)
@@ -214,7 +268,7 @@ export const usePlanesWifi = () => {
                 .select(`
                     *,
                     estado:estados_plan_wifi(*),
-                    usuario:usuarios(id, nombre)
+                    usuario:usuarios(id, nombre, rol_id)
                 `)
                 .single();
 
@@ -269,7 +323,7 @@ export const usePlanesWifi = () => {
                 .select(`
                     *,
                     estado:estados_plan_wifi(*),
-                    usuario:usuarios(id, nombre)
+                    usuario:usuarios(id, nombre, rol_id)
                 `)
                 .eq('id', id)
                 .single();
@@ -318,6 +372,7 @@ export const usePlanesWifi = () => {
     return {
         planes,
         estados,
+        usuarios, // ← Exportar usuarios
         loading,
         error,
         crearPlan,
@@ -327,6 +382,7 @@ export const usePlanesWifi = () => {
         obtenerPlan,
         recargarPlanes: cargarPlanes,
         filtrarPorMes,
-        getEstadisticas
+        getEstadisticas,
+        recargarUsuarios: cargarUsuarios // ← Opcional: función para recargar usuarios
     };
 };

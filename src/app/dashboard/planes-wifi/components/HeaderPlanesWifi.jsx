@@ -118,8 +118,7 @@ export default function HeaderPlanesWifi({ onNuevoPlan, onRecargar, loading }) {
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={onNuevoPlan}
-                            disabled={currentUser?.roles?.nombre !== 'admin'}
-                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 cursor-pointer text-white pl-3 pr-4 py-2.5 rounded-full font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 cursor-pointer text-white pl-3 pr-4 py-2.5 rounded-full font-semibold transition-colors"
                         >
                             <div className="bg-white/20 p-1.5 rounded-full">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

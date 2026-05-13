@@ -15,6 +15,14 @@ export default function GestionPlanesWifi() {
     const [planEditando, setPlanEditando] = useState(null);
     const [filtroMes, setFiltroMes] = useState('');
     const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
+    const [soloActivos, setSoloActivos] = useState(false);
+
+    // ← Nuevo: Establecer filtro al mes actual al cargar
+    useEffect(() => {
+        const fechaActual = new Date();
+        setFiltroMes(fechaActual.getMonth() + 1);
+        setFiltroAnio(fechaActual.getFullYear());
+    }, []);
 
     const { values } = useMultiLocalStorageListener(["sucursalSeleccionada"]);
     const { sucursalSeleccionada } = values;
@@ -22,6 +30,7 @@ export default function GestionPlanesWifi() {
     const {
         planes,
         estados,
+        usuarios,
         loading,
         error,
         crearPlan,
@@ -48,8 +57,10 @@ export default function GestionPlanesWifi() {
     };
 
     const handleCambiarEstado = async (id, estadoId) => {
-        const motivo = prompt('¿Motivo del cambio de estado? (Opcional)');
-        await actualizarEstadoPlan(id, estadoId, motivo);
+        const resultado = await actualizarEstadoPlan(id, estadoId);
+        if (!resultado.success) {
+            alert('Error al cambiar estado: ' + resultado.error);
+        }
     };
 
     return (
@@ -69,8 +80,11 @@ export default function GestionPlanesWifi() {
             <FiltroPlanesWifi
                 onMesChange={setFiltroMes}
                 onAnioChange={setFiltroAnio}
+                onEstadoActivoChange={setSoloActivos}
                 mesSeleccionado={filtroMes}
                 anioSeleccionado={filtroAnio}
+                soloActivos={soloActivos}
+                planes={planes}
             />
 
             <TablaPlanesWifi
@@ -80,6 +94,7 @@ export default function GestionPlanesWifi() {
                 loading={loading}
                 filtroMes={filtroMes}
                 filtroAnio={filtroAnio}
+                soloActivos={soloActivos}
             />
 
             <ModalNuevoPlanWifi
@@ -88,6 +103,7 @@ export default function GestionPlanesWifi() {
                 onCrearPlan={handleCrearPlan}
                 loading={loading}
                 planesExistentes={planes}
+                usuarios={usuarios}
             />
 
             {planEditando && (
@@ -97,6 +113,7 @@ export default function GestionPlanesWifi() {
                     onActualizarPlan={handleEditarPlan}
                     loading={loading}
                     planesExistentes={planes}
+                    usuarios={usuarios}
                 />
             )}
         </div>

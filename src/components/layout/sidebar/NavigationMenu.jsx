@@ -65,13 +65,13 @@ const menuItems = [
         roles: [1, 2, 3],
         path: '/dashboard/reportes'
     },
-    {
-        id: 'resumen',
-        name: 'Ver resumen del mes',
-        icon: FileText,
-        roles: [1, 2, 3],
-        path: '/dashboard/resumen'
-    },
+    // {
+    //     id: 'resumen',
+    //     name: 'Ver resumen del mes',
+    //     icon: FileText,
+    //     roles: [1, 2, 3],
+    //     path: '/dashboard/resumen'
+    // },
     {
         id: 'usuarios',
         name: 'Gestión de Usuarios',
