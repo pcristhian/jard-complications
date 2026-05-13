@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Sidebar from '@/components/layout/sidebar/Sidebar'
 import { useSidebar } from '@/hooks/collapse/useSidebar'
+import SessionGuard from '@/components/SessionGuard'
 
 export default function DashboardLayout({ children }) {
     const { isAuthenticated, loading, user } = useAuth()
@@ -32,12 +33,14 @@ export default function DashboardLayout({ children }) {
     }
 
     return (
-        <div className="flex h-screen bg-gray-50">
-            <Sidebar />
-            <main className={`flex-1 overflow-auto transition-all duration-300 ${isCollapsed ? 'ml-0' : 'ml-2'
-                }`}>
-                {children}
-            </main>
-        </div>
+        <SessionGuard>
+            <div className="flex h-screen bg-gray-50">
+                <Sidebar />
+                <main className={`flex-1 overflow-auto transition-all duration-300 ${isCollapsed ? 'ml-0' : 'ml-2'
+                    }`}>
+                    {children}
+                </main>
+            </div>
+        </SessionGuard>
     )
 }
