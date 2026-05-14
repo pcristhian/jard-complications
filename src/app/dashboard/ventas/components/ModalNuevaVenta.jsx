@@ -9,6 +9,7 @@ export default function ModalNuevaVenta({
     onCreateVenta,
     currentUser,
     currentSucursal,
+    onCreateMultiplesVentas,
     obtenerVendedores
 }) {
     const [busqueda, setBusqueda] = useState("");
@@ -193,22 +194,36 @@ export default function ModalNuevaVenta({
             return;
         }
 
+        if (!vendedorSeleccionado) {
+            toast.error("Debe seleccionar un promotor");
+            return;
+        }
+
         setCreando(true);
         try {
-            for (const item of carrito) {
-                await onCreateVenta({
-                    producto_id: item.producto_id,
-                    total_precio_venta: item.total_linea,
-                    descuento_venta: item.descuento_unitario * item.cantidad,
-                    observaciones: item.observaciones,
-                    cantidad: item.cantidad,
-                    promotor_id: vendedorSeleccionado // <-- AGREGAR EL VENDEDOR SELECCIONADO
+            // Preparar todas las ventas del carrito
+            const ventasParaCrear = carrito.map(item => ({
+                producto_id: item.producto_id,
+                total_precio_venta: item.total_linea,
+                descuento_venta: item.descuento_unitario * item.cantidad,
+                observaciones: item.observaciones,
+                cantidad: item.cantidad,
+                promotor_id: vendedorSeleccionado
+            }));
 
-                });
+            // 🔹 USAR crearMultiplesVentas si existe
+            if (onCreateMultiplesVentas) {
+                await onCreateMultiplesVentas(ventasParaCrear);
+                toast.success(`${carrito.length} venta(s) creada(s) correctamente`);
+            } else {
+                // Fallback: crear una por una
+                for (const venta of ventasParaCrear) {
+                    await onCreateVenta(venta);
+                }
+                toast.success(`${carrito.length} venta(s) creada(s) correctamente`);
             }
 
             onCerrar();
-            toast.success("Venta(s) creada(s) correctamente");
         } catch (err) {
             toast.error("Error al crear venta(s): " + err.message);
         } finally {

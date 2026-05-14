@@ -82,6 +82,7 @@ export const useVentasEstadisticas = () => {
             const fechaFin = new Date(fechaInicio.getFullYear(), fechaInicio.getMonth() + 1, 0);
             fechaFin.setHours(23, 59, 59, 999);
 
+            // 🔹 NUEVA CONSULTA: Unir ventas con productos (catálogo) - sin stock
             const { data: ventasData, error: supabaseError } = await supabase
                 .from('ventas')
                 .select(`
@@ -102,7 +103,7 @@ export const useVentasEstadisticas = () => {
                         nombre,
                         caja,
                         rol_id,
-                        roles:rol_id(
+                        roles:rol_id (
                             id,
                             nombre
                         )
@@ -118,7 +119,7 @@ export const useVentasEstadisticas = () => {
                 throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
             }
 
-            console.log("Datos crudos de ventas:", ventasData); // Para depuración
+            console.log("Datos crudos de ventas:", ventasData);
 
             // Estructura para almacenar datos agrupados
             const ventasAgrupadas = {};
@@ -134,9 +135,9 @@ export const useVentasEstadisticas = () => {
                 const categoriaNombre = venta.productos?.categorias?.nombre || `Categoría ${categoriaId}`;
                 const reglasComision = venta.productos?.categorias?.reglas_comision;
                 const comisionVariableProducto = venta.productos?.comision_variable || 0;
-                const cantidadEnVenta = venta.cantidad || 1; // IMPORTANTE: Usar la cantidad de la venta
+                const cantidadEnVenta = venta.cantidad || 1;
 
-                console.log(`Venta ID ${venta.id}: cantidad = ${cantidadEnVenta}, producto = ${venta.productos?.nombre}`); // Para depuración
+                console.log(`Venta ID ${venta.id}: cantidad = ${cantidadEnVenta}, producto = ${venta.productos?.nombre}`);
 
                 // Inicializar estructuras si no existen
                 if (!ventasAgrupadas[usuarioId]) {
@@ -147,6 +148,7 @@ export const useVentasEstadisticas = () => {
                         usuario_rol: usuarioRol,
                         total_productos: 0,
                         total_comision: 0,
+                        total_ventas: 0, // Nuevo: total en dinero
                         categorias: {}
                     };
                     comisionesVariablesMap[usuarioId] = {};
@@ -158,25 +160,27 @@ export const useVentasEstadisticas = () => {
                         categoria_nombre: categoriaNombre,
                         reglas_comision: reglasComision,
                         cantidad: 0,
-                        comision: 0
+                        comision: 0,
+                        total_ventas: 0 // Nuevo: total en dinero por categoría
                     };
                     comisionesVariablesMap[usuarioId][categoriaId] = [];
                 }
 
-                // Sumar cantidad de productos vendidos (usando cantidad de la venta)
+                // Sumar cantidad de productos vendidos
                 ventasAgrupadas[usuarioId].total_productos += cantidadEnVenta;
+                ventasAgrupadas[usuarioId].total_ventas += parseFloat(venta.total_precio_venta || 0);
                 ventasAgrupadas[usuarioId].categorias[categoriaId].cantidad += cantidadEnVenta;
+                ventasAgrupadas[usuarioId].categorias[categoriaId].total_ventas += parseFloat(venta.total_precio_venta || 0);
 
                 // Guardar comisión variable por cada unidad vendida
                 if (comisionVariableProducto > 0) {
-                    // Agregar comisión variable por cada unidad
                     for (let i = 0; i < cantidadEnVenta; i++) {
                         comisionesVariablesMap[usuarioId][categoriaId].push(comisionVariableProducto);
                     }
                 }
             });
 
-            console.log("Ventas agrupadas antes de calcular comisiones:", ventasAgrupadas); // Para depuración
+            console.log("Ventas agrupadas antes de calcular comisiones:", ventasAgrupadas);
 
             // Calcular comisiones después de agrupar todas las ventas
             Object.keys(ventasAgrupadas).forEach(usuarioId => {
@@ -188,7 +192,6 @@ export const useVentasEstadisticas = () => {
                     const cantidadProductos = categoria.cantidad;
                     const comisionesVariablesCategoria = comisionesVariablesUsuario[categoriaId] || [];
 
-                    // Calcular comisión con la cantidad total de productos
                     const comisionCalculada = calcularComision(
                         categoria.reglas_comision,
                         cantidadProductos,
@@ -198,7 +201,7 @@ export const useVentasEstadisticas = () => {
                     categoria.comision = comisionCalculada;
                     usuario.total_comision += comisionCalculada;
 
-                    console.log(`Usuario ${usuario.usuario_nombre}, Categoría ${categoria.categoria_nombre}: ${cantidadProductos} productos, comisión = ${comisionCalculada}`); // Para depuración
+                    console.log(`Usuario ${usuario.usuario_nombre}, Categoría ${categoria.categoria_nombre}: ${cantidadProductos} productos, comisión = ${comisionCalculada}`);
                 });
             });
 
@@ -211,15 +214,134 @@ export const useVentasEstadisticas = () => {
             // Ordenar por total de productos (descendente)
             resultado.sort((a, b) => b.total_productos - a.total_productos);
 
-            console.log("Resultado final:", resultado); // Para depuración
+            console.log("Resultado final:", resultado);
             setVentas(resultado);
             setError(null);
 
         } catch (err) {
+            console.error('Error en obtenerMisVentas:', err);
             setError(err.message);
             setVentas([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Nueva función: Obtener ventas por rango de fechas personalizado
+    const obtenerVentasPorRango = async (fechaInicio, fechaFin) => {
+        const currentUser = getCurrentUser();
+        const currentSucursal = getCurrentSucursal();
+
+        if (!currentUser || !currentSucursal) {
+            setVentas([]);
+            return [];
+        }
+
+        try {
+            setLoading(true);
+            setError(null);
+
+            const { data: ventasData, error: supabaseError } = await supabase
+                .from('ventas')
+                .select(`
+                    *,
+                    productos:producto_id (
+                        id,
+                        nombre,
+                        categoria_id,
+                        comision_variable,
+                        categorias:categoria_id (
+                            id,
+                            nombre,
+                            reglas_comision
+                        )
+                    ),
+                    usuarios:promotor_id (
+                        id,
+                        nombre,
+                        caja,
+                        rol_id,
+                        roles:rol_id (
+                            id,
+                            nombre
+                        )
+                    )
+                `)
+                .eq('sucursal_id', currentSucursal.id)
+                .eq('estado', 'activa')
+                .gte('fecha_venta', fechaInicio)
+                .lte('fecha_venta', fechaFin)
+                .order('fecha_venta', { ascending: false });
+
+            if (supabaseError) {
+                throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
+            }
+
+            return ventasData || [];
+        } catch (err) {
+            console.error('Error en obtenerVentasPorRango:', err);
+            setError(err.message);
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Nueva función: Obtener resumen de comisiones por vendedor
+    const obtenerResumenComisiones = async (fechaInicio, fechaFin) => {
+        const currentUser = getCurrentUser();
+        const currentSucursal = getCurrentSucursal();
+
+        if (!currentUser || !currentSucursal) {
+            return [];
+        }
+
+        try {
+            const ventasData = await obtenerVentasPorRango(fechaInicio, fechaFin);
+
+            // Agrupar por usuario
+            const resumen = {};
+
+            ventasData.forEach(venta => {
+                const usuarioId = venta.promotor_id;
+                const usuarioNombre = venta.usuarios?.nombre || `Usuario ${usuarioId}`;
+                const cantidad = venta.cantidad || 1;
+                const totalVenta = parseFloat(venta.total_precio_venta || 0);
+                const comisionVariableProducto = venta.productos?.comision_variable || 0;
+                const reglasComision = venta.productos?.categorias?.reglas_comision;
+
+                if (!resumen[usuarioId]) {
+                    resumen[usuarioId] = {
+                        usuario_id: usuarioId,
+                        usuario_nombre: usuarioNombre,
+                        total_ventas: 0,
+                        total_productos: 0,
+                        total_comision: 0,
+                        comisiones_variables: []
+                    };
+                }
+
+                resumen[usuarioId].total_ventas += totalVenta;
+                resumen[usuarioId].total_productos += cantidad;
+
+                if (comisionVariableProducto > 0) {
+                    for (let i = 0; i < cantidad; i++) {
+                        resumen[usuarioId].comisiones_variables.push(comisionVariableProducto);
+                    }
+                }
+            });
+
+            // Calcular comisiones finales
+            Object.values(resumen).forEach(usuario => {
+                const comisionCalculada = usuario.comisiones_variables.reduce((sum, c) => sum + c, 0);
+                usuario.total_comision = comisionCalculada;
+                delete usuario.comisiones_variables;
+            });
+
+            return Object.values(resumen);
+        } catch (err) {
+            console.error('Error en obtenerResumenComisiones:', err);
+            return [];
         }
     };
 
@@ -240,10 +362,15 @@ export const useVentasEstadisticas = () => {
         // Estado
         loading,
         error,
-        ventas, // Exportar ventas
+        ventas,
         currentSucursal: getCurrentSucursal(),
-        // Funciones
+
+        // Funciones principales
         obtenerMisVentas,
-        calcularComision // Exportar función para usarla en el componente si es necesario
+        calcularComision,
+
+        // Nuevas funciones útiles
+        obtenerVentasPorRango,
+        obtenerResumenComisiones
     };
 };

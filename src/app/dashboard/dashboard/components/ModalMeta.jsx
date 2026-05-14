@@ -13,6 +13,12 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [message, setMessage] = useState(null);
 
+    // Estados para los selects dinámicos
+    const [availableMonths, setAvailableMonths] = useState([]);
+    const [availableYears, setAvailableYears] = useState([]);
+    const [loadingPeriods, setLoadingPeriods] = useState(true);
+    const [hasData, setHasData] = useState(false);
+
     const getMonthNumber = (monthName) => {
         const meses = {
             'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4,
@@ -20,6 +26,101 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
             'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
         };
         return meses[monthName] || 1;
+    };
+
+    const getMonthName = (monthNumber) => {
+        const meses = {
+            1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+            5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+            9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+        };
+        return meses[monthNumber] || 'Enero';
+    };
+
+    // Obtener años únicos con datos
+    const cargarPeriodosDisponibles = async () => {
+        setLoadingPeriods(true);
+        try {
+            // Obtener años únicos con datos
+            const { data: yearsData, error: yearsError } = await supabase
+                .from('metas_categorias')
+                .select('anio', { distinct: true })
+                .order('anio', { ascending: true });
+
+            if (yearsError) throw yearsError;
+
+            // 🔹 Asegurar que los años sean únicos y eliminar duplicados
+            let years = [...new Set(yearsData?.map(y => y.anio) || [])];
+
+            // Si no hay años, usar el año actual
+            const currentYear = new Date().getFullYear();
+            if (years.length === 0) {
+                years = [currentYear];
+            }
+
+            // 🔹 También agregar el año actual si no está en la lista (para poder crear metas nuevas)
+            if (!years.includes(currentYear)) {
+                years.push(currentYear);
+                years.sort((a, b) => a - b);
+            }
+
+            setAvailableYears(years);
+
+            // Para el año seleccionado, obtener los meses disponibles
+            const yearToUse = selectedYear || years[0];
+
+            const { data: monthsData, error: monthsError } = await supabase
+                .from('metas_categorias')
+                .select('mes', { distinct: true })
+                .eq('anio', yearToUse)
+                .order('mes', { ascending: true });
+
+            if (monthsError) throw monthsError;
+
+            let months = monthsData?.map(m => getMonthName(m.mes)) || [];
+
+            // Si no hay meses para este año, ver si hay ventas en ese período
+            let hasDataInPeriod = months.length > 0;
+
+            if (!hasDataInPeriod) {
+                // Verificar si hay ventas en este período
+                const { count: ventasCount, error: ventasError } = await supabase
+                    .from('ventas')
+                    .select('id', { count: 'exact', head: true })
+                    .gte('fecha_venta', `${yearToUse}-01-01`)
+                    .lt('fecha_venta', `${yearToUse + 1}-01-01`);
+
+                if (!ventasError && ventasCount > 0) {
+                    hasDataInPeriod = true;
+                    // Si hay ventas pero no metas, usar el mes actual como opción
+                    const currentMonthName = getMonthName(new Date().getMonth() + 1);
+                    months = [currentMonthName];
+                }
+            }
+
+            setHasData(hasDataInPeriod);
+
+            // Si no hay meses específicos, usar el mes actual
+            const currentMonthName = getMonthName(new Date().getMonth() + 1);
+            const finalMonths = months.length > 0 ? [...new Set(months)] : [currentMonthName]; // 🔹 Eliminar duplicados de meses
+            setAvailableMonths(finalMonths);
+
+            // Si el mes seleccionado no está disponible, seleccionar el primero
+            if (selectedMonth && !finalMonths.includes(selectedMonth)) {
+                setSelectedMonth(finalMonths[0]);
+            }
+
+        } catch (error) {
+            console.error('Error cargando períodos disponibles:', error);
+            // Fallback: usar valores por defecto
+            const currentYear = new Date().getFullYear();
+            const currentMonthName = getMonthName(new Date().getMonth() + 1);
+            setAvailableYears([currentYear]);
+            setAvailableMonths([currentMonthName]);
+            setHasData(true);
+        } finally {
+            setLoadingPeriods(false);
+        }
     };
 
     // Cargar metas desde la BD
@@ -120,10 +221,13 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
             }
 
             setMessage({ type: 'success', text: '✅ Metas guardadas correctamente' });
+
+            // Recargar períodos disponibles después de guardar
+            await cargarPeriodosDisponibles();
+
             setTimeout(() => {
                 setMessage(null);
                 onClose();
-                window.location.reload();
             }, 1500);
 
         } catch (error) {
@@ -132,9 +236,6 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
             hasError = true;
         } finally {
             setSaving(false);
-            if (!hasError) {
-                // Recargar después de un delay
-            }
         }
     };
 
@@ -158,20 +259,78 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
         setLocalTypes(prev => ({ ...prev, [categoriaId]: type }));
     };
 
-    // Cambiar mes/año
-    const handleMonthYearChange = () => {
+    // Cambiar año
+    const handleYearChange = async (year) => {
+        setSelectedYear(year);
+        setLoading(true);
+
+        // Cargar meses disponibles para este año
+        try {
+            const { data: monthsData, error } = await supabase
+                .from('metas_categorias')
+                .select('mes', { distinct: true })
+                .eq('anio', year)
+                .order('mes', { ascending: true });
+
+            if (!error && monthsData?.length > 0) {
+                const months = monthsData.map(m => getMonthName(m.mes));
+                setAvailableMonths(months);
+
+                // Si el mes actual no está disponible, seleccionar el primero
+                if (!months.includes(selectedMonth)) {
+                    setSelectedMonth(months[0]);
+                } else {
+                    // Recargar metas con el nuevo año y mes actual
+                    await cargarMetas();
+                }
+            } else {
+                // Si no hay metas para este año, verificar si hay ventas
+                const { count: ventasCount } = await supabase
+                    .from('ventas')
+                    .select('id', { count: 'exact', head: true })
+                    .gte('fecha_venta', `${year}-01-01`)
+                    .lt('fecha_venta', `${year + 1}-01-01`);
+
+                if (ventasCount > 0) {
+                    // Usar el mes actual
+                    const currentMonthName = getMonthName(new Date().getMonth() + 1);
+                    setAvailableMonths([currentMonthName]);
+                    setSelectedMonth(currentMonthName);
+                }
+                await cargarMetas();
+            }
+        } catch (error) {
+            console.error('Error cargando meses:', error);
+            await cargarMetas();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Cambiar mes
+    const handleMonthChange = (month) => {
+        setSelectedMonth(month);
         cargarMetas();
     };
 
+    // Cargar períodos cuando se abre el modal
     useEffect(() => {
         if (isOpen && categories?.length) {
+            cargarPeriodosDisponibles();
+        }
+    }, [isOpen]);
+
+    // Cargar metas cuando cambia el mes/año
+    useEffect(() => {
+        if (isOpen && categories?.length && selectedMonth && selectedYear) {
             cargarMetas();
         }
-    }, [isOpen, selectedMonth, selectedYear]);
+    }, [selectedMonth, selectedYear, isOpen]);
 
     const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    const years = [2023, 2024, 2025, 2026];
+
+    const years = availableYears.length > 0 ? availableYears : [new Date().getFullYear()];
 
     if (!categories?.length) return null;
 
@@ -195,13 +354,13 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                    bg-white rounded-xl shadow-2xl z-50 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
                     >
                         {/* Header */}
-                        <div className="px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white flex-shrink-0">
+                        <div className="px-6 py-4 bg-linear-to-r from-blue-500 to-blue-600 text-white shrink-0">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <span className="text-2xl">🎯</span>
                                     <h2 className="text-xl font-bold">Configurar Metas</h2>
                                 </div>
-                                <button onClick={onClose} className="text-white/80 hover:text-white">
+                                <button onClick={onClose} className="text-white/80 hover:text-white cursor-pointer">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
@@ -210,39 +369,50 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                         </div>
 
                         {/* Selectores */}
-                        <div className="px-6 py-4 bg-gray-50 border-b flex-shrink-0">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Mes</label>
-                                    <select
-                                        value={selectedMonth}
-                                        onChange={(e) => {
-                                            setSelectedMonth(e.target.value);
-                                            handleMonthYearChange();
-                                        }}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    >
-                                        {meses.map(month => (
-                                            <option key={month} value={month}>{month}</option>
-                                        ))}
-                                    </select>
+                        <div className="px-6 py-4 bg-gray-50 border-b text-black shrink-0">
+                            {loadingPeriods ? (
+                                <div className="flex justify-center py-2">
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Año</label>
-                                    <select
-                                        value={selectedYear}
-                                        onChange={(e) => {
-                                            setSelectedYear(parseInt(e.target.value));
-                                            handleMonthYearChange();
-                                        }}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    >
-                                        {years.map(year => (
-                                            <option key={year} value={year}>{year}</option>
-                                        ))}
-                                    </select>
+                            ) : !hasData && availableYears.length === 1 && availableMonths.length === 1 ? (
+                                <div className="text-center py-2 text-amber-600 text-sm">
+                                    ⚠️ No hay datos de ventas o metas para este período. Crea una meta para comenzar.
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Año</label>
+                                        <select
+                                            value={selectedYear}
+                                            onChange={(e) => handleYearChange(parseInt(e.target.value))}
+                                            className="w-full px-3 py-2 border rounded-lg cursor-pointer"
+                                        >
+                                            {/* 🔹 Usar Set para eliminar duplicados en el render */}
+                                            {[...new Set(availableYears)].map(year => (
+                                                <option key={year} value={year}>{year}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Mes</label>
+                                        <select
+                                            value={selectedMonth}
+                                            onChange={(e) => handleMonthChange(e.target.value)}
+                                            className="w-full px-3 py-2 border rounded-lg cursor-pointer"
+                                            disabled={availableMonths.length === 0}
+                                        >
+                                            {availableMonths.map(month => (
+                                                <option key={month} value={month}>{month}</option>
+                                            ))}
+                                        </select>
+                                        {availableMonths.length === 0 && (
+                                            <p className="text-xs text-amber-500 mt-1">
+                                                No hay metas para este año
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Mensaje */}
@@ -277,11 +447,11 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                                         {getCategoryIcon(category.name)}
                                                     </div>
                                                     <div>
-                                                        <p className="font-medium text-gray-800">{category.name}</p>
-                                                        <p className="text-[10px] text-gray-400">
+                                                        <p className="font-medium text-black">{category.name}</p>
+                                                        <p className="text-[10px] text-green-600">
                                                             Ventas actuales: {currentType === 'quantity'
                                                                 ? `${(category.totalUnits || 0).toLocaleString()} unidades`
-                                                                : `$${(category.sales || 0).toLocaleString()}`
+                                                                : `Bs. ${(category.sales || 0).toLocaleString()}`
                                                             }
                                                         </p>
                                                     </div>
@@ -291,7 +461,7 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                                     <select
                                                         value={currentType}
                                                         onChange={(e) => handleTypeChange(category.id, e.target.value)}
-                                                        className="text-xs px-2 py-1 border rounded-lg bg-white"
+                                                        className="text-xs px-2 py-1 border rounded-lg bg-white text-black cursor-pointer"
                                                     >
                                                         <option value="quantity">📦 Cantidad</option>
                                                         <option value="revenue">💰 Ingresos</option>
@@ -302,7 +472,7 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                                         inputMode="numeric"
                                                         value={currentValue}
                                                         onChange={(e) => handleMetaChange(category.id, e.target.value)}
-                                                        className="w-28 px-2 py-1 border rounded-lg text-right"
+                                                        className="w-28 px-2 py-1 border text-black rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                         placeholder="Sin meta"
                                                     />
                                                 </div>
@@ -314,23 +484,23 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                         </div>
 
                         {/* Footer con botón Guardar */}
-                        <div className="px-6 py-4 bg-gray-50 border-t flex justify-between items-center flex-shrink-0">
+                        <div className="px-6 py-4 bg-gray-50 border-t flex justify-between items-center shrink-0">
                             <div className="flex-1">
-                                <p className="text-xs text-gray-400">
+                                <p className="text-xs text-amber-600">
                                     💡 Las metas se guardan cuando presionas "Guardar Cambios"
                                 </p>
                             </div>
                             <div className="flex gap-3">
                                 <button
                                     onClick={onClose}
-                                    className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={guardarTodo}
                                     disabled={saving}
-                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium shadow-sm"
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium shadow-sm cursor-pointer"
                                 >
                                     {saving ? 'Guardando...' : '💾 Guardar Cambios'}
                                 </button>

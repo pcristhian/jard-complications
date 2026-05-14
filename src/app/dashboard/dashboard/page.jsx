@@ -199,10 +199,12 @@ export default function DashboardPage() {
 
                     <button
                         onClick={() => setShowModalMeta(true)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:cursor-pointer transition-colors shadow-sm"
                     >
                         <span className="text-base">🎯</span>
-                        <span className="font-medium">Editar Metas</span>
+                        <span className="font-medium text-black">
+                            Editar Metas
+                        </span>
                     </button>
                 </div>
 
@@ -256,8 +258,8 @@ export default function DashboardPage() {
             <ModalMeta
                 isOpen={showModalMeta}
                 onClose={() => setShowModalMeta(false)}
-                categories={dashboardData.categories}
-                currentMonth={dashboardData.currentMonth}
+                categories={dashboardData?.categories || []}  // ← Agregar fallback a array vacío
+                currentMonth={dashboardData?.currentMonth || 'Enero'}  // ← También agregar fallback para currentMonth
             />
         </div>
     );

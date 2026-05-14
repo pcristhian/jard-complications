@@ -1,13 +1,14 @@
 // src/app/dashboard/ventas/page.jsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useVentas } from "./hooks/useVentas";
 import Header from "./components/Header";
 import Tabla from "./components/Tabla";
 import ModalNuevaVenta from "./components/ModalNuevaVenta";
 import ModalComisionesPorUsuario from "./components/ModalComisionesPorUsuario";
 import FiltroVentas from "./components/FiltrosVentas";
+
 export default function VentasPage() {
     const {
         productos,
@@ -17,6 +18,7 @@ export default function VentasPage() {
         rolNombre,
         ventas,
         crearVenta,
+        crearMultiplesVentas,
         obtenerVendedores,
         anularVenta,
         actualizarDepositado,
@@ -30,14 +32,23 @@ export default function VentasPage() {
 
     const [modalAbierto, setModalAbierto] = useState(false);
     const [modalVenta, setModalVenta] = useState(false);
-    const [filtroCategoria, setFiltroCategoria] = useState(''); // ← Estado para el filtro
-    const [filtroUsuarios, setFiltroUsuarios] = useState(''); // ← Nuevo estado
-    const [terminoBusqueda, setTerminoBusqueda] = useState(''); // ← Nuevo estado
+    const [filtroCategoria, setFiltroCategoria] = useState('');
+    const [filtroUsuarios, setFiltroUsuarios] = useState('');
+    const [terminoBusqueda, setTerminoBusqueda] = useState('');
     const [filtroFecha, setFiltroFecha] = useState(null);
+    const [mostrarSoloActivas, setMostrarSoloActivas] = useState(true);
+
+    // 🔹 Función para refrescar ventas después de crear
+    const handleVentaCreada = useCallback(async () => {
+        await obtenerMisVentas();
+        // También refrescar productos para actualizar stock
+        // Si tienes una función para refrescar productos, llámala aquí
+    }, [obtenerMisVentas]);
 
     const manejarFiltroCategoria = (categoria) => {
         setFiltroCategoria(categoria);
     };
+
     const manejarFiltroUsuarios = (usuario) => {
         setFiltroUsuarios(usuario);
     }
@@ -53,6 +64,7 @@ export default function VentasPage() {
         )].sort();
         return categorias;
     };
+
     const obtenerUsuariosUnicos = () => {
         const usuarios = [...new Set(ventas
             .filter(venta => venta.usuarios?.nombre && venta.usuarios?.nombre.trim() !== '')
@@ -61,24 +73,18 @@ export default function VentasPage() {
         return usuarios;
     };
 
-    const [mostrarSoloActivas, setMostrarSoloActivas] = useState(true);
-
-
     const ventasFiltradas = useMemo(() => {
         let ventasFiltradas = ventas;
 
-        // Primero aplicar filtro de categoría
         if (filtroCategoria) {
             ventasFiltradas = filtrarVentasPorCategoria(ventasFiltradas, filtroCategoria);
         }
         if (filtroUsuarios) {
             ventasFiltradas = filtrarVentasPorUsuarios(ventasFiltradas, filtroUsuarios);
         }
-        // Luego aplicar búsqueda
         if (terminoBusqueda) {
             ventasFiltradas = filtrarVentasPorBusqueda(ventasFiltradas, terminoBusqueda);
         }
-        // Finalmente aplicar filtro de fecha
         if (filtroFecha) {
             ventasFiltradas = filtrarVentasFecha(ventasFiltradas, filtroFecha);
         }
@@ -117,6 +123,7 @@ export default function VentasPage() {
                 rolNombre={rolNombre}
                 currentUser={currentUser}
             />
+
             <FiltroVentas
                 filtroCategoria={filtroCategoria}
                 filtroUsuarios={filtroUsuarios}
@@ -133,7 +140,6 @@ export default function VentasPage() {
                 mostrarSoloActivas={mostrarSoloActivas}
                 setMostrarSoloActivas={setMostrarSoloActivas}
             />
-
 
             <Tabla
                 onAnularVenta={anularVenta}
@@ -152,11 +158,13 @@ export default function VentasPage() {
                 abierto={modalAbierto}
                 onCerrar={() => setModalAbierto(false)}
             />
+
             <ModalNuevaVenta
                 abierto={modalVenta}
                 onCerrar={() => setModalVenta(false)}
                 productos={productos}
                 onCreateVenta={crearVenta}
+                onCreateMultiplesVentas={crearMultiplesVentas}  // 🔹 NUEVO PROP
                 currentUser={currentUser}
                 currentSucursal={currentSucursal}
                 obtenerVendedores={obtenerVendedores}

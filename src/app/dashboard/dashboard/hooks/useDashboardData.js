@@ -81,29 +81,39 @@ export const useDashboardData = () => {
         }));
     }, []);
 
+    // 🔹 MODIFICADO: Obtener productos desde productos_stock (solo stock de la sucursal actual)
     const obtenerProductos = useCallback(async (sucursalId) => {
         if (!sucursalId) return [];
 
         const { data, error: supabaseError } = await supabase
-            .from('productos')
+            .from('productos_stock')
             .select(`
-                id,
-                nombre,
                 stock_actual,
-                categoria_id,
-                categorias:categoria_id (
+                producto:producto_id (
                     id,
-                    nombre
+                    nombre,
+                    categoria_id,
+                    categorias:categoria_id (
+                        id,
+                        nombre
+                    )
                 )
             `)
             .eq('sucursal_id', sucursalId)
-            .eq('activo', true);
+            .eq('producto.activo', true);
 
         if (supabaseError) {
             throw new Error(`Error al obtener productos: ${supabaseError.message}`);
         }
 
-        return data || [];
+        // Transformar datos a la estructura esperada por el dashboard
+        return (data || []).map(item => ({
+            id: item.producto.id,
+            nombre: item.producto.nombre,
+            stock_actual: item.stock_actual,
+            categoria_id: item.producto.categoria_id,
+            categorias: item.producto.categorias
+        }));
     }, []);
 
     const getCurrentMonth = useCallback(() => {
@@ -114,8 +124,6 @@ export const useDashboardData = () => {
 
     const getMonthNumber = useCallback((monthName) => {
         const meses = {
-            'Enero': 0, 'Febrero': 1, 'Marzo': 2, 'Abril': 3, 'Mayo': 4, 'Junio': 5,
-            'Julio': 6, 'Agosto': 7, 'Septiembre': 8, 'Octubre': 9, 'Noviembre': 10, 'Diciembre': 11,
             'Enero': 0, 'Febrero': 1, 'Marzo': 2, 'Abril': 3, 'Mayo': 4, 'Junio': 5,
             'Julio': 6, 'Agosto': 7, 'Septiembre': 8, 'Octubre': 9, 'Noviembre': 10, 'Diciembre': 11
         };
@@ -280,7 +288,7 @@ export const useDashboardData = () => {
         return categoriasArray.sort((a, b) => b.sales - a.sales);
     }, [getMonthNumber]);
 
-    // Calcular ventas mensuales (para el gráfico - sin cambios)
+    // Calcular ventas mensuales (para el gráfico)
     const calcularVentasMensuales = useCallback((ventas) => {
         if (!ventas.length) return [];
 
@@ -398,7 +406,7 @@ export const useDashboardData = () => {
         return calcularTopProductosPorMes(rawVentas, monthName);
     }, [rawVentas, calcularTopProductosPorMes]);
 
-    // Función principal para cargar datos - optimizada para evitar ciclos
+    // Función principal para cargar datos - optimizada
     const cargarDatos = useCallback(async () => {
         // Evitar ejecución múltiple simultánea
         if (loadingRef.current) {
@@ -493,7 +501,7 @@ export const useDashboardData = () => {
             window.removeEventListener('storage', handleStorageChange);
             clearInterval(interval);
         };
-    }, [cargarDatos]); // Solo depende de cargarDatos que ahora es estable
+    }, [cargarDatos]);
 
     return {
         dashboardData,

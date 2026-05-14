@@ -9,6 +9,8 @@ export const useMetas = (categorias, mesNombre, anio = null) => {
 
     // Convertir nombre de mes a número
     const getMonthNumber = useCallback((monthName) => {
+        if (!monthName) return new Date().getMonth() + 1;
+
         const meses = {
             'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4,
             'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8,
@@ -21,7 +23,8 @@ export const useMetas = (categorias, mesNombre, anio = null) => {
 
     // Cargar metas para un mes y año específicos
     const cargarMetas = useCallback(async (mes, ano) => {
-        if (!categorias.length || !mes) return {};
+        // Validar que categorias existe y tiene elementos
+        if (!categorias || !categorias.length || !mes) return {};
 
         try {
             const { data, error: supabaseError } = await supabase
@@ -59,13 +62,13 @@ export const useMetas = (categorias, mesNombre, anio = null) => {
 
         try {
             // Verificar si ya existe
-            const { data: existing } = await supabase
+            const { data: existing, error: findError } = await supabase
                 .from('metas_categorias')
                 .select('id')
                 .eq('categoria_id', categoriaId)
                 .eq('mes', mesNumero)
                 .eq('anio', anoActual)
-                .single();
+                .maybeSingle(); // Usar maybeSingle en lugar de single
 
             let result;
             if (existing) {
@@ -136,7 +139,11 @@ export const useMetas = (categorias, mesNombre, anio = null) => {
     // Inicializar: cargar metas
     useEffect(() => {
         const init = async () => {
-            if (!categorias.length) return;
+            // Validar que categorias existe y tiene elementos
+            if (!categorias || !categorias.length) {
+                setLoading(false);
+                return;
+            }
 
             setLoading(true);
             const mesNumero = getMonthNumber(mesNombre);
