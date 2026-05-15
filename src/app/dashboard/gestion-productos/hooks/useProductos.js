@@ -22,7 +22,6 @@ export const useProductos = (sucursalId) => {
 
         setLoading(true);
         try {
-            // 🔹 Consulta corregida - sin alias problemáticos
             const { data, error } = await supabase
                 .from('productos_stock')
                 .select(`
@@ -47,7 +46,8 @@ export const useProductos = (sucursalId) => {
                     )
                 `)
                 .eq('sucursal_id', sucursal_id)
-                .eq('producto.activo', true);
+                .eq('producto.activo', true)
+                .order('producto(codigo)', { ascending: true });
 
             if (error) throw error;
 

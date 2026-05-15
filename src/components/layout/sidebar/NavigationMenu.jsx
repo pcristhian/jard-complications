@@ -56,7 +56,7 @@ const menuItems = [
         name: 'Traspaso de Productos',
         icon: Package,
         roles: [1, 2, 3],
-        path: '/dashboard/control-traslados'
+        path: '/dashboard/control-traspasos'
     },
     {
         id: 'reportes',
