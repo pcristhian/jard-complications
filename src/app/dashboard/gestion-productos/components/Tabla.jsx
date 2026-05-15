@@ -124,80 +124,82 @@ export default function Tabla({
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {productosFiltrados.map((producto) => (
-                            <tr key={producto.id} className="hover:bg-gray-50 group">
-                                <td className="px-2 py-3 text-center whitespace-nowrap text-sm uppercase font-medium text-gray-900">
-                                    {producto.codigo}
-                                </td>
-                                {/**  //NOMBRE Y DESCRIPCION */}
-                                <td className="px-1 py-3 w-min text-sm text-start text-gray-900 font-semibold uppercase"
-                                    style={{ maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    <div className="flex items-center h-full min-h-[3rem]">
-                                        {producto.nombre}
-                                    </div>
-                                    {producto.descripcion && (
-                                        <div className="relative w-full h-6 overflow-hidden">
-                                            <h3
-                                                className="
+                        {productosFiltrados
+                            .filter(producto => producto.activo === true)
+                            .map((producto) => (
+                                <tr key={producto.id} className="hover:bg-gray-50 group">
+                                    <td className="px-2 py-3 text-center whitespace-nowrap text-sm uppercase font-medium text-gray-900">
+                                        {producto.codigo}
+                                    </td>
+                                    {/**  //NOMBRE Y DESCRIPCION */}
+                                    <td className="px-1 py-3 w-min text-sm text-start text-gray-900 font-semibold uppercase"
+                                        style={{ maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        <div className="flex items-center h-full min-h-[3rem]">
+                                            {producto.nombre}
+                                        </div>
+                                        {producto.descripcion && (
+                                            <div className="relative w-full h-6 overflow-hidden">
+                                                <h3
+                                                    className="
                     absolute left-0 top-0 whitespace-nowrap text-gray-600
                     transition-none
                     group-hover:transition-transform group-hover:duration-[6000ms] group-hover:ease-linear
                     group-hover:-translate-x-full text-xs
                 "
-                                            >
-                                                {producto.descripcion}
-                                            </h3>
+                                                >
+                                                    {producto.descripcion}
+                                                </h3>
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-900">
+                                        {producto.sucursales?.nombre || 'N/A'}
+                                    </td>
+                                    <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-500">
+                                        {producto.categorias?.nombre || 'N/A'}
+                                    </td>
+                                    <td className="px-1 py-3 text-center whitespace-nowrap font-medium text-sm text-gray-900">
+                                        Bs. {parseFloat(producto.precio).toFixed(2)}
+                                    </td>
+                                    <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-900">
+                                        <div className="flex flex-col">
+                                            <span>Actual: {producto.stock_actual}</span>
+                                            <span className="text-xs text-gray-500">Mín: {producto.stock_minimo}</span>
                                         </div>
-                                    )}
-                                </td>
-                                <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-900">
-                                    {producto.sucursales?.nombre || 'N/A'}
-                                </td>
-                                <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-500">
-                                    {producto.categorias?.nombre || 'N/A'}
-                                </td>
-                                <td className="px-1 py-3 text-center whitespace-nowrap font-medium text-sm text-gray-900">
-                                    Bs. {parseFloat(producto.precio).toFixed(2)}
-                                </td>
-                                <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-900">
-                                    <div className="flex flex-col">
-                                        <span>Actual: {producto.stock_actual}</span>
-                                        <span className="text-xs text-gray-500">Mín: {producto.stock_minimo}</span>
-                                    </div>
-                                </td>
-                                <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-900">
-                                    <span className="inline-flex px-2 py-1 font-semibold rounded-full">
-                                        {producto.comision_variable ? `Bs. ${parseFloat(producto.comision_variable).toFixed(2)}`
-                                            : producto.categorias?.reglas_comision?.comision_base ?
-                                                `Bs. ${parseFloat(producto.categorias.reglas_comision.comision_base).toFixed(2)}`
-                                                : '-'}
-                                    </span>
-                                </td>
-                                <td className="px-2 py-3 text-center whitespace-nowrap">
-                                    <span className={`inline-flex px-2 py-1 font-semibold rounded-full ${producto.activo
-                                        ? 'bg-green-100 text-green-800 text-xs'
-                                        : 'bg-red-100 text-red-800 text-xs '
-                                        }`}>
-                                        {producto.activo ? 'Si' : 'No'}
-                                    </span>
-                                </td>
-                                <td className="px-2 py-3 text-center whitespace-nowrap text-sm font-medium space-x-2">
-                                    <button
-                                        onClick={() => currentUser?.roles?.nombre === 'admin' && onEditar(producto)}
-                                        disabled={currentUser?.roles?.nombre !== 'admin'}
-                                        className={`
+                                    </td>
+                                    <td className="px-1 py-3 text-center whitespace-nowrap text-sm text-gray-900">
+                                        <span className="inline-flex px-2 py-1 font-semibold rounded-full">
+                                            {producto.comision_variable ? `Bs. ${parseFloat(producto.comision_variable).toFixed(2)}`
+                                                : producto.categorias?.reglas_comision?.comision_base ?
+                                                    `Bs. ${parseFloat(producto.categorias.reglas_comision.comision_base).toFixed(2)}`
+                                                    : '-'}
+                                        </span>
+                                    </td>
+                                    <td className="px-2 py-3 text-center whitespace-nowrap">
+                                        <span className={`inline-flex px-2 py-1 font-semibold rounded-full ${producto.activo
+                                            ? 'bg-green-100 text-green-800 text-xs'
+                                            : 'bg-red-100 text-red-800 text-xs '
+                                            }`}>
+                                            {producto.activo ? 'Si' : 'No'}
+                                        </span>
+                                    </td>
+                                    <td className="px-2 py-3 text-center whitespace-nowrap text-sm font-medium space-x-2">
+                                        <button
+                                            onClick={() => currentUser?.roles?.nombre === 'admin' && onEditar(producto)}
+                                            disabled={currentUser?.roles?.nombre !== 'admin'}
+                                            className={`
             rounded-full px-2 py-1 transition-colors
             ${currentUser?.roles?.nombre === 'admin'
-                                                ? 'text-sky-900 cursor-pointer hover:text-sky-600 bg-sky-100'
-                                                : 'text-gray-400 cursor-not-allowed bg-gray-100'
-                                            }
+                                                    ? 'text-sky-900 cursor-pointer hover:text-sky-600 bg-sky-100'
+                                                    : 'text-gray-400 cursor-not-allowed bg-gray-100'
+                                                }
         `}
-                                    >
-                                        Editar
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
+                                        >
+                                            Editar
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
                     </tbody>
                 </table>
             </div>
