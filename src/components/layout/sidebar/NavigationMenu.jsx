@@ -87,6 +87,13 @@ const menuItems = [
         path: '/dashboard/gestion-sucursales'
     },
     {
+        id: 'inventario-fisico',
+        name: 'Inventario Físico',
+        icon: Package,
+        roles: [1],
+        path: '/dashboard/gestion-inventario'
+    },
+    {
         id: 'configuracion',
         name: 'Contraseña',
         icon: Settings,
