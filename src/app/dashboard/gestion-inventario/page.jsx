@@ -1,82 +1,43 @@
 // src/app/dashboard/gestion-inventario/page.js
+
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import Header from './components/Header';
+import { useState, useEffect } from 'react';
+import { useInventarioFisico } from './hooks/useInventarioFisico';
 import TablaInventario from './components/TablaInventario';
-import { useInventarioPeriodo } from './hooks/useInventarioPeriodo';
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 
 export default function GestionInventario() {
     const { values } = useMultiLocalStorageListener(["sucursalSeleccionada"]);
     const { sucursalSeleccionada } = values;
 
-    const [filtros, setFiltros] = useState({
-        mes: new Date().getMonth() + 1,
-        año: new Date().getFullYear(),
-        categoriaId: null
-    });
+    const [filtroCategoria, setFiltroCategoria] = useState(null);
+    const [fechaConteo, setFechaConteo] = useState(new Date().toISOString().split('T')[0]);
 
     const {
-        inventario,
-        categorias,
+        productos,
+        conteos,
         loading,
         error,
-        cargarInventario,
-        cargarCategorias,
-        registrarConteoFisico
-    } = useInventarioPeriodo();
+        saving,
+        cargarProductos,
+        cargarConteos,
+        guardarConteo
+    } = useInventarioFisico();
 
-    useEffect(() => {
-        cargarCategorias();
-    }, [cargarCategorias]);
-
-    // Cargar inventario cuando cambia la sucursal o los filtros
+    // Cargar productos cuando cambia la sucursal o categoría
     useEffect(() => {
         if (sucursalSeleccionada?.id) {
-            const fechaInicio = new Date(filtros.año, filtros.mes - 1, 1);
-            const fechaFin = new Date(filtros.año, filtros.mes, 0);
-
-            cargarInventario(
-                sucursalSeleccionada.id,
-                fechaInicio,
-                fechaFin,
-                filtros.categoriaId
-            );
+            cargarProductos(sucursalSeleccionada.id, filtroCategoria);
         }
-    }, [sucursalSeleccionada?.id, filtros, cargarInventario]);
+    }, [sucursalSeleccionada?.id, filtroCategoria]);
 
-    const handleRecargar = useCallback(() => {
+    // Cargar conteos cuando cambia la fecha o sucursal
+    useEffect(() => {
         if (sucursalSeleccionada?.id) {
-            const fechaInicio = new Date(filtros.año, filtros.mes - 1, 1);
-            const fechaFin = new Date(filtros.año, filtros.mes, 0);
-
-            cargarInventario(
-                sucursalSeleccionada.id,
-                fechaInicio,
-                fechaFin,
-                filtros.categoriaId
-            );
+            cargarConteos(sucursalSeleccionada.id, fechaConteo);
         }
-    }, [sucursalSeleccionada?.id, filtros, cargarInventario]);
-
-    const handleFiltroChange = (tipo, valor) => {
-        setFiltros(prev => ({ ...prev, [tipo]: valor }));
-    };
-
-    const handleRegistrarConteo = async (productoId, stockReal, observacion) => {
-        console.log('Registrando conteo:', { productoId, stockReal, observacion });
-
-        const resultado = await registrarConteoFisico(
-            productoId,
-            sucursalSeleccionada.id,
-            stockReal,
-            observacion
-        );
-
-        // NO recargamos todo el inventario, solo mostramos feedback visual
-        return resultado;
-    };
+    }, [sucursalSeleccionada?.id, fechaConteo]);
 
     if (!sucursalSeleccionada) {
         return (
@@ -90,12 +51,6 @@ export default function GestionInventario() {
 
     return (
         <div className="p-3 space-y-3 text-gray-800">
-            <Header
-                onRecargar={handleRecargar}
-                loading={loading}
-                sucursalSeleccionada={sucursalSeleccionada}
-            />
-
             {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
                     <strong>Error:</strong> {error}
@@ -103,13 +58,12 @@ export default function GestionInventario() {
             )}
 
             <TablaInventario
-                inventario={inventario}
-                categorias={categorias}
+                productos={productos}
+                conteos={conteos}
                 loading={loading}
-                filtros={filtros}
-                onFiltroChange={handleFiltroChange}
-                onRegistrarConteo={handleRegistrarConteo}
-                sucursalNombre={sucursalSeleccionada?.nombre}
+                saving={saving}
+                sucursalId={sucursalSeleccionada.id}
+                onGuardarConteo={guardarConteo}
             />
         </div>
     );

@@ -52,9 +52,13 @@ export default function SidebarHeader({ isCollapsed }) {
                     <motion.div
                         whileHover={{ scale: 1.1 }}
                         transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                        className="bg-white/20 p-2 rounded-xl"
+                        className="bg-white p-2 rounded-xl"
                     >
-                        <Building2 className="w-7 h-7 text-white" />
+                        <img
+                            src="/image/empresa/icono_logo.png"
+                            alt="Logo empresa"
+                            className="w-7 h-7"
+                        />
                     </motion.div>
 
                     <AnimatePresence mode="wait">
