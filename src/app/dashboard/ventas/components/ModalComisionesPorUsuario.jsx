@@ -1,7 +1,7 @@
 "use client";
 
 import { useVentasEstadisticas } from "../hooks/useVentasEstadisticas";
-import { useEffect, useMemo, Fragment } from "react";
+import { useEffect, useMemo, Fragment, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -14,17 +14,41 @@ import {
     Filter,
     BarChart3,
     Shield,
-    ShoppingCart
+    ShoppingCart,
+    ChevronLeft,
+    ChevronRight
 } from "lucide-react";
 
 export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
     const {
-        ventas,
+        ventas: ventasOriginal,
         loading,
         error,
         currentSucursal,
-        calcularComision
+        calcularComision,
+        mesSeleccionado,
+        cambiarMes,
+        obtenerMesesDisponibles
     } = useVentasEstadisticas();
+
+    const [mesesDisponibles, setMesesDisponibles] = useState([]);
+
+    // Ordenar ventas por comisión total de mayor a menor
+    const ventas = useMemo(() => {
+        if (!ventasOriginal || ventasOriginal.length === 0) return [];
+
+        return [...ventasOriginal].sort((a, b) => {
+            const comisionA = a.categorias?.reduce((total, cat) => total + (cat.comision || 0), 0) || 0;
+            const comisionB = b.categorias?.reduce((total, cat) => total + (cat.comision || 0), 0) || 0;
+            return comisionB - comisionA; // Mayor comisión primero
+        });
+    }, [ventasOriginal]);
+
+    useEffect(() => {
+        if (abierto) {
+            setMesesDisponibles(obtenerMesesDisponibles());
+        }
+    }, [abierto]);
 
     // Extraer todas las categorías únicas con sus reglas de comisión
     const todasLasCategorias = useMemo(() => {
@@ -94,25 +118,27 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
         return ventas?.reduce((total, usuario) => total + calcularTotalUsuario(usuario), 0) || 0;
     }, [ventas]);
 
-    const totalGeneralComisiones = useMemo(() => {
-        return ventas?.reduce((total, usuario) => total + calcularComisionTotalUsuario(usuario), 0) || 0;
-    }, [ventas]);
+    // Función para cambiar al mes anterior
+    const mesAnterior = () => {
+        const nuevaFecha = new Date(mesSeleccionado);
+        nuevaFecha.setMonth(nuevaFecha.getMonth() - 1);
+        cambiarMes(nuevaFecha);
+    };
 
-    useEffect(() => {
-        if (ventas && ventas.length > 0) {
-            console.log("=== VENTAS Y COMISIONES DESDE MODAL ===");
-            console.log("Total de usuarios con ventas:", ventas.length);
-            console.log("Categorías únicas:", todasLasCategorias);
-            console.log("Totales por categoría:", totalesPorCategoria);
-
-            ventas.forEach(usuario => {
-                console.log(`\n📊 ${usuario.usuario_nombre}: ${calcularTotalUsuario(usuario)} productos | $${calcularComisionTotalUsuario(usuario).toFixed(2)} comisión`);
-                usuario.categorias?.forEach(categoria => {
-                    console.log(`   ├─ ${categoria.categoria_nombre}: ${categoria.cantidad} ventas | $${categoria.comision.toFixed(2)}`);
-                });
-            });
+    // Función para cambiar al mes siguiente
+    const mesSiguiente = () => {
+        const nuevaFecha = new Date(mesSeleccionado);
+        nuevaFecha.setMonth(nuevaFecha.getMonth() + 1);
+        const hoy = new Date();
+        if (nuevaFecha <= hoy) {
+            cambiarMes(nuevaFecha);
         }
-    }, [ventas, todasLasCategorias, totalesPorCategoria]);
+    };
+
+    // Función para cambiar a un mes específico
+    const cambiarAMes = (fecha) => {
+        cambiarMes(fecha);
+    };
 
     // Formatear dinero
     const formatMoney = (amount) => {
@@ -123,17 +149,22 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
         }).format(amount);
     };
 
+    // Formatear mes para mostrar
+    const formatearMes = (fecha) => {
+        return fecha.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+    };
+
     // Función para obtener color según categoría
     const getCategoryColor = (index) => {
         const colors = [
-            'bg-gradient-to-r from-cyan-500 to-blue-500',
-            'bg-gradient-to-r from-emerald-500 to-green-500',
-            'bg-gradient-to-r from-amber-500 to-orange-500',
-            'bg-gradient-to-r from-purple-500 to-pink-500',
-            'bg-gradient-to-r from-rose-500 to-red-500',
-            'bg-gradient-to-r from-violet-500 to-indigo-500',
-            'bg-gradient-to-r from-teal-500 to-cyan-500',
-            'bg-gradient-to-r from-lime-500 to-emerald-500'
+            'from-cyan-500 to-blue-500',
+            'from-emerald-500 to-green-500',
+            'from-amber-500 to-orange-500',
+            'from-purple-500 to-pink-500',
+            'from-rose-500 to-red-500',
+            'from-violet-500 to-indigo-500',
+            'from-teal-500 to-cyan-500',
+            'from-lime-500 to-emerald-500'
         ];
         return colors[index % colors.length];
     };
@@ -144,161 +175,164 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
         <AnimatePresence>
             {abierto && (
                 <>
-                    {/* Overlay */}
+                    {/* Overlay más sutil */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
                         onClick={onCerrar}
                     />
 
-                    {/* Modal */}
+                    {/* Modal Minimalista */}
                     <div className="fixed inset-0 flex items-center justify-center z-50 p-4 pointer-events-none">
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            initial={{ opacity: 0, scale: 0.98, y: 10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl max-w-7xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 pointer-events-auto"
+                            exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                            transition={{ duration: 0.2 }}
+                            className="bg-white rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 pointer-events-auto"
                         >
-                            {/* Header */}
-                            <div className="relative p-6 border-b border-gray-200/50 bg-gradient-to-r from-gray-50 to-white">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl shadow-lg">
-                                                <Award className="w-6 h-6 text-white" />
-                                            </div>
-                                            <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                                                Comisiones por Promotor
-                                            </h2>
+                            {/* Header Minimalista con Selector de Mes */}
+                            <div className="flex justify-between items-center px-5 py-3 border-b border-gray-100 bg-white">
+                                <div className="flex items-center gap-3">
+                                    <Award className="w-5 h-5 text-gray-700" />
+                                    <h2 className="text-lg font-semibold text-gray-900">
+                                        Comisiones por Promotor
+                                    </h2>
+
+                                    {/* Selector de Mes Minimalista */}
+                                    <div className="flex items-center gap-1 ml-4">
+                                        <button
+                                            onClick={mesAnterior}
+                                            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </button>
+
+                                        <div className="relative">
+                                            <select
+                                                value={`${mesSeleccionado.getFullYear()}-${String(mesSeleccionado.getMonth() + 1).padStart(2, '0')}`}
+                                                onChange={(e) => {
+                                                    const [year, month] = e.target.value.split('-');
+                                                    const nuevaFecha = new Date(parseInt(year), parseInt(month) - 1, 1);
+                                                    cambiarAMes(nuevaFecha);
+                                                }}
+                                                className="appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg px-3 py-1.5 pr-8 focus:outline-none focus:border-gray-300 focus:ring-1 focus:ring-gray-200 cursor-pointer"
+                                            >
+                                                {mesesDisponibles.map((mes) => (
+                                                    <option key={mes.valor} value={mes.valor}>
+                                                        {mes.nombre}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                                         </div>
-                                        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                                            <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-lg border border-gray-200">
-                                                <ShoppingCart className="w-4 h-4 text-blue-500" />
-                                                <span className="font-medium">{currentSucursal?.nombre || "Sucursal actual"}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-lg border border-gray-200">
-                                                <Users className="w-4 h-4 text-emerald-500" />
-                                                <span>{ventas.length} promotores</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-lg border border-gray-200">
-                                                <Package className="w-4 h-4 text-amber-500" />
-                                                <span>{totalGeneralProductos} productos vendidos</span>
-                                            </div>
-                                        </div>
+
+                                        <button
+                                            onClick={mesSiguiente}
+                                            disabled={new Date() <= new Date(mesSeleccionado.getFullYear(), mesSeleccionado.getMonth(), 1)}
+                                            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </button>
                                     </div>
-                                    <motion.button
-                                        whileHover={{ scale: 1.1, rotate: 90 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={onCerrar}
-                                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
-                                    >
-                                        <X className="w-10 h-10 cursor-pointer" />
-                                    </motion.button>
+
+                                    <div className="flex items-center gap-3 ml-2 text-xs text-gray-500">
+                                        <span className="flex items-center gap-1">
+                                            <Users className="w-3 h-3" />
+                                            {ventas.length}
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                            <Package className="w-3 h-3" />
+                                            {totalGeneralProductos}
+                                        </span>
+                                    </div>
                                 </div>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={onCerrar}
+                                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </motion.button>
                             </div>
 
-                            {/* Contenido - Tabla */}
-                            <div className="flex-1 overflow-auto bg-gradient-to-b from-white to-gray-50/50">
+                            {/* Contenido - Tabla Minimalista */}
+                            <div className="flex-1 overflow-auto bg-gray-50">
                                 {loading ? (
                                     <div className="flex flex-col items-center justify-center h-64">
-                                        <motion.div
-                                            animate={{ rotate: 360 }}
-                                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                            className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
-                                        />
-                                        <p className="text-gray-600 font-medium">Calculando comisiones...</p>
-                                        <p className="text-sm text-gray-500 mt-1">Por favor espere</p>
+                                        <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mb-3" />
+                                        <p className="text-sm text-gray-500">Cargando datos de {formatearMes(mesSeleccionado)}...</p>
                                     </div>
                                 ) : error ? (
                                     <div className="flex flex-col items-center justify-center h-64 p-6">
-                                        <div className="w-16 h-16 bg-gradient-to-r from-red-100 to-rose-100 rounded-2xl flex items-center justify-center mb-4">
-                                            <X className="w-8 h-8 text-red-500" />
+                                        <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center mb-3">
+                                            <X className="w-6 h-6 text-red-500" />
                                         </div>
-                                        <h3 className="text-lg font-semibold text-red-600 mb-2">Error</h3>
-                                        <p className="text-gray-600 text-center mb-6 max-w-md">{error}</p>
+                                        <p className="text-sm text-gray-600 text-center">{error}</p>
                                         <button
                                             onClick={onCerrar}
-                                            className="px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-700 text-white rounded-xl hover:shadow-lg transition-shadow font-medium"
+                                            className="mt-4 px-3 py-1.5 text-sm bg-gray-800 text-white rounded-lg"
                                         >
                                             Cerrar
                                         </button>
                                     </div>
                                 ) : !ventas || ventas.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-64 p-6">
-                                        <div className="w-16 h-16 bg-gradient-to-r from-amber-100 to-orange-100 rounded-2xl flex items-center justify-center mb-4">
-                                            <BarChart3 className="w-8 h-8 text-amber-500" />
-                                        </div>
-                                        <h3 className="text-lg font-semibold text-gray-800 mb-2">Sin datos</h3>
-                                        <p className="text-gray-600 text-center mb-6">No hay ventas registradas para mostrar.</p>
-                                        <button
-                                            onClick={onCerrar}
-                                            className="px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-700 text-white rounded-xl hover:shadow-lg transition-shadow font-medium"
-                                        >
-                                            Cerrar
-                                        </button>
+                                        <BarChart3 className="w-12 h-12 text-gray-300 mb-3" />
+                                        <p className="text-sm text-gray-500">No hay ventas registradas en {formatearMes(mesSeleccionado)}</p>
                                     </div>
                                 ) : (
                                     <div className="min-w-full">
-                                        <table className="min-w-full divide-y divide-gray-200/50">
-                                            <thead className="bg-gradient-to-r from-gray-50 to-white/80 backdrop-blur-sm sticky top-0 shadow-sm">
-                                                <tr>
-                                                    {/* Columna Vendedores */}
-                                                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider bg-white/90 sticky left-0 z-20 min-w-[220px] border-r border-gray-200/50">
-                                                        <div className="flex items-center gap-2">
-                                                            <Users className="w-4 h-4 text-blue-500" />
-                                                            <span>Vendedores</span>
-                                                        </div>
+                                        <table className="min-w-full text-sm">
+                                            <thead className="bg-gray-100 sticky top-0">
+                                                <tr className="border-b border-gray-200">
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase sticky left-0 bg-gray-100 z-10 min-w-[180px]">
+                                                        Vendedor
                                                     </th>
 
-                                                    {/* Columnas de Categorías - Cantidad y Comisión */}
                                                     {todasLasCategorias.map((categoria, index) => (
                                                         <th
                                                             key={categoria.nombre}
                                                             colSpan={2}
-                                                            className="px-6 py-4 text-center text-sm font-semibold text-gray-700 uppercase tracking-wider"
+                                                            className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase"
                                                         >
-                                                            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${getCategoryColor(index)} bg-opacity-10 border border-gray-200/50`}>
-                                                                <Package className="w-4 h-4" />
-                                                                <span className="font-bold">{categoria.nombre}</span>
-                                                            </div>
-                                                            <div className="flex justify-center gap-4 mt-2 text-xs text-gray-500">
-                                                                <span className="flex items-center gap-1">
-                                                                    <Package className="w-3 h-3" />
-                                                                    Cantidad
-                                                                </span>
-                                                                <span className="flex items-center gap-1">
-                                                                    <DollarSign className="w-3 h-3" />
-                                                                    Comisión
-                                                                </span>
-                                                            </div>
+                                                            <span className={`inline-block px-2 py-0.5 text-[11px] font-semibold bg-gradient-to-r ${getCategoryColor(index)} text-white rounded`}>
+                                                                {categoria.nombre}
+                                                            </span>
                                                         </th>
                                                     ))}
 
-                                                    {/* Columnas Totales */}
-                                                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 uppercase tracking-wider bg-gradient-to-r from-gray-50 to-white/90" colSpan={2}>
-                                                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-gray-800 to-gray-700 text-white">
-                                                            <TrendingUp className="w-4 h-4" />
-                                                            <span>Total</span>
-                                                        </div>
-                                                        <div className="flex justify-center gap-4 mt-2 text-xs text-gray-500">
-                                                            <span className="flex items-center gap-1">
-                                                                <Package className="w-3 h-3" />
-                                                                Cantidad
-                                                            </span>
-                                                            <span className="flex items-center gap-1">
-                                                                <DollarSign className="w-3 h-3" />
-                                                                Comisión
-                                                            </span>
-                                                        </div>
+                                                    <th colSpan={2} className="px-3 py-2 text-center text-xs font-medium text-gray-600 uppercase bg-gray-100">
+                                                        Total
                                                     </th>
-
+                                                </tr>
+                                                <tr className="border-b border-gray-200">
+                                                    <th className="px-4 py-1.5 text-left text-xs text-gray-500 sticky left-0 bg-gray-100 z-10">
+                                                        Promotor
+                                                    </th>
+                                                    {todasLasCategorias.map((categoria) => (
+                                                        <Fragment key={`sub-${categoria.nombre}`}>
+                                                            <th className="px-2 py-1.5 text-center text-[10px] font-medium text-gray-400">
+                                                                Cant
+                                                            </th>
+                                                            <th className="px-2 py-1.5 text-center text-[10px] font-medium text-gray-400">
+                                                                Com
+                                                            </th>
+                                                        </Fragment>
+                                                    ))}
+                                                    <th className="px-2 py-1.5 text-center text-[10px] font-medium text-gray-400">
+                                                        Cant
+                                                    </th>
+                                                    <th className="px-3 py-1.5 text-center text-[10px] font-medium text-gray-400">
+                                                        Comisión
+                                                    </th>
                                                 </tr>
                                             </thead>
 
-                                            <tbody className="divide-y divide-gray-200/30">
+                                            <tbody>
                                                 {ventas.map((usuario, usuarioIndex) => {
                                                     const totalUsuario = calcularTotalUsuario(usuario);
                                                     const totalComisionUsuario = calcularComisionTotalUsuario(usuario);
@@ -306,131 +340,103 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                                                     return (
                                                         <motion.tr
                                                             key={`usuario-${usuario.usuario_id || usuarioIndex}`}
-                                                            initial={{ opacity: 0, y: 10 }}
-                                                            animate={{ opacity: 1, y: 0 }}
-                                                            transition={{ delay: usuarioIndex * 0.05 }}
-                                                            className={`hover:bg-gradient-to-r hover:from-gray-50/80 hover:to-white/80 transition-colors ${usuarioIndex % 2 === 0 ? 'bg-white/50' : 'bg-gray-50/30'}`}
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            transition={{ delay: usuarioIndex * 0.03 }}
+                                                            className={`border-b border-gray-100 hover:bg-gray-100/50 transition-colors ${usuarioIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
                                                         >
-                                                            {/* Celda Vendedor */}
-                                                            <td className="px-6 py-4 whitespace-nowrap bg-white/90 sticky left-0 z-10 min-w-[220px] border-r border-gray-200/50">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${usuario.usuario_rol === 'admin' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' : 'bg-gradient-to-r from-emerald-500 to-green-500'}`}>
-                                                                        <span className="text-white font-bold text-sm">
-                                                                            {usuario.usuario_nombre.charAt(0)}
-                                                                        </span>
+                                                            <td className="px-4 py-2 whitespace-nowrap sticky left-0 bg-inherit z-10">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white ${usuario.usuario_rol === 'admin' ? 'bg-gray-700' : 'bg-gray-600'}`}>
+                                                                        {usuario.usuario_nombre.charAt(0)}
                                                                     </div>
                                                                     <div>
-                                                                        <div className="font-semibold text-gray-900">{usuario.usuario_nombre}</div>
-                                                                        <div className="flex items-center gap-2 mt-1">
+                                                                        <div className="font-medium text-gray-900 text-sm">{usuario.usuario_nombre}</div>
+                                                                        <div className="text-[10px] text-gray-500">
                                                                             {usuario.usuario_rol === 'admin' ? (
-                                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border border-blue-200">
-                                                                                    <Shield className="w-3 h-3" />
-                                                                                    {usuario.usuario_rol}
+                                                                                <span className="flex items-center gap-0.5">
+                                                                                    <Shield className="w-2.5 h-2.5" />
+                                                                                    admin
                                                                                 </span>
                                                                             ) : (
-                                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200">
-                                                                                    <ShoppingCart className="w-3 h-3" />
-                                                                                    {usuario.usuario_rol} - {usuario.usuario_caja}
-                                                                                </span>
+                                                                                usuario.usuario_caja
                                                                             )}
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                             </td>
 
-                                                            {/* Celdas de Cantidades y Comisiones por Categoría */}
                                                             {todasLasCategorias.map((categoria, catIndex) => {
                                                                 const datos = obtenerDatosPorCategoria(usuario, categoria.nombre);
                                                                 return (
                                                                     <Fragment key={`${usuario.usuario_id}-${categoria.nombre}-${catIndex}`}>
-                                                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                                                                        <td className="px-2 py-2 whitespace-nowrap text-center text-sm">
                                                                             {datos.cantidad > 0 ? (
-                                                                                <motion.span
-                                                                                    initial={{ scale: 0 }}
-                                                                                    animate={{ scale: 1 }}
-                                                                                    className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-800 font-bold border border-cyan-200 shadow-sm"
-                                                                                >
+                                                                                <span className="font-medium text-gray-700">
                                                                                     {datos.cantidad}
-                                                                                </motion.span>
+                                                                                </span>
                                                                             ) : (
-                                                                                <span className="text-gray-400">-</span>
+                                                                                <span className="text-gray-300">—</span>
                                                                             )}
                                                                         </td>
-                                                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                                                                        <td className="px-2 py-2 whitespace-nowrap text-center text-xs">
                                                                             {datos.comision > 0 ? (
-                                                                                <motion.span
-                                                                                    initial={{ scale: 0 }}
-                                                                                    animate={{ scale: 1 }}
-                                                                                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-800 font-semibold border border-emerald-200 shadow-sm"
-                                                                                >
-                                                                                    Bs. {parseFloat(datos.comision).toFixed(2)}
-                                                                                </motion.span>
+                                                                                <span className="font-medium text-emerald-600">
+                                                                                    {datos.comision.toFixed(0)}
+                                                                                </span>
                                                                             ) : (
-                                                                                <span className="text-gray-400">-</span>
+                                                                                <span className="text-gray-300">—</span>
                                                                             )}
                                                                         </td>
                                                                     </Fragment>
                                                                 );
                                                             })}
 
-                                                            {/* Celdas Total */}
-                                                            <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-center bg-gradient-to-r from-gray-50 to-white/50">
-                                                                <motion.span
-                                                                    initial={{ scale: 0 }}
-                                                                    animate={{ scale: 1 }}
-                                                                    className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r from-gray-800 to-gray-700 text-white font-bold shadow-lg"
-                                                                >
+                                                            <td className="px-2 py-2 whitespace-nowrap text-center">
+                                                                <span className="font-semibold text-gray-800 text-sm">
                                                                     {totalUsuario}
-                                                                </motion.span>
+                                                                </span>
                                                             </td>
-
-                                                            <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-center bg-gradient-to-r from-gray-50 to-white/50">
-                                                                <motion.span
-                                                                    initial={{ scale: 0 }}
-                                                                    animate={{ scale: 1 }}
-                                                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold shadow-lg"
-                                                                >
-                                                                    Bs. {parseFloat(totalComisionUsuario).toFixed(2)}
-                                                                </motion.span>
+                                                            <td className="px-3 py-2 whitespace-nowrap text-center">
+                                                                <span className="font-semibold text-emerald-700 text-sm">
+                                                                    {totalComisionUsuario.toFixed(0)}
+                                                                </span>
                                                             </td>
                                                         </motion.tr>
                                                     );
                                                 })}
                                             </tbody>
 
-                                            {/* Footer - Totales por Categoría */}
-                                            <tfoot className="bg-gradient-to-r from-gray-50 to-white/90 backdrop-blur-sm border-t border-gray-200/50 sticky bottom-0">
+                                            {/* Footer Minimalista */}
+                                            <tfoot className="bg-gray-100 border-t border-gray-200 sticky bottom-0">
                                                 <tr>
-                                                    <td className="px-6 py-4 text-sm font-bold text-gray-900 bg-white/90 sticky left-0 z-10 border-r border-gray-200/50">
-                                                        <div className="flex items-center gap-2">
-                                                            <TrendingUp className="w-4 h-4 text-gray-700" />
-                                                            <span>TOTALES</span>
-                                                        </div>
+                                                    <td className="px-4 py-2 text-xs font-semibold text-gray-700 sticky left-0 bg-gray-100 z-10">
+                                                        TOTAL
                                                     </td>
 
                                                     {todasLasCategorias.map((categoria, index) => (
                                                         <Fragment key={`footer-${categoria.nombre}-${index}`}>
-                                                            <td className="px-4 py-4 text-sm font-bold text-center">
-                                                                <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold shadow-md">
+                                                            <td className="px-2 py-2 text-center">
+                                                                <span className="text-xs font-semibold text-gray-700">
                                                                     {totalesPorCategoria[categoria.nombre]?.cantidad || 0}
                                                                 </span>
                                                             </td>
-                                                            <td className="px-4 py-4 text-sm font-bold text-center">
-                                                                <span className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold shadow-md">
-                                                                    Bs. {parseFloat(totalesPorCategoria[categoria.nombre]?.comision || 0).toFixed(2)}
+                                                            <td className="px-2 py-2 text-center">
+                                                                <span className="text-xs font-semibold text-emerald-700">
+                                                                    {(totalesPorCategoria[categoria.nombre]?.comision || 0).toFixed(0)}
                                                                 </span>
                                                             </td>
                                                         </Fragment>
                                                     ))}
 
-                                                    <td className="px-4 py-4 text-sm font-bold text-center">
-                                                        <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r from-gray-800 to-gray-900 text-white font-bold shadow-lg">
+                                                    <td className="px-2 py-2 text-center">
+                                                        <span className="text-sm font-bold text-gray-800">
                                                             {Object.values(totalesPorCategoria).reduce((a, b) => a + (b.cantidad || 0), 0)}
                                                         </span>
                                                     </td>
-                                                    <td className="px-2 py-4 text-sm font-bold text-center">
-                                                        <span className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold shadow-lg">
-                                                            Bs. {parseFloat(Object.values(totalesPorCategoria).reduce((a, b) => a + (b.comision || 0), 0)).toFixed(2)}
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className="text-sm font-bold text-emerald-700">
+                                                            {Object.values(totalesPorCategoria).reduce((a, b) => a + (b.comision || 0), 0).toFixed(0)}
                                                         </span>
                                                     </td>
                                                 </tr>
@@ -440,18 +446,17 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                                 )}
                             </div>
 
-                            {/* Footer */}
-                            <div className="p-4 border-t border-gray-200/50 bg-gradient-to-r from-white to-gray-50/80 flex justify-between items-center">
-                                <div className="flex items-center gap-4 text-sm text-gray-600">
-                                    <div className="flex items-center gap-2">
-                                        <Filter className="w-4 h-4 text-gray-500" />
-                                        <span>{todasLasCategorias.length} categorías</span>
-                                    </div>
-                                    <div className="w-px h-4 bg-gray-300"></div>
-                                    <div className="flex items-center gap-2">
-                                        <Calendar className="w-4 h-4 text-gray-500" />
-                                        <span>Mes actual</span>
-                                    </div>
+                            {/* Footer con información del mes */}
+                            <div className="px-5 py-2 border-t border-gray-100 bg-white flex justify-between items-center text-xs text-gray-500">
+                                <div className="flex items-center gap-3">
+                                    <span className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" />
+                                        {formatearMes(mesSeleccionado)}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <TrendingUp className="w-3 h-3" />
+                                        Total comisiones: {Object.values(totalesPorCategoria).reduce((a, b) => a + (b.comision || 0), 0).toFixed(0)}
+                                    </span>
                                 </div>
                             </div>
                         </motion.div>

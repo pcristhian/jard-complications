@@ -7,6 +7,7 @@ export const useVentasEstadisticas = () => {
     const [ventas, setVentas] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [mesSeleccionado, setMesSeleccionado] = useState(new Date());
 
     // Listener para localStorage
     const { values: localStorageValues } = useMultiLocalStorageListener([
@@ -20,6 +21,17 @@ export const useVentasEstadisticas = () => {
 
     const getCurrentSucursal = () => {
         return localStorageValues.sucursalSeleccionada || null;
+    };
+
+    // Función para obtener las fechas del mes
+    const obtenerFechasDelMes = (fecha) => {
+        const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+        inicio.setHours(0, 0, 0, 0);
+
+        const fin = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
+        fin.setHours(23, 59, 59, 999);
+
+        return { inicio, fin };
     };
 
     // Función para calcular comisión según reglas
@@ -61,7 +73,7 @@ export const useVentasEstadisticas = () => {
         }
     };
 
-    const obtenerMisVentas = async () => {
+    const obtenerMisVentas = async (fechaPersonalizada = null) => {
         const currentUser = getCurrentUser();
         const currentSucursal = getCurrentSucursal();
 
@@ -74,15 +86,12 @@ export const useVentasEstadisticas = () => {
             setLoading(true);
             setError(null);
 
-            // === FECHAS DEL MES ACTUAL ===
-            const fechaInicio = new Date();
-            fechaInicio.setDate(1);
-            fechaInicio.setHours(0, 0, 0, 0);
+            // Usar fecha personalizada o la del mes seleccionado
+            const fechaReferencia = fechaPersonalizada || mesSeleccionado;
+            const { inicio: fechaInicio, fin: fechaFin } = obtenerFechasDelMes(fechaReferencia);
 
-            const fechaFin = new Date(fechaInicio.getFullYear(), fechaInicio.getMonth() + 1, 0);
-            fechaFin.setHours(23, 59, 59, 999);
+            console.log(`Consultando ventas desde ${fechaInicio.toLocaleDateString()} hasta ${fechaFin.toLocaleDateString()}`);
 
-            // 🔹 NUEVA CONSULTA: Unir ventas con productos (catálogo) - sin stock
             const { data: ventasData, error: supabaseError } = await supabase
                 .from('ventas')
                 .select(`
@@ -123,7 +132,6 @@ export const useVentasEstadisticas = () => {
 
             // Estructura para almacenar datos agrupados
             const ventasAgrupadas = {};
-            // Estructura para almacenar comisiones variables por usuario y categoría
             const comisionesVariablesMap = {};
 
             (ventasData || []).forEach(venta => {
@@ -137,8 +145,6 @@ export const useVentasEstadisticas = () => {
                 const comisionVariableProducto = venta.productos?.comision_variable || 0;
                 const cantidadEnVenta = venta.cantidad || 1;
 
-                console.log(`Venta ID ${venta.id}: cantidad = ${cantidadEnVenta}, producto = ${venta.productos?.nombre}`);
-
                 // Inicializar estructuras si no existen
                 if (!ventasAgrupadas[usuarioId]) {
                     ventasAgrupadas[usuarioId] = {
@@ -148,7 +154,7 @@ export const useVentasEstadisticas = () => {
                         usuario_rol: usuarioRol,
                         total_productos: 0,
                         total_comision: 0,
-                        total_ventas: 0, // Nuevo: total en dinero
+                        total_ventas: 0,
                         categorias: {}
                     };
                     comisionesVariablesMap[usuarioId] = {};
@@ -161,7 +167,7 @@ export const useVentasEstadisticas = () => {
                         reglas_comision: reglasComision,
                         cantidad: 0,
                         comision: 0,
-                        total_ventas: 0 // Nuevo: total en dinero por categoría
+                        total_ventas: 0
                     };
                     comisionesVariablesMap[usuarioId][categoriaId] = [];
                 }
@@ -179,8 +185,6 @@ export const useVentasEstadisticas = () => {
                     }
                 }
             });
-
-            console.log("Ventas agrupadas antes de calcular comisiones:", ventasAgrupadas);
 
             // Calcular comisiones después de agrupar todas las ventas
             Object.keys(ventasAgrupadas).forEach(usuarioId => {
@@ -200,8 +204,6 @@ export const useVentasEstadisticas = () => {
 
                     categoria.comision = comisionCalculada;
                     usuario.total_comision += comisionCalculada;
-
-                    console.log(`Usuario ${usuario.usuario_nombre}, Categoría ${categoria.categoria_nombre}: ${cantidadProductos} productos, comisión = ${comisionCalculada}`);
                 });
             });
 
@@ -227,122 +229,27 @@ export const useVentasEstadisticas = () => {
         }
     };
 
-    // Nueva función: Obtener ventas por rango de fechas personalizado
-    const obtenerVentasPorRango = async (fechaInicio, fechaFin) => {
-        const currentUser = getCurrentUser();
-        const currentSucursal = getCurrentSucursal();
-
-        if (!currentUser || !currentSucursal) {
-            setVentas([]);
-            return [];
-        }
-
-        try {
-            setLoading(true);
-            setError(null);
-
-            const { data: ventasData, error: supabaseError } = await supabase
-                .from('ventas')
-                .select(`
-                    *,
-                    productos:producto_id (
-                        id,
-                        nombre,
-                        categoria_id,
-                        comision_variable,
-                        categorias:categoria_id (
-                            id,
-                            nombre,
-                            reglas_comision
-                        )
-                    ),
-                    usuarios:promotor_id (
-                        id,
-                        nombre,
-                        caja,
-                        rol_id,
-                        roles:rol_id (
-                            id,
-                            nombre
-                        )
-                    )
-                `)
-                .eq('sucursal_id', currentSucursal.id)
-                .eq('estado', 'activa')
-                .gte('fecha_venta', fechaInicio)
-                .lte('fecha_venta', fechaFin)
-                .order('fecha_venta', { ascending: false });
-
-            if (supabaseError) {
-                throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
-            }
-
-            return ventasData || [];
-        } catch (err) {
-            console.error('Error en obtenerVentasPorRango:', err);
-            setError(err.message);
-            return [];
-        } finally {
-            setLoading(false);
-        }
+    // Función para cambiar mes y recargar datos
+    const cambiarMes = async (nuevaFecha) => {
+        setMesSeleccionado(nuevaFecha);
+        await obtenerMisVentas(nuevaFecha);
     };
 
-    // Nueva función: Obtener resumen de comisiones por vendedor
-    const obtenerResumenComisiones = async (fechaInicio, fechaFin) => {
-        const currentUser = getCurrentUser();
-        const currentSucursal = getCurrentSucursal();
+    // Función para obtener meses disponibles (últimos 12 meses)
+    const obtenerMesesDisponibles = () => {
+        const meses = [];
+        const hoy = new Date();
 
-        if (!currentUser || !currentSucursal) {
-            return [];
+        for (let i = 0; i < 12; i++) {
+            const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+            meses.push({
+                fecha,
+                nombre: fecha.toLocaleString('es-ES', { month: 'long', year: 'numeric' }),
+                valor: `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
+            });
         }
 
-        try {
-            const ventasData = await obtenerVentasPorRango(fechaInicio, fechaFin);
-
-            // Agrupar por usuario
-            const resumen = {};
-
-            ventasData.forEach(venta => {
-                const usuarioId = venta.promotor_id;
-                const usuarioNombre = venta.usuarios?.nombre || `Usuario ${usuarioId}`;
-                const cantidad = venta.cantidad || 1;
-                const totalVenta = parseFloat(venta.total_precio_venta || 0);
-                const comisionVariableProducto = venta.productos?.comision_variable || 0;
-                const reglasComision = venta.productos?.categorias?.reglas_comision;
-
-                if (!resumen[usuarioId]) {
-                    resumen[usuarioId] = {
-                        usuario_id: usuarioId,
-                        usuario_nombre: usuarioNombre,
-                        total_ventas: 0,
-                        total_productos: 0,
-                        total_comision: 0,
-                        comisiones_variables: []
-                    };
-                }
-
-                resumen[usuarioId].total_ventas += totalVenta;
-                resumen[usuarioId].total_productos += cantidad;
-
-                if (comisionVariableProducto > 0) {
-                    for (let i = 0; i < cantidad; i++) {
-                        resumen[usuarioId].comisiones_variables.push(comisionVariableProducto);
-                    }
-                }
-            });
-
-            // Calcular comisiones finales
-            Object.values(resumen).forEach(usuario => {
-                const comisionCalculada = usuario.comisiones_variables.reduce((sum, c) => sum + c, 0);
-                usuario.total_comision = comisionCalculada;
-                delete usuario.comisiones_variables;
-            });
-
-            return Object.values(resumen);
-        } catch (err) {
-            console.error('Error en obtenerResumenComisiones:', err);
-            return [];
-        }
+        return meses;
     };
 
     const haySucursalSeleccionada = () => {
@@ -364,13 +271,14 @@ export const useVentasEstadisticas = () => {
         error,
         ventas,
         currentSucursal: getCurrentSucursal(),
+        mesSeleccionado,
 
         // Funciones principales
         obtenerMisVentas,
         calcularComision,
-
-        // Nuevas funciones útiles
-        obtenerVentasPorRango,
-        obtenerResumenComisiones
+        cambiarMes,
+        obtenerMesesDisponibles,
+        obtenerFechasDelMes,
+        haySucursalSeleccionada
     };
 };
