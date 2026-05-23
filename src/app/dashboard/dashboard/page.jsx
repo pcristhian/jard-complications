@@ -161,37 +161,37 @@ export default function DashboardPage() {
                                     <p className="text-sm text-orange-600 font-medium">
                                         📍 Mostrando datos de {selectedMonth}
                                     </p>
-                                    <motion.button
-                                        onClick={resetFilters}
-                                        initial={{ scale: 0.8, opacity: 0 }}
-                                        animate={{
-                                            scale: 1,
-                                            opacity: 1,
-                                            // Efecto de parpadeo suave que se repite 3 veces
-                                            boxShadow: [
-                                                "0 0 0 0 rgba(249, 115, 22, 0)",
-                                                "0 0 0 4px rgba(249, 115, 22, 0.3)",
-                                                "0 0 0 0 rgba(249, 115, 22, 0)"
-                                            ]
-                                        }}
-                                        transition={{
-                                            scale: { type: "spring", stiffness: 400, damping: 25 },
-                                            opacity: { duration: 0.3 },
-                                            boxShadow: { duration: 0.8, repeat: 3, repeatType: "loop" }
-                                        }}
-                                        whileHover={{ scale: 1.05, backgroundColor: "#fed7aa" }}
-                                        whileTap={{ scale: 0.95 }}
-                                        className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full hover:bg-orange-200 transition-all ml-1 flex items-center gap-1 font-medium"
-                                    >
-                                        <motion.span
-                                            animate={{ rotate: [0, 90, 0] }}
-                                            transition={{ duration: 0.5, delay: 0.2, repeat: 2 }}
-                                            className="text-sm"
-                                        >
-                                            ✕
-                                        </motion.span>
-                                        <span>Limpiar filtro</span>
-                                    </motion.button>
+                                <motion.button
+    onClick={resetFilters}
+    initial={{ scale: 0.8, opacity: 0 }}
+    animate={{
+        scale: 1,
+        opacity: 1,
+        // Efecto de parpadeo suave que se repite 3 veces
+        boxShadow: [
+            "0 0 0 0 rgba(220, 38, 38, 0)",
+            "0 0 0 4px rgba(220, 38, 38, 0.4)",
+            "0 0 0 0 rgba(220, 38, 38, 0)"
+        ]
+    }}
+    transition={{
+        scale: { type: "spring", stiffness: 400, damping: 25 },
+        opacity: { duration: 0.3 },
+        boxShadow: { duration: 0.8, repeat: 3, repeatType: "loop" }
+    }}
+    whileHover={{ scale: 1.05, backgroundColor: "#fee2e2" }}
+    whileTap={{ scale: 0.95 }}
+    className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-all ml-1 flex items-center gap-1 font-medium"
+>
+    <motion.span
+        animate={{ rotate: [0, 90, 0] }}
+        transition={{ duration: 0.5, delay: 0.2, repeat: 2 }}
+        className="text-sm"
+    >
+        ✕
+    </motion.span>
+    <span>Limpiar filtro</span>
+</motion.button>
                                 </>
                             )}
                         </div>
@@ -241,8 +241,8 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Footer */}
-                {dashboardData.stats && (
-                    <div className="text-center pt-2">
+                {/* {dashboardData.stats && (
+                    <div className="text-center">
                         <p className="text-xs text-gray-400">
                             Datos actualizados al {new Date().toLocaleDateString('es-ES', {
                                 day: 'numeric',
@@ -251,7 +251,7 @@ export default function DashboardPage() {
                             })}
                         </p>
                     </div>
-                )}
+                )} */}
             </div>
 
             {/* Modal de Metas con BD */}

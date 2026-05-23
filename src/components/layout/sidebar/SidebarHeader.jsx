@@ -2,9 +2,10 @@
 "use client"
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { Building2, MapPin, ChevronDown } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import { useSucursal } from '@/contexts/SucursalContext'
 import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener'
+import { useState, useEffect } from 'react'
 
 export default function SidebarHeader({ isCollapsed }) {
     const {
@@ -13,6 +14,74 @@ export default function SidebarHeader({ isCollapsed }) {
         loading,
         selectSucursal
     } = useSucursal()
+
+    const [waveTrigger, setWaveTrigger] = useState(0)
+    const [spinningLetters, setSpinningLetters] = useState({})
+    const text = "Jard Complications"
+    const letters = text.split('')
+
+    // Transiciones optimizadas para performance
+    const smoothTransition = {
+        duration: 0.8,
+        ease: "easeInOut"
+    }
+
+    // Animación de slot machine - cada letra gira sobre su propio eje
+    const slotMachineAnimation = (index) => ({
+        rotateX: [0, 360, 720], // Dos vueltas completas
+        scale: [1, 1.1, 1],
+        transition: {
+            duration: 0.8, // Más lento
+            delay: index * 0.05, // Retraso progresivo para efecto cascada
+            ease: "easeInOut",
+            times: [0, 0.5, 1]
+        }
+    })
+
+    // Función para iniciar la animación de todas las letras
+    const startSlotMachineAnimation = () => {
+        const newSpinningState = {}
+        letters.forEach((_, index) => {
+            newSpinningState[index] = true
+        })
+        setSpinningLetters(newSpinningState)
+        
+        // Resetear el estado de spinning después de la animación
+        setTimeout(() => {
+            setSpinningLetters({})
+        }, 1500)
+    }
+
+    useEffect(() => {
+        let interval
+        if (!isCollapsed) {
+            // Iniciar la primera animación al montar
+            startSlotMachineAnimation()
+            
+            // Configurar intervalo para repetir cada 4 segundos
+            interval = setInterval(() => {
+                startSlotMachineAnimation()
+                setWaveTrigger(prev => prev + 1)
+            }, 7000)
+        }
+        return () => clearInterval(interval)
+    }, [isCollapsed])
+
+    // Componente de letra individual con efecto slot machine
+    const SlotLetter = ({ letter, index, isSpinning }) => {
+        return (
+            <motion.span
+                className="inline-block"
+                animate={isSpinning ? slotMachineAnimation(index) : {}}
+                style={{
+                    display: 'inline-block',
+                    transformStyle: 'preserve-3d'
+                }}
+            >
+                {letter === ' ' ? '\u00A0' : letter}
+            </motion.span>
+        )
+    }
 
     const handleSucursalChange = (e) => {
         const selectedId = parseInt(e.target.value)
@@ -26,32 +95,25 @@ export default function SidebarHeader({ isCollapsed }) {
         'currentUser',
         'sucursalSeleccionada'
     ]);
-    // Obtener usuario actual desde localStorage
+
     const getCurrentUser = () => {
         return localStorageValues.currentUser || null;
     };
-    // Obtener sucursal seleccionada desde localStorage
-    const getCurrentSucursal = () => {
-        return localStorageValues.sucursalSeleccionada || null;
-    };
 
     const currentUser = getCurrentUser();
-    const currentSucursal = getCurrentSucursal();
 
     return (
         <motion.div
-            className={`border-b border-blue-500/30 bg-gradient-to-r from-blue-600 to-blue-700 ${isCollapsed ? 'px-4' : 'px-6'
-                }`}
+            className={`border-b border-blue-500/30 bg-gradient-to-r from-blue-600 to-blue-700 ${isCollapsed ? 'px-4' : 'px-6'}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
+            transition={smoothTransition}
         >
-            {/* Logo y Título */}
             <div className={`${isCollapsed ? 'py-3' : 'py-4'}`}>
                 <div className="flex items-center gap-3">
                     <motion.div
-                        whileHover={{ scale: 1.1 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                        whileHover={{ scale: 1.05 }}
+                        transition={smoothTransition}
                         className="bg-white p-2 rounded-xl"
                     >
                         <img
@@ -65,36 +127,54 @@ export default function SidebarHeader({ isCollapsed }) {
                         {!isCollapsed && (
                             <motion.div
                                 key="header-text"
-                                initial={{ opacity: 0, x: -10 }}
+                                initial={{ opacity: 0, x: -5 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -10 }}
-                                transition={{ duration: 0.2 }}
+                                exit={{ opacity: 0, x: -5 }}
+                                transition={smoothTransition}
                                 className="min-w-0 flex-1"
                             >
-                                <h1 className="text-lg font-bold text-white truncate">Torre Fuerte</h1>
-                                <p className="text-blue-100/80 text-xs">Distribuidora</p>
+                                <motion.h1 
+                                    className="text-lg font-bold text-white truncate"
+                                    style={{ willChange: 'transform' }}
+                                >
+                                    {letters.map((letter, index) => (
+                                        <SlotLetter
+                                            key={`${index}-${waveTrigger}`}
+                                            letter={letter}
+                                            index={index}
+                                            isSpinning={spinningLetters[index]}
+                                        />
+                                    ))}
+                                </motion.h1>
+                                <motion.p 
+                                    className="text-blue-100/80 text-xs"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ ...smoothTransition, delay: 0.05 }}
+                                >
+                                    Torre Fuerte
+                                </motion.p>
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
             </div>
 
-            {/* Selector de Sucursal */}
             <AnimatePresence mode="wait">
                 {!isCollapsed && (
                     <motion.div
                         key="sucursal-selector"
-                        initial={{ height: 0, opacity: 0, y: -10 }}
-                        animate={{ height: "auto", opacity: 1, y: 0 }}
-                        exit={{ height: 0, opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={smoothTransition}
                         className="overflow-hidden"
                     >
                         <div className="px-4 pb-4">
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
-                                transition={{ delay: 0.1 }}
+                                transition={{ ...smoothTransition, delay: 0.05 }}
                                 className="bg-white/10 backdrop-blur-sm rounded-lg p-3"
                             >
                                 <div className="flex items-center gap-2 mb-2">
@@ -115,26 +195,12 @@ export default function SidebarHeader({ isCollapsed }) {
                                         className="w-full bg-white/90 border border-white/30 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all"
                                     >
                                         <option value="">Seleccionar sucursal</option>
-                                        {/* {sucursales.filter(s => s.activo)
-                                            .map((sucursal) => (
-                                                <option key={sucursal.id} value={sucursal.id}>
-                                                    {sucursal.nombre}
-                                                </option>
-                                            ))} */}
                                         {sucursales
                                             .filter(sucursal => {
                                                 if (!sucursal?.activo) return false;
-
                                                 const userRole = currentUser?.roles?.nombre;
-
-                                                // Si no hay usuario o rol, no mostrar nada
                                                 if (!userRole) return false;
-
-                                                // Admin ve todas las sucursales activas
-                                                if (userRole === 'admin') {
-                                                    return true;
-                                                }
-                                                // Para otros roles, solo su sucursal asignada
+                                                if (userRole === 'admin') return true;
                                                 const userSucursalId = currentUser?.sucursal_id;
                                                 return sucursal.id === userSucursalId;
                                             })

@@ -69,7 +69,7 @@ export default function HeaderPlanesWifi({ onNuevoPlan, onRecargar, loading }) {
                         transition={{ delay: 0.1 }}
                         className="text-xl font-bold text-gray-900 mb-2"
                     >
-                        Gestión de Planes WiFi
+                        Registro de Planes WiFi Tigo
                     </motion.h1>
 
                     <div className="flex flex-wrap items-center gap-3 text-sm">

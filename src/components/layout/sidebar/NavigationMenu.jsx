@@ -32,7 +32,7 @@ const menuItems = [
     },
     {
         id: 'planeswifi',
-        name: 'Planes WiFi',
+        name: 'Registro Planes WiFi',
         icon: ShoppingCart,
         roles: [1, 2, 3],
         path: '/dashboard/planes-wifi'
@@ -52,7 +52,7 @@ const menuItems = [
         path: '/dashboard/gestion-categorias'
     },
     {
-        id: 'inventario',
+        id: 'traspasos',
         name: 'Traspaso de Productos',
         icon: Package,
         roles: [1, 2, 3],
@@ -65,13 +65,6 @@ const menuItems = [
         roles: [1, 2, 3],
         path: '/dashboard/reportes'
     },
-    // {
-    //     id: 'resumen',
-    //     name: 'Ver resumen del mes',
-    //     icon: FileText,
-    //     roles: [1, 2, 3],
-    //     path: '/dashboard/resumen'
-    // },
     {
         id: 'usuarios',
         name: 'Gestión de Usuarios',
@@ -102,47 +95,51 @@ const menuItems = [
     }
 ]
 
+// Transición unificada y suave
+const smoothTransition = {
+    duration: 0.25,
+    ease: "easeInOut"
+}
+
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.03,
+            delayChildren: 0.05
+        }
+    }
+}
+
+const itemVariants = {
+    hidden: { x: -8, opacity: 0 },
+    visible: {
+        x: 0,
+        opacity: 1,
+        transition: smoothTransition
+    }
+}
+
 export default function NavigationMenu({ isCollapsed }) {
     const { user } = useAuth()
     const router = useRouter()
-    const pathname = usePathname() // ← DECLARADO AQUÍ, disponible en todo el componente
+    const pathname = usePathname()
     const [hoveredItem, setHoveredItem] = useState(null)
-
 
     const filteredItems = menuItems.filter(item =>
         item.roles.includes(user?.rol_id)
     )
 
     const isActive = (path) => {
-        if (!pathname) return false // ← Seguridad si pathname no está disponible
+        if (!pathname) return false
         if (pathname === path) return true
         if (path !== '/dashboard' && pathname.startsWith(path)) return true
         return false
     }
+
     const handleNavigation = (path) => {
         router.push(path)
-    }
-
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.05
-            }
-        }
-    }
-
-    const itemVariants = {
-        hidden: { x: -20, opacity: 0 },
-        visible: {
-            x: 0,
-            opacity: 1,
-            transition: {
-                type: "spring",
-                stiffness: 300
-            }
-        }
     }
 
     return (
@@ -154,66 +151,66 @@ export default function NavigationMenu({ isCollapsed }) {
         >
             {filteredItems.map((item) => {
                 const Icon = item.icon
-                const isHovered = hoveredItem === item.id
-                const active = isActive(item.path) // ← Usa la función que ya tiene acceso a pathname
+                const active = isActive(item.path)
 
                 return (
                     <motion.button
                         key={item.id}
                         variants={itemVariants}
                         whileHover={{
-                            x: isCollapsed ? 0 : 4,
+                            x: isCollapsed ? 0 : 3,
                             backgroundColor: "rgba(59, 130, 246, 0.08)",
-                            color: "#1e40af"
+                            transition: smoothTransition
                         }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => handleNavigation(item.path)}
                         className={`flex items-center cursor-pointer ${isCollapsed ? 'justify-center px-1 w-full' : 'px-3 w-full'
-                            } py-3 text-gray-700 rounded-lg transition-all duration-200 hover:shadow-sm group relative`}
+                            } py-3 text-gray-700 rounded-lg transition-colors duration-200 hover:shadow-sm group relative`}
+                        onMouseEnter={() => setHoveredItem(item.id)}
+                        onMouseLeave={() => setHoveredItem(null)}
                     >
-
-                        {/* Indicador de página activa (visible en estado expandido) */}
+                        {/* Indicador de página activa (expandido) */}
                         {active && !isCollapsed && (
                             <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
+                                initial={{ scaleY: 0 }}
+                                animate={{ scaleY: 1 }}
+                                transition={smoothTransition}
                                 className="absolute -left-1 w-1 h-6 bg-blue-600 rounded-full"
                             />
                         )}
+
+                        {/* Icono */}
                         <div className="relative">
-                            <Icon className={`${isCollapsed ? 'w-6 h-6' : 'w-5 h-5 mr-3'
-                                } transition-colors ${active ? 'text-blue-600' : 'text-gray-500'}`} />
+                            <Icon 
+                                className={`${isCollapsed ? 'w-6 h-6' : 'w-5 h-5 mr-3'
+                                    } transition-colors duration-200 ${active ? 'text-blue-600' : 'text-gray-500'}`} 
+                            />
 
                             {/* Punto indicador para estado colapsado */}
                             {active && isCollapsed && (
                                 <motion.div
                                     initial={{ scale: 0 }}
                                     animate={{ scale: 1 }}
+                                    transition={smoothTransition}
                                     className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border border-white"
                                 />
                             )}
                         </div>
-                        <AnimatePresence>
+
+                        {/* Texto (solo expandido) */}
+                        <AnimatePresence mode="wait">
                             {!isCollapsed && (
                                 <motion.span
-                                    initial={{ opacity: 0, x: -10 }}
+                                    initial={{ opacity: 0, x: -5 }}
                                     animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -10 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="font-medium text-sm group-hover:font-semibold whitespace-nowrap"
+                                    exit={{ opacity: 0, x: -5 }}
+                                    transition={smoothTransition}
+                                    className="font-medium text-sm whitespace-nowrap"
                                 >
                                     {item.name}
                                 </motion.span>
                             )}
                         </AnimatePresence>
-
-                        {/* Tooltip para estado colapsado */}
-                        {isCollapsed && (
-                            <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50 pointer-events-none">
-                                {item.name}
-                                <div className="absolute top-1/2 right-full -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
-                            </div>
-                        )}
                     </motion.button>
                 )
             })}

@@ -91,7 +91,7 @@ export default function TopProductsList({
             </div>
 
             {/* Lista de productos - Scroll interno */}
-            <div className="flex-1 overflow-y-auto max-h-[500px]">
+            <div className="flex-1 overflow-y-auto max-h-[380px]">
                 {!hasProducts ? (
                     <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
                         <div className="text-5xl mb-3">📭</div>
