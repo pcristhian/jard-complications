@@ -570,18 +570,38 @@ export default function Tabla({
                                             : <span> - </span>}
                                     </td>
                                 )}
-                                <td className="px-1 py-2 text-center whitespace-nowrap">
-                                    <input
-                                        type="checkbox"
-                                        checked={venta.confirmacion_depositado}
-                                        onChange={() => handleToggleConfirmacionDepositado(venta.id, venta.confirmacion_depositado)}
-                                        disabled={venta.estado === "anulada" || actualizandoConfirmacion === venta.id.toString()}
-                                        className={`h-4 w-4 text-blue-600 rounded ml-3 ${venta.estado === 'activa' ? 'cursor-pointer' : 'cursor-not-allowed'} ${actualizandoConfirmacion === venta.id.toString() ? 'opacity-50' : ''}`}
-                                        style={{
-                                            accentColor: venta.confirmacion_depositado ? '#2f9e2fff' : '#ec1b1bff'
-                                        }}
-                                    />
-                                </td>
+                                {/* Solo mostrar el checkbox si es admin */}
+                                {rolNombre === "admin" && (
+                                    <td className="px-1 py-2 text-center whitespace-nowrap">
+                                        <input
+                                            type="checkbox"
+                                            checked={venta.confirmacion_depositado}
+                                            onChange={() => handleToggleConfirmacionDepositado(venta.id, venta.confirmacion_depositado)}
+                                            disabled={venta.estado === "anulada" || actualizandoConfirmacion === venta.id.toString()}
+                                            className={`h-4 w-4 rounded ml-3 ${venta.estado === 'activa' ? 'cursor-pointer' : 'cursor-not-allowed'
+                                                } ${actualizandoConfirmacion === venta.id.toString() ? 'opacity-50' : ''}`}
+                                            style={{
+                                                accentColor: venta.confirmacion_depositado ? '#2f9e2fff' : '#ec1b1bff'
+                                            }}
+                                        />
+                                    </td>
+                                )}
+
+                                {/* Si no es admin, mostrar solo un ícono o texto indicando el estado */}
+                                {rolNombre !== "admin" && (
+                                    <td className="px-1 py-2 text-center whitespace-nowrap">
+                                        {venta.confirmacion_depositado ? (
+                                            <span className="inline-flex items-center gap-1 text-green-600">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Confirmado
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-400 text-xs">Pendiente</span>
+                                        )}
+                                    </td>
+                                )}
                                 <td className="px-2 whitespace-nowrap text-center text-sm font-medium">
                                     {venta.estado === "activa" && (
                                         <button
