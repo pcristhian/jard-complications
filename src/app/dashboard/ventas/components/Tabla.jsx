@@ -2,6 +2,9 @@ import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { WifiOff, RefreshCw, X, AlertCircle, Loader2, Hash } from 'lucide-react';
 import { toast } from "react-hot-toast";
+import { useGrupoRevision } from '../hooks/useGrupoRevision';
+import ModalGrupoRevision from './ModalGrupoRevision';
+
 
 export default function Tabla({
     onAnularVenta,
@@ -18,6 +21,7 @@ export default function Tabla({
     const [anulando, setAnulando] = useState(null);
     const [actualizando, setActualizando] = useState(null);
     const [actualizandoConfirmacion, setActualizandoConfirmacion] = useState(null);
+
 
     // Estados para infinite scroll
     const [displayCount, setDisplayCount] = useState(20);
@@ -43,6 +47,7 @@ export default function Tabla({
         setIsLoadingMore(false);
     }, [ventasSeguras.length]);
 
+
     //para barra de progreso en tabla
     const [scrollProgress, setScrollProgress] = useState(0);
     const tableContainerRef = useRef(null);
@@ -53,6 +58,29 @@ export default function Tabla({
     const [motivoAnulacion, setMotivoAnulacion] = useState("");
     const [ventaAAnular, setVentaAAnular] = useState(null);
     const [motivoRapido, setMotivoRapido] = useState(null);
+
+    // Desestructuración actualizada con todas las nuevas funciones
+    const {
+        selectedVentas,
+        loadingGroup,
+        coloresGrupo,
+        gruposExistentes,
+        handleDragStart,
+        handleDragEnd,
+        handleDrop,
+        handleDragOver,
+        handleMouseDown,
+        handleMouseUp,
+        handleNoteChange,
+        getVentaNote,
+        getVentaGroupColor,
+        getVentaGroupNote,
+        cargarGrupos,              // ✅ Nueva (si la necesitas)
+        recalcularTodosGrupos,     // ✅ Nueva
+        actualizarTotalGrupo,      // ✅ Nueva
+        limpiarGruposHuerfanos     // ✅ Nueva
+    } = useGrupoRevision(ventas, obtenerMisVentas);
+
 
     // Función para cargar más registros
     const loadMore = useCallback(async () => {
@@ -453,10 +481,13 @@ export default function Tabla({
                                 </th>
                             )}
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Depositado
+                                Nota
+                            </th>
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-12">
+                                Grupo
                             </th>
                             <th className="px-2 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Estado
+                                {rolNombre === "admin" ? "Total Grupo" : "Estado"}
                             </th>
                         </tr>
                     </thead>
@@ -570,69 +601,115 @@ export default function Tabla({
                                             : <span> - </span>}
                                     </td>
                                 )}
-                                {/* Solo mostrar el checkbox si es admin */}
-                                {rolNombre === "admin" && (
-                                    <td className="px-1 py-2 text-center whitespace-nowrap">
-                                        <input
-                                            type="checkbox"
-                                            checked={venta.confirmacion_depositado}
-                                            onChange={() => handleToggleConfirmacionDepositado(venta.id, venta.confirmacion_depositado)}
-                                            disabled={venta.estado === "anulada" || actualizandoConfirmacion === venta.id.toString()}
-                                            className={`h-4 w-4 rounded ml-3 ${venta.estado === 'activa' ? 'cursor-pointer' : 'cursor-not-allowed'
-                                                } ${actualizandoConfirmacion === venta.id.toString() ? 'opacity-50' : ''}`}
-                                            style={{
-                                                accentColor: venta.confirmacion_depositado ? '#2f9e2fff' : '#ec1b1bff'
-                                            }}
-                                        />
-                                    </td>
-                                )}
+                                <td className="px-2 py-2">
+                                    <input
+                                        type="text"
+                                        defaultValue={getVentaNote(venta)}
+                                        onBlur={(e) => handleNoteChange(venta.id, e.target.value)}
+                                        placeholder="Escribe una nota..."
+                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        disabled={venta.estado === 'anulada'}
+                                    />
+                                </td>
 
-                                {/* Si no es admin, mostrar solo un ícono o texto indicando el estado */}
-                                {rolNombre !== "admin" && (
-                                    <td className="px-1 py-2 text-center whitespace-nowrap">
-                                        {venta.confirmacion_depositado ? (
-                                            <span className="inline-flex items-center gap-1 text-green-600">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                <td className="px-1 py-2 text-center">
+                                    <div
+                                        draggable={venta.estado === 'activa'}
+                                        onDragStart={(e) => handleDragStart(e, index, venta.id)}
+                                        onDragEnd={handleDragEnd}
+                                        onDrop={(e) => handleDrop(e, venta.id, index)}
+                                        onDragOver={handleDragOver}
+                                        onMouseDown={(e) => venta.grupo_revision_id && handleMouseDown(e, venta)}
+                                        onMouseUp={handleMouseUp}
+                                        onMouseLeave={handleMouseUp}
+                                        className={`select-none inline-flex items-center justify-center w-8 h-8 rounded-full transition-all group relative ${venta.estado === 'activa'
+                                            ? 'hover:scale-110 hover:shadow-md cursor-grab active:cursor-grabbing'
+                                            : 'opacity-30 cursor-not-allowed'
+                                            } ${venta.grupo_revision_id ? 'cursor-pointer' : ''
+                                            }`}
+                                        style={{
+                                            backgroundColor: getVentaGroupColor(venta) || '#E5E7EB',
+                                            border: selectedVentas.has(venta.id) ? '2px solid #3B82F6' : '2px solid transparent'
+                                        }}
+                                        title={
+                                            venta.grupo_revision_id
+                                                ? `Grupo: ${getVentaGroupNote(venta) || 'Sin nota'} | Mantén presionado + Espacio para desagrupar`
+                                                : (venta.estado === 'activa' ? 'Arrastra para agrupar' : 'Venta anulada')
+                                        }
+                                    >
+                                        <span className="text-xs font-bold" style={{
+                                            color: getVentaGroupColor(venta) ? '#fff' : '#6B7280'
+                                        }}>
+                                            {venta.grupo_revision_id ? '●' : '⋮'}
+                                        </span>
+
+                                        {/* Tooltip flotante para grupos */}
+                                        {venta.grupo_revision_id && getVentaGroupNote(venta) && (
+                                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                                {getVentaGroupNote(venta).length > 40
+                                                    ? getVentaGroupNote(venta).substring(0, 40) + '...'
+                                                    : getVentaGroupNote(venta)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </td>
+
+                                <td className="px-2 whitespace-nowrap text-center text-sm font-medium">
+                                    {rolNombre === "admin" ? (
+                                        // Para admin: mostrar el total del grupo
+                                        venta.grupo_revision_id ? (
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                 </svg>
-                                                Confirmado
+                                                Total: Bs. {(() => {
+                                                    const grupo = gruposExistentes.find(g => g.id === venta.grupo_revision_id);
+                                                    return grupo?.total?.toFixed(2) || '0.00';
+                                                })()}
                                             </span>
                                         ) : (
-                                            <span className="text-gray-400 text-xs">Pendiente</span>
-                                        )}
-                                    </td>
-                                )}
-                                <td className="px-2 whitespace-nowrap text-center text-sm font-medium">
-                                    {venta.estado === "activa" && (
-                                        <button
-                                            onClick={() => handleAnularVenta(venta.id)}
-                                            disabled={anulando === venta.id}
-                                            className={`
-                                                inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-medium
-                                                border transition-all duration-150
-                                                ${anulando === venta.id
-                                                    ? "border-red-300 text-red-400 bg-red-50 opacity-60 cursor-not-allowed"
-                                                    : "border-red-600 text-red-700 hover:bg-red-500 hover:border-red-700 hover:text-white active:scale-95 cursor-pointer"
-                                                }
-                                            `}
-                                        >
-                                            {anulando === venta.id ? (
-                                                <>
-                                                    <svg className="animate-spin w-3 h-3" viewBox="0 0 12 12" fill="none">
-                                                        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14 6" />
-                                                    </svg>
-                                                    Anulando...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
-                                                        <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                                                    </svg>
-                                                    Anular
-                                                </>
-                                            )}
-                                        </button>
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-gray-400 bg-gray-50 border border-gray-200">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Sin grupo
+                                            </span>
+                                        )
+                                    ) : (
+                                        // Para no-admin: mostrar botón de anular
+                                        venta.estado === "activa" && (
+                                            <button
+                                                onClick={() => handleAnularVenta(venta.id)}
+                                                disabled={anulando === venta.id}
+                                                className={`
+                    inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-medium
+                    border transition-all duration-150
+                    ${anulando === venta.id
+                                                        ? "border-red-300 text-red-400 bg-red-50 opacity-60 cursor-not-allowed"
+                                                        : "border-red-600 text-red-700 hover:bg-red-500 hover:border-red-700 hover:text-white active:scale-95 cursor-pointer"
+                                                    }
+                `}
+                                            >
+                                                {anulando === venta.id ? (
+                                                    <>
+                                                        <svg className="animate-spin w-3 h-3" viewBox="0 0 12 12" fill="none">
+                                                            <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14 6" />
+                                                        </svg>
+                                                        Anulando...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
+                                                            <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                                        </svg>
+                                                        Anular
+                                                    </>
+                                                )}
+                                            </button>
+                                        )
                                     )}
+
+                                    {/* Mostrar "Anulada" solo si la venta está anulada (para ambos roles) */}
                                     {venta.estado === "anulada" && (
                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-gray-400 bg-gray-950 border border-gray-800">
                                             <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -669,7 +746,6 @@ export default function Tabla({
                 )}
             </div>
 
-            {/* Modal de anulación (sin cambios) */}
             {mostrarModalAnulacion && (
                 <AnimatePresence>
                     <motion.div
