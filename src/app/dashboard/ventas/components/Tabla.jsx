@@ -480,14 +480,15 @@ export default function Tabla({
                                     Observaciones
                                 </th>
                             )}
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Nota
-                            </th>
+
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-12">
                                 Grupo
                             </th>
                             <th className="px-2 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 {rolNombre === "admin" ? "Total Grupo" : "Estado"}
+                            </th>
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                                Nota
                             </th>
                         </tr>
                     </thead>
@@ -510,9 +511,14 @@ export default function Tabla({
                                     </span>
                                 </td>
                                 <td className="px-2 py-2">
-                                    <span className="text-xs tracking-widest font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
-                                        {venta.producto_codigo}
-                                    </span>
+                                    <div className="flex flex-col items-start gap-0.5">
+                                        <span className="text-[12px] font-semibold font-bold text-gray-900">
+                                            #{venta.id}
+                                        </span>
+                                        <span className="text-xs tracking-widest font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
+                                            {venta.producto_codigo}
+                                        </span>
+                                    </div>
                                 </td>
                                 <td className="px-1 py-3 max-w-[260px] overflow-hidden">
                                     <div className="relative group">
@@ -553,7 +559,7 @@ export default function Tabla({
                                         {venta.cantidad || "—"}
                                     </span>
                                 </td>
-                                <td className="px-1 py-2 text-sm text-black text-start">
+                                <td className="px-1 py-2 text-sm text-black text-center">
                                     <span className="font-semibold">
                                         Bs. {parseFloat(venta.total_precio_venta).toFixed(2)}
                                     </span><br />
@@ -601,17 +607,6 @@ export default function Tabla({
                                             : <span> - </span>}
                                     </td>
                                 )}
-                                <td className="px-2 py-2">
-                                    <input
-                                        type="text"
-                                        defaultValue={getVentaNote(venta)}
-                                        onBlur={(e) => handleNoteChange(venta.id, e.target.value)}
-                                        placeholder="Escribe una nota..."
-                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                                        disabled={venta.estado === 'anulada'}
-                                    />
-                                </td>
-
                                 <td className="px-1 py-2 text-center">
                                     <div
                                         draggable={venta.estado === 'activa'}
@@ -717,6 +712,17 @@ export default function Tabla({
                                         </span>
                                     )}
                                 </td>
+                                <td className="px-2 py-2">
+                                    <input
+                                        type="text"
+                                        defaultValue={getVentaNote(venta)}
+                                        onBlur={(e) => handleNoteChange(venta.id, e.target.value)}
+                                        placeholder="Escribe una nota..."
+                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        disabled={venta.estado === 'anulada'}
+                                    />
+                                </td>
+
                             </tr>
                         ))}
                     </tbody>
