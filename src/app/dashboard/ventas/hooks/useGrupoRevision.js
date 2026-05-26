@@ -335,7 +335,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
                 toast.success('No se encontraron grupos huérfanos');
             }
         } catch (error) {
-            console.error('Error limpiando grupos huérfanos:', error);
             toast.error('Error al limpiar grupos');
         }
     }, [cargarGrupos, obtenerMisVentas]);
