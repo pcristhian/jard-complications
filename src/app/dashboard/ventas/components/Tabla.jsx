@@ -447,7 +447,6 @@ export default function Tabla({
                             {/* Nueva columna de número consecutivo */}
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-12">
                                 <div className="flex items-center justify-center gap-1">
-                                    <Hash className="w-3 h-3" />
                                     <span>N°</span>
                                 </div>
                             </th>
