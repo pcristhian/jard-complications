@@ -210,7 +210,6 @@ export const usePlanesWifi = () => {
                 updated_at: new Date().toISOString()
             };
 
-            // Solo incluir usuario_id si viene en planData
             if (planData.usuario_id !== undefined) {
                 datosParaEnviar.usuario_id = planData.usuario_id === '' ? null : parseInt(planData.usuario_id);
             }
@@ -220,10 +219,19 @@ export const usePlanesWifi = () => {
                 .update(datosParaEnviar)
                 .eq('id', id)
                 .select(`
-                    *,
-                    estado:estados_plan_wifi(*),
-                    usuario:usuarios(id, nombre, caja,  rol_id)
-                `)
+                *,
+                estado:estados_plan_wifi(*),
+                usuario:usuarios(
+                    id, 
+                    nombre, 
+                    caja, 
+                    rol_id,
+                    roles(
+                        id, 
+                        nombre
+                    )
+                )
+            `)
                 .single();
 
             if (error) throw error;
@@ -231,6 +239,7 @@ export const usePlanesWifi = () => {
             setPlanes(prev => prev.map(plan =>
                 plan.id === id ? data : plan
             ));
+
             return { success: true, data };
         } catch (error) {
             const errorMessage = error.message || error.details || JSON.stringify(error);
@@ -266,17 +275,28 @@ export const usePlanesWifi = () => {
                 .update(datosParaEnviar)
                 .eq('id', id)
                 .select(`
-                    *,
-                    estado:estados_plan_wifi(*),
-                    usuario:usuarios(id, nombre, rol_id)
-                `)
+                *,
+                estado:estados_plan_wifi(*),
+                usuario:usuarios(
+                    id, 
+                    nombre, 
+                    caja, 
+                    rol_id,
+                    roles(
+                        id, 
+                        nombre
+                    )
+                )
+            `)
                 .single();
 
             if (error) throw error;
 
+            // Actualizar el estado global con los datos completos
             setPlanes(prev => prev.map(plan =>
                 plan.id === id ? data : plan
             ));
+
             return { success: true, data };
         } catch (error) {
             const errorMessage = error.message || error.details || JSON.stringify(error);

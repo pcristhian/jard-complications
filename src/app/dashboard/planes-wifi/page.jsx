@@ -1,42 +1,25 @@
 // app/gestion-planes-wifi/page.jsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import HeaderPlanesWifi from './components/HeaderPlanesWifi';
-import FiltroPlanesWifi from './components/FiltroPlanesWifi';
 import TablaPlanesWifi from './components/TablaPlanesWifi';
 import ModalNuevoPlanWifi from './components/ModalNuevoPlanWifi';
 import ModalEditarPlanWifi from './components/ModalEditarPlanWifi';
 import { usePlanesWifi } from './hooks/usePlanesWifi';
-import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 
 export default function GestionPlanesWifi() {
     const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
     const [planEditando, setPlanEditando] = useState(null);
-    const [filtroMes, setFiltroMes] = useState('');
-    const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
-    const [soloActivos, setSoloActivos] = useState(false);
-
-    // ← Nuevo: Establecer filtro al mes actual al cargar
-    useEffect(() => {
-        const fechaActual = new Date();
-        setFiltroMes(fechaActual.getMonth() + 1);
-        setFiltroAnio(fechaActual.getFullYear());
-    }, []);
-
-    const { values } = useMultiLocalStorageListener(["sucursalSeleccionada"]);
-    const { sucursalSeleccionada } = values;
 
     const {
         planes,
-        estados,
         usuarios,
         loading,
         error,
         crearPlan,
         actualizarPlan,
         actualizarEstadoPlan,
-        eliminarPlan,
         recargarPlanes
     } = usePlanesWifi();
 
@@ -57,17 +40,23 @@ export default function GestionPlanesWifi() {
     };
 
     const handleCambiarEstado = async (id, estadoId) => {
-        const resultado = await actualizarEstadoPlan(id, estadoId);
-        if (!resultado.success) {
-            alert('Error al cambiar estado: ' + resultado.error);
+        try {
+            const resultado = await actualizarEstadoPlan(id, estadoId);
+            return resultado;
+        } catch (error) {
+            return { success: false, error: error.message };
         }
+    };
+
+    const handleRefresh = () => {
+        recargarPlanes();
     };
 
     return (
         <div className="p-3 space-y-3 text-gray-800">
             <HeaderPlanesWifi
                 onNuevoPlan={() => setModalNuevoAbierto(true)}
-                onRecargar={recargarPlanes}
+                onRecargar={handleRefresh}
                 loading={loading}
             />
 
@@ -77,24 +66,12 @@ export default function GestionPlanesWifi() {
                 </div>
             )}
 
-            <FiltroPlanesWifi
-                onMesChange={setFiltroMes}
-                onAnioChange={setFiltroAnio}
-                onEstadoActivoChange={setSoloActivos}
-                mesSeleccionado={filtroMes}
-                anioSeleccionado={filtroAnio}
-                soloActivos={soloActivos}
-                planes={planes}
-            />
-
             <TablaPlanesWifi
                 planes={planes}
                 onEditar={setPlanEditando}
                 onCambiarEstado={handleCambiarEstado}
                 loading={loading}
-                filtroMes={filtroMes}
-                filtroAnio={filtroAnio}
-                soloActivos={soloActivos}
+                onRefresh={handleRefresh}
             />
 
             <ModalNuevoPlanWifi
