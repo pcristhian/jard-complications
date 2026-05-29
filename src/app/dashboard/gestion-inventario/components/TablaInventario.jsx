@@ -1,7 +1,7 @@
 // src/app/dashboard/gestion-inventario/components/TablaInventario.jsx
 
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase/client';
 
@@ -18,6 +18,12 @@ export default function TablaInventario({
     const [busquedaTexto, setBusquedaTexto] = useState('');
     const [categorias, setCategorias] = useState([]);
 
+    // Paginación virtual
+    const [visibleCount, setVisibleCount] = useState(20); // Mostrar 20 inicialmente
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const loadMoreRef = useRef(null);
+    const tableContainerRef = useRef(null);
+
     const [titulosColumnas, setTitulosColumnas] = useState({
         col1: '',
         col2: '',
@@ -30,8 +36,6 @@ export default function TablaInventario({
 
     const inputRefs = useRef({});
     const tituloInputRefs = useRef({});
-    const tableContainerRef = useRef(null);
-    const [tableHeight, setTableHeight] = useState('calc(100vh - 380px)');
     const columnas = ['col1', 'col2', 'col3', 'col4', 'col5', 'col6', 'col7'];
     const tituloDebounceRef = useRef({});
 
@@ -42,7 +46,70 @@ export default function TablaInventario({
     const limpiarFiltros = () => {
         setFiltroCategoria('');
         setBusquedaTexto('');
+        setVisibleCount(20); // Resetear paginación al limpiar filtros
     };
+
+    // Filtrar productos por categoría y búsqueda
+    const productosFiltrados = useMemo(() => {
+        let filtrados = productos.filter(producto => {
+            if (filtroCategoria && producto.categoria !== filtroCategoria) return false;
+            if (busquedaTexto.trim() !== '') {
+                const textoBusqueda = busquedaTexto.toLowerCase().trim();
+                return (
+                    producto.codigo?.toLowerCase().includes(textoBusqueda) ||
+                    producto.nombre?.toLowerCase().includes(textoBusqueda) ||
+                    producto.categoria?.toLowerCase().includes(textoBusqueda)
+                );
+            }
+            return true;
+        });
+        return filtrados;
+    }, [productos, filtroCategoria, busquedaTexto]);
+
+    // Productos visibles (solo los primeros 'visibleCount')
+    const productosVisibles = useMemo(() => {
+        return productosFiltrados.slice(0, visibleCount);
+    }, [productosFiltrados, visibleCount]);
+
+    // Cargar más productos al hacer scroll
+    const loadMoreProducts = useCallback(() => {
+        if (visibleCount >= productosFiltrados.length) return;
+        if (isLoadingMore) return;
+
+        setIsLoadingMore(true);
+        // Simular carga asíncrona para mejor UX
+        setTimeout(() => {
+            setVisibleCount(prev => Math.min(prev + 20, productosFiltrados.length));
+            setIsLoadingMore(false);
+        }, 100);
+    }, [visibleCount, productosFiltrados.length, isLoadingMore]);
+
+    // Observer para scroll infinito
+    useEffect(() => {
+        if (!loadMoreRef.current) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && visibleCount < productosFiltrados.length) {
+                    loadMoreProducts();
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' } // Activar 100px antes
+        );
+
+        observer.observe(loadMoreRef.current);
+
+        return () => {
+            if (loadMoreRef.current) {
+                observer.unobserve(loadMoreRef.current);
+            }
+        };
+    }, [loadMoreProducts, visibleCount, productosFiltrados.length]);
+
+    // Resetear paginación cuando cambian los filtros
+    useEffect(() => {
+        setVisibleCount(20);
+    }, [filtroCategoria, busquedaTexto]);
 
     // Cargar títulos desde el primer producto que tenga datos
     useEffect(() => {
@@ -79,37 +146,7 @@ export default function TablaInventario({
         };
 
         cargarCategorias();
-
-        const updateHeight = () => {
-            const viewportHeight = window.innerHeight;
-            const headerOffset = 120;
-            setTableHeight(`${viewportHeight - headerOffset}px`);
-        };
-
-        updateHeight();
-        window.addEventListener('resize', updateHeight);
-        return () => window.removeEventListener('resize', updateHeight);
     }, []);
-
-    // Filtrar productos por categoría y búsqueda en tiempo real
-    const productosFiltrados = productos.filter(producto => {
-        // Filtro por categoría
-        if (filtroCategoria && producto.categoria !== filtroCategoria) {
-            return false;
-        }
-
-        // Filtro por búsqueda en tiempo real (código, nombre o categoría)
-        if (busquedaTexto.trim() !== '') {
-            const textoBusqueda = busquedaTexto.toLowerCase().trim();
-            return (
-                producto.codigo?.toLowerCase().includes(textoBusqueda) ||
-                producto.nombre?.toLowerCase().includes(textoBusqueda) ||
-                producto.categoria?.toLowerCase().includes(textoBusqueda)
-            );
-        }
-
-        return true;
-    });
 
     // Guardar valor del input (celda)
     const handleInputChange = (productoId, columnaKey, valor) => {
@@ -141,12 +178,10 @@ export default function TablaInventario({
     const handleKeyDown = (e, productoId, columnaIndex, rowIndex) => {
         const key = e.key;
 
-        // Prevenir scroll por defecto con las flechas
         if (key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight') {
             e.preventDefault();
         }
 
-        // Flecha derecha: mover a la siguiente columna
         if (key === 'ArrowRight') {
             if (columnaIndex + 1 < columnas.length) {
                 const nextKey = `${productoId}_${columnas[columnaIndex + 1]}`;
@@ -154,9 +189,8 @@ export default function TablaInventario({
                     inputRefs.current[nextKey].focus();
                     inputRefs.current[nextKey].select();
                 }
-            } else if (rowIndex + 1 < productosFiltrados.length) {
-                // Ir a la primera columna de la siguiente fila
-                const nextRow = productosFiltrados[rowIndex + 1];
+            } else if (rowIndex + 1 < productosVisibles.length) {
+                const nextRow = productosVisibles[rowIndex + 1];
                 const firstColKey = `${nextRow.id}_${columnas[0]}`;
                 if (inputRefs.current[firstColKey]) {
                     inputRefs.current[firstColKey].focus();
@@ -164,8 +198,6 @@ export default function TablaInventario({
                 }
             }
         }
-
-        // Flecha izquierda: mover a la columna anterior
         else if (key === 'ArrowLeft') {
             if (columnaIndex - 1 >= 0) {
                 const prevKey = `${productoId}_${columnas[columnaIndex - 1]}`;
@@ -174,8 +206,7 @@ export default function TablaInventario({
                     inputRefs.current[prevKey].select();
                 }
             } else if (rowIndex - 1 >= 0) {
-                // Ir a la última columna de la fila anterior
-                const prevRow = productosFiltrados[rowIndex - 1];
+                const prevRow = productosVisibles[rowIndex - 1];
                 const lastColKey = `${prevRow.id}_${columnas[columnas.length - 1]}`;
                 if (inputRefs.current[lastColKey]) {
                     inputRefs.current[lastColKey].focus();
@@ -183,11 +214,9 @@ export default function TablaInventario({
                 }
             }
         }
-
-        // Flecha abajo: mover a la misma columna en la siguiente fila
         else if (key === 'ArrowDown') {
-            if (rowIndex + 1 < productosFiltrados.length) {
-                const nextRow = productosFiltrados[rowIndex + 1];
+            if (rowIndex + 1 < productosVisibles.length) {
+                const nextRow = productosVisibles[rowIndex + 1];
                 const downKey = `${nextRow.id}_${columnas[columnaIndex]}`;
                 if (inputRefs.current[downKey]) {
                     inputRefs.current[downKey].focus();
@@ -195,18 +224,15 @@ export default function TablaInventario({
                 }
             }
         }
-
-        // Flecha arriba: mover a la misma columna en la fila anterior
         else if (key === 'ArrowUp') {
             if (rowIndex - 1 >= 0) {
-                const prevRow = productosFiltrados[rowIndex - 1];
+                const prevRow = productosVisibles[rowIndex - 1];
                 const upKey = `${prevRow.id}_${columnas[columnaIndex]}`;
                 if (inputRefs.current[upKey]) {
                     inputRefs.current[upKey].focus();
                     inputRefs.current[upKey].select();
                 }
             } else {
-                // Si estamos en la primera fila, mover al título de la columna
                 const tituloKey = `titulo_${columnas[columnaIndex]}`;
                 if (tituloInputRefs.current[tituloKey]) {
                     tituloInputRefs.current[tituloKey].focus();
@@ -214,11 +240,9 @@ export default function TablaInventario({
                 }
             }
         }
-
-        // Enter: mover a la misma columna en la siguiente fila
         else if (key === 'Enter') {
-            if (rowIndex + 1 < productosFiltrados.length) {
-                const nextRow = productosFiltrados[rowIndex + 1];
+            if (rowIndex + 1 < productosVisibles.length) {
+                const nextRow = productosVisibles[rowIndex + 1];
                 const downKey = `${nextRow.id}_${columnas[columnaIndex]}`;
                 if (inputRefs.current[downKey]) {
                     inputRefs.current[downKey].focus();
@@ -226,15 +250,8 @@ export default function TablaInventario({
                 }
             }
         }
-
-        // Tab: comportamiento normal
-        else if (key === 'Tab') {
-            // Dejar que el navegador maneje el tab
-            return;
-        }
     };
 
-    // Navegación para los títulos
     const handleTituloKeyDown = (e, columnaIndex) => {
         const key = e.key;
 
@@ -254,9 +271,9 @@ export default function TablaInventario({
                 tituloInputRefs.current[prevKey].select();
             }
         }
-        else if (key === 'ArrowDown' && productosFiltrados.length > 0) {
+        else if (key === 'ArrowDown' && productosVisibles.length > 0) {
             e.preventDefault();
-            const firstRow = productosFiltrados[0];
+            const firstRow = productosVisibles[0];
             const downKey = `${firstRow.id}_${columnas[columnaIndex]}`;
             if (inputRefs.current[downKey]) {
                 inputRefs.current[downKey].focus();
@@ -265,8 +282,8 @@ export default function TablaInventario({
         }
         else if (key === 'Enter') {
             e.preventDefault();
-            if (productosFiltrados.length > 0) {
-                const firstRow = productosFiltrados[0];
+            if (productosVisibles.length > 0) {
+                const firstRow = productosVisibles[0];
                 const downKey = `${firstRow.id}_${columnas[columnaIndex]}`;
                 if (inputRefs.current[downKey]) {
                     inputRefs.current[downKey].focus();
@@ -360,7 +377,6 @@ export default function TablaInventario({
                             </div>
                         </div>
 
-                        {/* Botón Quitar Filtros - Solo aparece cuando hay filtros activos */}
                         {hayFiltrosActivos && (
                             <div className="flex items-end">
                                 <button
@@ -375,7 +391,6 @@ export default function TablaInventario({
                             </div>
                         )}
 
-                        {/* Indicador de guardado */}
                         {Object.keys(saving).length > 0 && (
                             <div className="flex items-end">
                                 <div className="px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center gap-2">
@@ -387,17 +402,16 @@ export default function TablaInventario({
                     </div>
 
                     <div className="text-sm text-gray-500">
-                        Mostrando {productosFiltrados.length} de {productos.length} productos
+                        Mostrando {productosVisibles.length} de {productosFiltrados.length} productos
                     </div>
                 </div>
-
             </div>
 
-            {/* Tabla */}
+            {/* Tabla con scroll infinito */}
             <div
                 ref={tableContainerRef}
                 className="overflow-auto relative"
-                style={{ height: tableHeight }}
+                style={{ height: 'calc(100vh - 100px)' }}
             >
                 <table className="min-w-full divide-y divide-gray-100">
                     <thead className="sticky top-0 z-10">
@@ -441,7 +455,7 @@ export default function TablaInventario({
                     </thead>
 
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {productosFiltrados.length === 0 ? (
+                        {productosVisibles.length === 0 ? (
                             <tr>
                                 <td colSpan={4 + columnas.length} className="px-4 py-8 text-center text-gray-500">
                                     {hayFiltrosActivos ? (
@@ -476,62 +490,76 @@ export default function TablaInventario({
                                 </td>
                             </tr>
                         ) : (
-                            productosFiltrados.map((producto, idx) => (
-                                <tr key={producto.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-3 py-2 whitespace-nowrap font-bold text-sm text-center text-zinc-500 border-r border-gray-200">
-                                        {idx + 1}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm font-mono font-medium text-gray-900 border-r border-gray-200">
-                                        {producto.codigo}
-                                    </td>
-                                    <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">
-                                        <div className="font-medium">{producto.nombre}</div>
-                                        <div className="text-xs text-amber-600">{producto.categoria}</div>
-                                    </td>
-                                    <td className="px-2 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900 border-r border-gray-200">
-                                        Bs. {producto.precio}
-                                    </td>
-                                    <td className="px-2 py-2 whitespace-nowrap text-sm text-center font-bold text-blue-600 border-r border-gray-200">
-                                        {producto.stock_actual?.toLocaleString() || 0}
-                                    </td>
-                                    {columnas.map((col, colIdx) => {
-                                        const inputKey = `${producto.id}_${col}`;
-                                        const valor = conteos[producto.id]?.[col] || '';
-                                        const isSaving = saving[`${producto.id}_${col}`];
+                            <>
+                                {productosVisibles.map((producto, idx) => (
+                                    <tr key={producto.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-3 py-2 whitespace-nowrap font-bold text-sm text-center text-zinc-500 border-r border-gray-200">
+                                            {idx + 1}
+                                        </td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm font-mono font-medium text-gray-900 border-r border-gray-200">
+                                            {producto.codigo}
+                                        </td>
+                                        <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200">
+                                            <div className="font-medium">{producto.nombre}</div>
+                                            <div className="text-xs text-amber-600">{producto.categoria}</div>
+                                        </td>
+                                        <td className="px-2 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900 border-r border-gray-200">
+                                            Bs. {producto.precio}
+                                        </td>
+                                        <td className="px-2 py-2 whitespace-nowrap text-sm text-center font-bold text-blue-600 border-r border-gray-200">
+                                            {producto.stock_actual?.toLocaleString() || 0}
+                                        </td>
+                                        {columnas.map((col, colIdx) => {
+                                            const inputKey = `${producto.id}_${col}`;
+                                            const valor = conteos[producto.id]?.[col] || '';
+                                            const isSaving = saving[`${producto.id}_${col}`];
 
-                                        return (
-                                            <td key={col} className="px-2 py-2 text-center">
-                                                <div className="relative">
-                                                    <input
-                                                        ref={el => inputRefs.current[inputKey] = el}
-                                                        type="text"
-                                                        value={valor}
-                                                        onChange={(e) => handleInputChange(producto.id, col, e.target.value)}
-                                                        onKeyDown={(e) => handleKeyDown(e, producto.id, colIdx, idx)}
-                                                        placeholder={titulosColumnas[col] || `Conteo ${colIdx + 1}`}
-                                                        className={`
-                                                            w-full min-w-[100px] px-2 py-1 text-center text-sm 
-                                                            border rounded transition-all
-                                                            ${isSaving
-                                                                ? 'bg-yellow-50 border-yellow-400'
-                                                                : valor
-                                                                    ? 'bg-green-50 border-green-400'
-                                                                    : 'border-gray-300'
-                                                            }
-                                                            focus:ring-2 focus:ring-sky-200 focus:border-purple-500 focus:outline-none
-                                                        `}
-                                                    />
-                                                    {isSaving && (
-                                                        <div className="absolute -top-1 -right-1">
-                                                            <div className="w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))
+                                            return (
+                                                <td key={col} className="px-2 py-2 text-center">
+                                                    <div className="relative">
+                                                        <input
+                                                            ref={el => inputRefs.current[inputKey] = el}
+                                                            type="text"
+                                                            value={valor}
+                                                            onChange={(e) => handleInputChange(producto.id, col, e.target.value)}
+                                                            onKeyDown={(e) => handleKeyDown(e, producto.id, colIdx, idx)}
+                                                            placeholder={titulosColumnas[col] || `Conteo ${colIdx + 1}`}
+                                                            className={`
+                                                                w-full min-w-[100px] px-2 py-1 text-center text-sm 
+                                                                border rounded transition-all
+                                                                ${isSaving
+                                                                    ? 'bg-yellow-50 border-yellow-400'
+                                                                    : valor
+                                                                        ? 'bg-green-50 border-green-400'
+                                                                        : 'border-gray-300'
+                                                                }
+                                                                focus:ring-2 focus:ring-sky-200 focus:border-purple-500 focus:outline-none
+                                                            `}
+                                                        />
+                                                        {isSaving && (
+                                                            <div className="absolute -top-1 -right-1">
+                                                                <div className="w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+
+                                {/* Elemento observador para scroll infinito */}
+                                {visibleCount < productosFiltrados.length && (
+                                    <tr ref={loadMoreRef}>
+                                        <td colSpan={4 + columnas.length} className="py-4 text-center">
+                                            <div className="flex justify-center items-center gap-2 text-gray-500">
+                                                <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                                                <span className="text-sm">Cargando más productos...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </>
                         )}
                     </tbody>
                 </table>
