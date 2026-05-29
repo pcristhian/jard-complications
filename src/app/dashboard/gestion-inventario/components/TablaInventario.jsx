@@ -15,6 +15,7 @@ export default function TablaInventario({
 }) {
     const [fechaGlobal, setFechaGlobal] = useState(new Date().toISOString().split('T')[0]);
     const [filtroCategoria, setFiltroCategoria] = useState('');
+    const [busquedaTexto, setBusquedaTexto] = useState('');
     const [categorias, setCategorias] = useState([]);
 
     const [titulosColumnas, setTitulosColumnas] = useState({
@@ -33,6 +34,15 @@ export default function TablaInventario({
     const [tableHeight, setTableHeight] = useState('calc(100vh - 380px)');
     const columnas = ['col1', 'col2', 'col3', 'col4', 'col5', 'col6', 'col7'];
     const tituloDebounceRef = useRef({});
+
+    // Verificar si hay filtros activos
+    const hayFiltrosActivos = filtroCategoria !== '' || busquedaTexto.trim() !== '';
+
+    // Función para limpiar todos los filtros
+    const limpiarFiltros = () => {
+        setFiltroCategoria('');
+        setBusquedaTexto('');
+    };
 
     // Cargar títulos desde el primer producto que tenga datos
     useEffect(() => {
@@ -81,9 +91,25 @@ export default function TablaInventario({
         return () => window.removeEventListener('resize', updateHeight);
     }, []);
 
-    const productosFiltrados = filtroCategoria
-        ? productos.filter(p => p.categoria === filtroCategoria)
-        : productos;
+    // Filtrar productos por categoría y búsqueda en tiempo real
+    const productosFiltrados = productos.filter(producto => {
+        // Filtro por categoría
+        if (filtroCategoria && producto.categoria !== filtroCategoria) {
+            return false;
+        }
+
+        // Filtro por búsqueda en tiempo real (código, nombre o categoría)
+        if (busquedaTexto.trim() !== '') {
+            const textoBusqueda = busquedaTexto.toLowerCase().trim();
+            return (
+                producto.codigo?.toLowerCase().includes(textoBusqueda) ||
+                producto.nombre?.toLowerCase().includes(textoBusqueda) ||
+                producto.categoria?.toLowerCase().includes(textoBusqueda)
+            );
+        }
+
+        return true;
+    });
 
     // Guardar valor del input (celda)
     const handleInputChange = (productoId, columnaKey, valor) => {
@@ -189,7 +215,7 @@ export default function TablaInventario({
             }
         }
 
-        // Flecha abajo: mover a la misma columna en la siguiente fila
+        // Enter: mover a la misma columna en la siguiente fila
         else if (key === 'Enter') {
             if (rowIndex + 1 < productosFiltrados.length) {
                 const nextRow = productosFiltrados[rowIndex + 1];
@@ -269,10 +295,10 @@ export default function TablaInventario({
         >
             {/* Filtros */}
             <div className="p-2 bg-linear-to-r from-gray-50 to-gray-100 border-b shrink-0">
-                <div className="flex flex-wrap gap-4 items-end justify-between">
-                    <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 items-end justify-between">
+                    <div className="flex flex-wrap gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-gray-900 mb-1">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
                                 Fecha actual del sistema
                             </label>
                             <div className="px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 text-sm">
@@ -282,16 +308,16 @@ export default function TablaInventario({
                                     day: 'numeric'
                                 })}
                             </div>
-
                         </div>
+
                         <div>
-                            <label className="block text-xs font-medium text-gray-900 mb-1">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
                                 Filtrar por Categoría
                             </label>
                             <select
                                 value={filtroCategoria}
                                 onChange={(e) => setFiltroCategoria(e.target.value)}
-                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[150px]"
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[180px] focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                             >
                                 <option value="">Todas las categorías</option>
                                 {categorias.map(cat => (
@@ -299,21 +325,72 @@ export default function TablaInventario({
                                 ))}
                             </select>
                         </div>
-                        {/* Indicador de navegación */}
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Buscar producto
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={busquedaTexto}
+                                    onChange={(e) => setBusquedaTexto(e.target.value)}
+                                    placeholder="Buscar por código, nombre o categoría..."
+                                    className="w-full min-w-[250px] px-3 py-2 pl-9 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                                    autoComplete="off"
+                                />
+                                <svg
+                                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                {busquedaTexto && (
+                                    <button
+                                        onClick={() => setBusquedaTexto('')}
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Botón Quitar Filtros - Solo aparece cuando hay filtros activos */}
+                        {hayFiltrosActivos && (
+                            <div className="flex items-end">
+                                <button
+                                    onClick={limpiarFiltros}
+                                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    Quitar filtros
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Indicador de guardado */}
                         {Object.keys(saving).length > 0 && (
-                            <div className="px-4 py-2 bg-gray-50 border-b text-xs text-gray-500 flex justify-end items-center">
-                                <span className="text-amber-600 flex items-center gap-1">
+                            <div className="flex items-end">
+                                <div className="px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center gap-2">
                                     <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
                                     Guardando cambios...
-                                </span>
+                                </div>
                             </div>
                         )}
                     </div>
 
                     <div className="text-sm text-gray-500">
-                        Total: {productosFiltrados.length} productos
+                        Mostrando {productosFiltrados.length} de {productos.length} productos
                     </div>
                 </div>
+
             </div>
 
             {/* Tabla */}
@@ -349,7 +426,7 @@ export default function TablaInventario({
                                         onChange={(e) => handleTituloChange(col, e.target.value)}
                                         onKeyDown={(e) => handleTituloKeyDown(e, idx)}
                                         placeholder={`Fecha ${idx + 1}`}
-                                        className="w-full min-w-\100px\ px-2 py-1 text-center text-sm font-bold text-purple-700 bg-transparent border-b-2 border-gray-300 focus:border-purple-600 focus:outline-none transition-colors"
+                                        className="w-full min-w-[100px] px-2 py-1 text-center text-sm font-bold text-purple-700 bg-transparent border-b-2 border-gray-300 focus:border-purple-600 focus:outline-none transition-colors"
                                     />
                                 </th>
                             ))}
@@ -367,7 +444,35 @@ export default function TablaInventario({
                         {productosFiltrados.length === 0 ? (
                             <tr>
                                 <td colSpan={4 + columnas.length} className="px-4 py-8 text-center text-gray-500">
-                                    No hay productos para mostrar
+                                    {hayFiltrosActivos ? (
+                                        <div className="flex flex-col items-center gap-3">
+                                            <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <div>
+                                                <p className="font-medium text-gray-700">No se encontraron productos</p>
+                                                <p className="text-sm text-gray-500 mt-1">
+                                                    Intenta con otros criterios de búsqueda
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={limpiarFiltros}
+                                                className="mt-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                                Quitar filtros
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-2">
+                                            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                            </svg>
+                                            <p>No hay productos para mostrar</p>
+                                        </div>
+                                    )}
                                 </td>
                             </tr>
                         ) : (
@@ -405,7 +510,7 @@ export default function TablaInventario({
                                                         onKeyDown={(e) => handleKeyDown(e, producto.id, colIdx, idx)}
                                                         placeholder={titulosColumnas[col] || `Conteo ${colIdx + 1}`}
                                                         className={`
-                                                            w-full min-w-\[100px\] px-2 py-1 text-center text-sm 
+                                                            w-full min-w-[100px] px-2 py-1 text-center text-sm 
                                                             border rounded transition-all
                                                             ${isSaving
                                                                 ? 'bg-yellow-50 border-yellow-400'

@@ -41,7 +41,7 @@ const menuItems = [
         id: 'productos',
         name: 'Gestión de Productos',
         icon: Package,
-        roles: [1, 2, 3],
+        roles: [1],
         path: '/dashboard/gestion-productos'
     },
     {
@@ -57,13 +57,6 @@ const menuItems = [
         icon: Package,
         roles: [1, 2, 3],
         path: '/dashboard/control-traspasos'
-    },
-    {
-        id: 'reportes',
-        name: 'Reportes',
-        icon: BarChart3,
-        roles: [1, 2, 3],
-        path: '/dashboard/reportes'
     },
     {
         id: 'usuarios',
@@ -83,7 +76,7 @@ const menuItems = [
         id: 'inventario-fisico',
         name: 'Inventario Físico',
         icon: Package,
-        roles: [1],
+        roles: [1, 2, 3],
         path: '/dashboard/gestion-inventario'
     },
     {
@@ -181,9 +174,9 @@ export default function NavigationMenu({ isCollapsed }) {
 
                         {/* Icono */}
                         <div className="relative">
-                            <Icon 
+                            <Icon
                                 className={`${isCollapsed ? 'w-6 h-6' : 'w-5 h-5 mr-3'
-                                    } transition-colors duration-200 ${active ? 'text-blue-600' : 'text-gray-500'}`} 
+                                    } transition-colors duration-200 ${active ? 'text-blue-600' : 'text-gray-500'}`}
                             />
 
                             {/* Punto indicador para estado colapsado */}
