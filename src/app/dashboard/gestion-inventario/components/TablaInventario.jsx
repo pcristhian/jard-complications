@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase/client';
+import * as XLSX from 'xlsx';
 
 export default function TablaInventario({
     productos,
@@ -19,7 +20,7 @@ export default function TablaInventario({
     const [categorias, setCategorias] = useState([]);
 
     // Paginación virtual
-    const [visibleCount, setVisibleCount] = useState(20); // Mostrar 20 inicialmente
+    const [visibleCount, setVisibleCount] = useState(20);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const loadMoreRef = useRef(null);
     const tableContainerRef = useRef(null);
@@ -46,7 +47,7 @@ export default function TablaInventario({
     const limpiarFiltros = () => {
         setFiltroCategoria('');
         setBusquedaTexto('');
-        setVisibleCount(20); // Resetear paginación al limpiar filtros
+        setVisibleCount(20);
     };
 
     // Filtrar productos por categoría y búsqueda
@@ -71,13 +72,108 @@ export default function TablaInventario({
         return productosFiltrados.slice(0, visibleCount);
     }, [productosFiltrados, visibleCount]);
 
+    // Función para descargar datos a Excel
+    const descargarExcel = () => {
+        try {
+            // Preparar los datos para Excel
+            const datosExcel = [];
+
+            // Crear encabezados
+            const encabezados = [
+                '#',
+                'Código',
+                'Producto',
+                'Categoría',
+                'Precio (Bs.)',
+                'Stock Actual'
+            ];
+
+            // Agregar títulos de columnas personalizadas
+            columnas.forEach((col, idx) => {
+                const titulo = titulosColumnas[col] || `Conteo ${idx + 1}`;
+                encabezados.push(titulo);
+            });
+
+            datosExcel.push(encabezados);
+
+            // Agregar datos de cada producto
+            productosFiltrados.forEach((producto, idx) => {
+                const fila = [
+                    idx + 1,
+                    producto.codigo || '',
+                    producto.nombre || '',
+                    producto.categoria || '',
+                    producto.precio || 0,
+                    producto.stock_actual || 0
+                ];
+
+                // Agregar conteos
+                columnas.forEach((col) => {
+                    const valor = conteos[producto.id]?.[col] || '';
+                    fila.push(valor);
+                });
+
+                datosExcel.push(fila);
+            });
+
+            // Crear libro de trabajo
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(datosExcel);
+
+            // Ajustar anchos de columnas
+            const colWidths = [
+                { wch: 6 },  // #
+                { wch: 15 }, // Código
+                { wch: 30 }, // Producto
+                { wch: 20 }, // Categoría
+                { wch: 12 }, // Precio
+                { wch: 12 }  // Stock Actual
+            ];
+
+            // Agregar anchos para columnas de conteo
+            columnas.forEach(() => {
+                colWidths.push({ wch: 15 });
+            });
+
+            ws['!cols'] = colWidths;
+
+            // Estilos para encabezados (opcional - usando CSS-like styling)
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const address = XLSX.utils.encode_cell({ r: 0, c: C });
+                if (!ws[address]) continue;
+                ws[address].s = {
+                    font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+                    fill: { fgColor: { rgb: "4F46E5" } },
+                    alignment: { horizontal: "center", vertical: "center" }
+                };
+            }
+
+            // Agregar la hoja al libro
+            XLSX.utils.book_append_sheet(wb, ws, 'Inventario_Fisico');
+
+            // Generar nombre del archivo con fecha y sucursal
+            const fechaActual = new Date().toISOString().split('T')[0];
+            const nombreSucursal = localStorage.getItem('sucursalSeleccionada')
+                ? JSON.parse(localStorage.getItem('sucursalSeleccionada')).nombre
+                : 'sucursal';
+            const nombreArchivo = `inventario_fisico_${nombreSucursal}_${fechaActual}.xlsx`;
+
+            // Guardar archivo
+            XLSX.writeFile(wb, nombreArchivo);
+
+        } catch (error) {
+            console.error('Error al generar Excel:', error);
+            alert('Error al generar el archivo Excel. Por favor, intenta de nuevo.');
+        }
+    };
+
     // Cargar más productos al hacer scroll
     const loadMoreProducts = useCallback(() => {
         if (visibleCount >= productosFiltrados.length) return;
         if (isLoadingMore) return;
 
         setIsLoadingMore(true);
-        // Simular carga asíncrona para mejor UX
         setTimeout(() => {
             setVisibleCount(prev => Math.min(prev + 20, productosFiltrados.length));
             setIsLoadingMore(false);
@@ -94,11 +190,10 @@ export default function TablaInventario({
                     loadMoreProducts();
                 }
             },
-            { threshold: 0.1, rootMargin: '100px' } // Activar 100px antes
+            { threshold: 0.1, rootMargin: '100px' }
         );
 
         observer.observe(loadMoreRef.current);
-
         return () => {
             if (loadMoreRef.current) {
                 observer.unobserve(loadMoreRef.current);
@@ -401,8 +496,39 @@ export default function TablaInventario({
                         )}
                     </div>
 
-                    <div className="text-sm text-gray-500">
-                        Mostrando {productosVisibles.length} de {productosFiltrados.length} productos
+                    <div className="flex items-center gap-3">
+                        {/* Botón de descarga a Excel */}
+                        <button
+                            onClick={descargarExcel}
+                            disabled={productosFiltrados.length === 0}
+                            className={`
+                                px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 
+                                flex items-center gap-2 shadow-sm hover:shadow-md
+                                ${productosFiltrados.length === 0
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-green-600 hover:bg-green-700 text-white'
+                                }
+                            `}
+                        >
+                            <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                />
+                            </svg>
+                            Descargar Excel
+                        </button>
+
+                        <div className="text-sm text-gray-500">
+                            Mostrando {productosVisibles.length} de {productosFiltrados.length} productos
+                        </div>
                     </div>
                 </div>
             </div>
