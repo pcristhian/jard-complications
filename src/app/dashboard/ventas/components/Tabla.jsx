@@ -508,9 +508,11 @@ export default function Tabla({
                                 </td>
                                 <td className="px-2 py-2">
                                     <div className="flex flex-col items-start gap-0.5">
-                                        <span className="text-[12px] font-semibold font-bold text-gray-900">
-                                            #{venta.id}
-                                        </span>
+                                        {venta.rolNombre === "admin" && (
+                                            <span className="text-[12px] font-semibold font-bold text-gray-900">
+                                                #{venta.id}
+                                            </span>
+                                        )}
                                         <span className="text-xs tracking-widest font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
                                             {venta.producto_codigo}
                                         </span>
