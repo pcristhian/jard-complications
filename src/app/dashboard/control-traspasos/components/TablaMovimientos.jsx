@@ -81,10 +81,10 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
             let query = supabase
                 .from('movimientos')
                 .select(`
-                    *,
-                    usuarios:usuario_id (id, nombre),
-                    sucursales:sucursal_id (id, nombre)
-                `)
+                *,
+                usuarios:usuario_id (id, nombre),
+                sucursales:sucursal_id (id, nombre)
+            `)
                 .in('tipo_movimiento', TIPOS_MOSTRAR)
                 .order('created_at', { ascending: false });
 
@@ -105,6 +105,24 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
 
             if (fetchError) throw fetchError;
 
+            // Obtener nombres de sucursales para los IDs en los datos
+            const sucursalesOrigenIds = [...new Set(data.map(mov => mov.datos?.sucursal_origen_id).filter(id => id))];
+            const sucursalesDestinoIds = [...new Set(data.map(mov => mov.datos?.sucursal_destino_id).filter(id => id))];
+            const todosSucursalesIds = [...new Set([...sucursalesOrigenIds, ...sucursalesDestinoIds])];
+
+            let sucursalesMap = new Map();
+
+            if (todosSucursalesIds.length > 0) {
+                const { data: sucursalesData, error: sucursalesError } = await supabase
+                    .from('sucursales')
+                    .select('id, nombre')
+                    .in('id', todosSucursalesIds);
+
+                if (!sucursalesError && sucursalesData) {
+                    sucursalesMap = new Map(sucursalesData.map(s => [s.id, s.nombre]));
+                }
+            }
+
             // Procesar los datos para extraer información del JSON
             const movimientosProcesados = data.map(mov => ({
                 ...mov,
@@ -117,6 +135,8 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
                 tipo_original: mov.datos?.tipo_original || null,
                 sucursal_destino_id: mov.datos?.sucursal_destino_id || null,
                 sucursal_origen_id: mov.datos?.sucursal_origen_id || null,
+                sucursal_destino_nombre: sucursalesMap.get(mov.datos?.sucursal_destino_id) || 'N/A',
+                sucursal_origen_nombre: sucursalesMap.get(mov.datos?.sucursal_origen_id) || 'N/A',
                 tipo_traspaso: mov.datos?.tipo || null,
                 motivo: mov.datos?.motivo || null,
                 es_anulable: mov.estado === 'activo' &&
@@ -319,8 +339,8 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
                                 <button
                                     onClick={() => setFiltroEstado('activo')}
                                     className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1 ${filtroEstado === 'activo'
-                                            ? 'bg-white text-emerald-700 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'
+                                        ? 'bg-white text-emerald-700 shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-900'
                                         }`}
                                 >
                                     <span>✅</span>
@@ -329,8 +349,8 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
                                 <button
                                     onClick={() => setFiltroEstado('anulado')}
                                     className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1 ${filtroEstado === 'anulado'
-                                            ? 'bg-white text-red-700 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'
+                                        ? 'bg-white text-red-700 shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-900'
                                         }`}
                                 >
                                     <span>🚫</span>
@@ -490,7 +510,7 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
                                                                     </td>
                                                                     <td className="px-4 py-3 whitespace-nowrap text-center">
                                                                         <div className={`text-sm font-semibold ${movimiento.tipo_movimiento === 'entrada_stock' ? 'text-emerald-600' :
-                                                                                'text-blue-600'
+                                                                            'text-blue-600'
                                                                             } ${esAnulado ? 'line-through' : ''}`}>
                                                                             {movimiento.tipo_movimiento === 'entrada_stock' ? '+' : ''}
                                                                             {movimiento.cantidad}
@@ -506,12 +526,12 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
                                                                             </div>
                                                                             {movimiento.tipo_movimiento === 'traslado_sucursal' && movimiento.tipo_traspaso === 'salida_traspaso' && (
                                                                                 <div className="text-xs text-blue-600">
-                                                                                    → Destino: ID {movimiento.sucursal_destino_id}
+                                                                                    → Destino: {movimiento.sucursal_destino_nombre}
                                                                                 </div>
                                                                             )}
                                                                             {movimiento.tipo_movimiento === 'traslado_sucursal' && movimiento.tipo_traspaso === 'entrada_traspaso' && (
                                                                                 <div className="text-xs text-blue-600">
-                                                                                    ← Origen: ID {movimiento.sucursal_origen_id}
+                                                                                    ← Origen: {movimiento.sucursal_origen_nombre}
                                                                                 </div>
                                                                             )}
                                                                         </div>

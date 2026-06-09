@@ -289,9 +289,6 @@ export const useTraspasos = () => {
         }
     }, [getStockActual, actualizarStock, registrarMovimiento]);
 
-    /**
-     * Realiza un ajuste de stock (cambiar a un valor específico)
-     */
     const ajustarStock = useCallback(async ({
         usuarioId,
         sucursalId,
@@ -432,9 +429,6 @@ export const useTraspasos = () => {
         }
     }, [getStockActual, actualizarStock, registrarMovimiento]);
 
-    /**
-     * Revierte un aumento de stock (entrada)
-     */
     const revertirAumentoStock = useCallback(async ({
         movimientoId,
         usuarioId,
@@ -595,9 +589,6 @@ export const useTraspasos = () => {
         }
     }, [obtenerMovimientoPorId, getStockActual, actualizarStock, registrarMovimiento, registrarAuditoria, revertirAumentoStock]);
 
-    /**
-     * Obtiene movimientos activos (no anulados)
-     */
     const obtenerMovimientosActivos = useCallback(async (filtros = {}) => {
         setLoading(true);
         setError(null);
@@ -681,6 +672,120 @@ export const useTraspasos = () => {
         }
     }, []);
 
+    const traspasarMultiplesStocks = useCallback(async ({
+        usuarioId,
+        sucursalOrigenId,
+        items, // Array de { producto, cantidad, sucursalDestinoId, observaciones }
+    }) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            if (!items || items.length === 0) {
+                throw new Error('No hay items para traspasar');
+            }
+
+            // Verificar que todos los items tengan la misma sucursal destino
+            const sucursalesDestino = [...new Set(items.map(item => item.sucursalDestinoId))];
+            if (sucursalesDestino.length > 1) {
+                throw new Error('Todos los productos deben ir a la misma sucursal destino');
+            }
+
+            const resultados = [];
+
+            for (const item of items) {
+                if (item.cantidad <= 0) {
+                    throw new Error(`La cantidad debe ser mayor a 0 para ${item.producto.nombre}`);
+                }
+
+                const sucursalDestinoId = item.sucursalDestinoId;
+
+                if (sucursalOrigenId === sucursalDestinoId) {
+                    throw new Error(`La sucursal de origen y destino deben ser diferentes para ${item.producto.nombre}`);
+                }
+
+                // Verificar stock en origen
+                const stockOrigen = await getStockActual(item.producto.id, sucursalOrigenId);
+
+                if (stockOrigen < item.cantidad) {
+                    throw new Error(`Stock insuficiente para ${item.producto.nombre} en sucursal origen. Stock: ${stockOrigen}, solicitado: ${item.cantidad}`);
+                }
+
+                // Obtener stock actual en destino
+                const stockDestino = await getStockActual(item.producto.id, sucursalDestinoId);
+
+                // Calcular nuevos stocks
+                const nuevoStockOrigen = stockOrigen - item.cantidad;
+                const nuevoStockDestino = stockDestino + item.cantidad;
+
+                // Actualizar stocks
+                await actualizarStock(item.producto.id, sucursalOrigenId, nuevoStockOrigen);
+                await actualizarStock(item.producto.id, sucursalDestinoId, nuevoStockDestino);
+
+                // Registrar movimiento de salida (origen)
+                await registrarMovimiento({
+                    usuarioId,
+                    sucursalId: sucursalOrigenId,
+                    tipoMovimiento: TIPO_MOVIMIENTO.TRASLADO_SUCURSAL,
+                    producto: item.producto,
+                    cantidad: item.cantidad,
+                    observaciones: item.observaciones || 'Traspaso múltiple',
+                    stockNuevo: nuevoStockOrigen,
+                    datosAdicionales: {
+                        motivo: 'traslado_sucursal',
+                        tipo: 'salida_traspaso',
+                        sucursal_destino_id: sucursalDestinoId,
+                        es_multiple: true
+                    }
+                });
+
+                // Registrar movimiento de entrada (destino)
+                await registrarMovimiento({
+                    usuarioId,
+                    sucursalId: sucursalDestinoId,
+                    tipoMovimiento: TIPO_MOVIMIENTO.TRASLADO_SUCURSAL,
+                    producto: item.producto,
+                    cantidad: item.cantidad,
+                    observaciones: item.observaciones || 'Traspaso múltiple',
+                    stockNuevo: nuevoStockDestino,
+                    datosAdicionales: {
+                        motivo: 'traslado_sucursal',
+                        tipo: 'entrada_traspaso',
+                        sucursal_origen_id: sucursalOrigenId,
+                        es_multiple: true
+                    }
+                });
+
+                resultados.push({
+                    success: true,
+                    producto: item.producto,
+                    cantidad: item.cantidad,
+                    sucursalOrigen: {
+                        id: sucursalOrigenId,
+                        stockAnterior: stockOrigen,
+                        stockNuevo: nuevoStockOrigen
+                    },
+                    sucursalDestino: {
+                        id: sucursalDestinoId,
+                        stockAnterior: stockDestino,
+                        stockNuevo: nuevoStockDestino
+                    }
+                });
+            }
+
+            return {
+                success: true,
+                resultados,
+                totalTraspasos: resultados.length
+            };
+        } catch (err) {
+            setError(err.message);
+            return { success: false, error: err.message };
+        } finally {
+            setLoading(false);
+        }
+    }, [getStockActual, actualizarStock, registrarMovimiento]);
+
     // RETORNAR TODAS LAS FUNCIONES
     return {
         loading,
@@ -689,6 +794,7 @@ export const useTraspasos = () => {
         disminuirStock,
         ajustarStock,
         traspasarStock,
+        traspasarMultiplesStocks,
         anularMovimiento,
         obtenerMovimientosActivos,
         obtenerStocksSucursal,

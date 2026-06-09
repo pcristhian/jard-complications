@@ -1,37 +1,34 @@
 // components/ModalTraspaso.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    XMarkIcon,
-    ArrowRightCircleIcon,
     MagnifyingGlassIcon,
     CubeIcon,
-    TagIcon,
-    CurrencyDollarIcon,
     DocumentTextIcon,
     BuildingOfficeIcon,
     TruckIcon,
     ExclamationCircleIcon,
     CheckCircleIcon,
     MapPinIcon,
-    ScaleIcon
+    PlusCircleIcon,
+    TrashIcon,
+    ShoppingCartIcon
 } from '@heroicons/react/24/outline';
 
 export default function ModalTraspaso({
     abierto,
     onCerrar,
     onTraspaso,
+    onTraspasosMultiples,
     sucursalActual,
     sucursales,
-    loading
+    loading,
+    currentUser
 }) {
-    const [formData, setFormData] = useState({
-        producto_id: '',
-        cantidad: 1,
-        sucursal_destino_id: '',
-        observaciones: ''
-    });
+    // Estado para el carrito
+    const [carrito, setCarrito] = useState([]);
+    const [productoSeleccionado, setProductoSeleccionado] = useState(null);
     const [busqueda, setBusqueda] = useState('');
     const [productos, setProductos] = useState([]);
     const [productosFiltrados, setProductosFiltrados] = useState([]);
@@ -39,24 +36,32 @@ export default function ModalTraspaso({
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [cargandoProductos, setCargandoProductos] = useState(false);
+    const [formTraspaso, setFormTraspaso] = useState({
+        cantidad: 1,
+        sucursal_destino_id: '',
+        observaciones: ''
+    });
+    const [creando, setCreando] = useState(false);
 
     const searchRef = useRef(null);
     const inputRef = useRef(null);
+    const selectRef = useRef(null);
 
     // Cargar productos con stock de la sucursal actual
     useEffect(() => {
         if (abierto && sucursalActual) {
             cargarProductosConStock();
-            setFormData({
-                producto_id: '',
+            setCarrito([]);
+            setProductoSeleccionado(null);
+            setBusqueda('');
+            setFormTraspaso({
                 cantidad: 1,
                 sucursal_destino_id: '',
                 observaciones: ''
             });
-            setBusqueda('');
-            setMostrarResultados(false);
             setError('');
             setSuccessMessage('');
+            setMostrarResultados(false);
         }
     }, [abierto, sucursalActual]);
 
@@ -132,447 +137,561 @@ export default function ModalTraspaso({
         }
     };
 
-    const seleccionarProducto = (producto) => {
-        setFormData(prev => ({
-            ...prev,
-            producto_id: producto.id,
-            cantidad: Math.min(prev.cantidad, producto.stock_actual)
-        }));
+    const handleSeleccionarProducto = (producto) => {
+        setProductoSeleccionado(producto);
         setBusqueda(`${producto.codigo} - ${producto.nombre}`);
         setMostrarResultados(false);
         setError('');
+        setFormTraspaso(prev => ({
+            ...prev,
+            cantidad: 1
+        }));
     };
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
+    const handleAgregarAlCarrito = () => {
+        if (!productoSeleccionado) return;
+
+        const cantidad = parseInt(formTraspaso.cantidad) || 1;
+
+        if (productoSeleccionado.stock_actual < cantidad) {
+            setError(`Stock insuficiente. Disponible: ${productoSeleccionado.stock_actual} unidades`);
+            return;
+        }
+
+        if (!formTraspaso.sucursal_destino_id) {
+            setError('Debe seleccionar una sucursal destino');
+            return;
+        }
+
+        const itemCarrito = {
+            id: Date.now(),
+            producto_id: productoSeleccionado.id,
+            producto: productoSeleccionado,
+            cantidad: cantidad,
+            costo_unitario: productoSeleccionado.costo || 0,
+            total_linea: (productoSeleccionado.costo || 0) * cantidad,
+            sucursal_destino_id: parseInt(formTraspaso.sucursal_destino_id),
+            observaciones: formTraspaso.observaciones
+        };
+
+        setCarrito(prev => [...prev, itemCarrito]);
+        setProductoSeleccionado(null);
+        setBusqueda('');
+        setFormTraspaso(prev => ({
             ...prev,
-            [name]: name === 'cantidad' ? parseInt(value) || 0 : value
+            cantidad: 1,
+            observaciones: ''
+        }));
+        setError('');
+    };
+
+    const handleEliminarDelCarrito = (itemId) => {
+        setCarrito(prev => prev.filter(item => item.id !== itemId));
+    };
+
+    const handleActualizarCantidadCarrito = (itemId, nuevaCantidad) => {
+        if (nuevaCantidad < 1) return;
+
+        const item = carrito.find(i => i.id === itemId);
+        if (item && nuevaCantidad > item.producto.stock_actual) {
+            setError(`Stock insuficiente para ${item.producto.nombre}. Máximo: ${item.producto.stock_actual}`);
+            return;
+        }
+
+        setCarrito(prev => prev.map(item =>
+            item.id === itemId
+                ? {
+                    ...item,
+                    cantidad: nuevaCantidad,
+                    total_linea: (item.costo_unitario || 0) * nuevaCantidad
+                }
+                : item
+        ));
+        setError('');
+    };
+
+    const handleChangeForm = (e) => {
+        const { name, value } = e.target;
+        setFormTraspaso(prev => ({
+            ...prev,
+            [name]: name === 'cantidad' ? parseInt(value) || 1 : value
         }));
         setError('');
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (carrito.length === 0) {
+            setError('Debe agregar al menos un producto al carrito');
+            return;
+        }
+
+        const sucursalesDestino = [...new Set(carrito.map(item => item.sucursal_destino_id))];
+        if (sucursalesDestino.length > 1) {
+            setError('Todos los productos deben ir a la misma sucursal destino');
+            return;
+        }
+
+        setCreando(true);
         setError('');
-        setSuccessMessage('');
 
-        const productoSeleccionado = productos.find(p => p.id === parseInt(formData.producto_id));
+        try {
+            if (onTraspasosMultiples) {
+                const items = carrito.map(item => ({
+                    producto: item.producto,
+                    cantidad: item.cantidad,
+                    sucursalDestinoId: item.sucursal_destino_id,
+                    observaciones: item.observaciones || `Traspaso múltiple - ${item.producto.nombre}`
+                }));
 
-        if (!formData.producto_id) {
-            setError('Por favor selecciona un producto');
-            return;
-        }
+                const resultado = await onTraspasosMultiples(items);
+                if (!resultado.success) {
+                    throw new Error(resultado.error);
+                }
+            } else {
+                for (const item of carrito) {
+                    const resultado = await onTraspaso({
+                        producto: item.producto,
+                        cantidad: item.cantidad,
+                        sucursalDestinoId: item.sucursal_destino_id,
+                        observaciones: item.observaciones || `Traspaso múltiple - ${item.producto.nombre}`
+                    });
 
-        if (!formData.sucursal_destino_id) {
-            setError('Por favor selecciona una sucursal destino');
-            return;
-        }
+                    if (!resultado.success) {
+                        throw new Error(`Error en ${item.producto.nombre}: ${resultado.error}`);
+                    }
+                }
+            }
 
-        if (formData.cantidad < 1) {
-            setError('La cantidad debe ser al menos 1');
-            return;
-        }
+            setSuccessMessage(`${carrito.length} traspaso(s) realizado(s) exitosamente!`);
 
-        if (productoSeleccionado && productoSeleccionado.stock_actual < formData.cantidad) {
-            setError(`Stock insuficiente. Disponible: ${productoSeleccionado.stock_actual} unidades`);
-            return;
-        }
-
-        const resultado = await onTraspaso({
-            producto: productoSeleccionado,
-            cantidad: formData.cantidad,
-            sucursalDestinoId: parseInt(formData.sucursal_destino_id),
-            observaciones: formData.observaciones
-        });
-
-        if (resultado.success) {
-            setSuccessMessage('¡Traspaso realizado exitosamente!');
             setTimeout(() => {
+                setCarrito([]);
                 onCerrar();
             }, 1500);
-        } else {
-            setError(resultado.error || 'Error al realizar el traspaso');
+
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setCreando(false);
         }
     };
 
-    const productoSeleccionado = productos.find(p => p.id === parseInt(formData.producto_id));
-    const stockDisponible = productoSeleccionado?.stock_actual || 0;
-    const sucursalDestino = sucursales?.find(s => s.id === parseInt(formData.sucursal_destino_id));
-    const valorTotalTraspaso = productoSeleccionado ? productoSeleccionado.costo * formData.cantidad : 0;
+    const productoSeleccionadoData = productoSeleccionado;
+    const stockDisponible = productoSeleccionadoData?.stock_actual || 0;
+    const cantidadItemSeleccionado = parseInt(formTraspaso.cantidad) || 1;
+    const valorTotalItemSeleccionado = (productoSeleccionadoData?.precio || 0) * cantidadItemSeleccionado;
 
-    // Animaciones
-    const modalVariants = {
-        hidden: { opacity: 0, scale: 0.95, y: 20 },
-        visible: {
-            opacity: 1,
-            scale: 1,
-            y: 0,
-            transition: { duration: 0.3, ease: "easeOut" }
-        },
-        exit: {
-            opacity: 0,
-            scale: 0.95,
-            y: 20,
-            transition: { duration: 0.2 }
-        }
-    };
+    const sucursalDestinoSeleccionada = sucursales?.find(s => s.id === parseInt(formTraspaso.sucursal_destino_id));
 
-    const backdropVariants = {
-        hidden: { opacity: 0 },
-        visible: { opacity: 1, transition: { duration: 0.3 } },
-        exit: { opacity: 0, transition: { duration: 0.2 } }
-    };
+    const totalTraspasos = carrito.length;
+    const totalCantidad = carrito.reduce((sum, item) => sum + item.cantidad, 0);
+    const totalValor = carrito.reduce((sum, item) => sum + item.total_linea, 0);
+
+    const sucursalDestinoUnica = carrito.length > 0 ? carrito[0].sucursal_destino_id : null;
+    const sucursalDestinoNombre = sucursalDestinoUnica
+        ? sucursales?.find(s => s.id === sucursalDestinoUnica)?.nombre
+        : null;
+
+    const sucursalesDisponibles = useMemo(() => {
+        return sucursales?.filter(s => s.id !== sucursalActual?.id) || [];
+    }, [sucursales, sucursalActual]);
 
     if (!abierto) return null;
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             <motion.div
-                variants={backdropVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                key="modal-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
                 onClick={onCerrar}
             >
                 <motion.div
-                    variants={modalVariants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
+                    key="modal-content"
+                    initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                    transition={{ duration: 0.2 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto"
+                    className="bg-white rounded-xl shadow-xl max-w-6xl w-full h-[85vh] flex flex-col overflow-hidden"
                 >
-                    {/* Header con gradiente */}
-                    <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-t-2xl z-20">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                                <motion.div
-                                    whileHover={{ rotate: 360 }}
-                                    transition={{ duration: 0.5 }}
-                                    className="p-2 bg-white/20 rounded-xl"
-                                >
-                                    <TruckIcon className="h-6 w-6" />
-                                </motion.div>
-                                <div>
-                                    <h2 className="text-xl font-bold">Realizar Traspaso de Stock</h2>
-                                    <div className="flex items-center space-x-2 mt-1 text-sm text-white/80">
-                                        <MapPinIcon className="h-4 w-4" />
-                                        <span>Sucursal Origen: {sucursalActual?.nombre}</span>
+                    {/* Tamaño fijo con flex y h-[85vh] */}
+                    <div className="flex flex-1 min-h-0 overflow-hidden">
+                        {/* Lado Izquierdo - Selección de productos */}
+                        <div className="w-1/2 border-r border-gray-200 flex flex-col bg-gray-50">
+                            <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center space-x-2">
+                                        <TruckIcon className="h-5 w-5 text-blue-600" />
+                                        <h2 className="text-lg font-bold text-gray-900">Nuevo Traspaso</h2>
                                     </div>
-                                </div>
-                            </div>
-                            <motion.button
-                                whileHover={{ scale: 1.1, rotate: 90 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={onCerrar}
-                                className="p-2 hover:bg-white/20 rounded-full transition-colors"
-                            >
-                                <XMarkIcon className="h-5 w-5" />
-                            </motion.button>
-                        </div>
-                    </div>
-
-                    {/* Mensajes de alerta */}
-                    <AnimatePresence>
-                        {(error || successMessage) && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                className={`mx-6 mt-6 p-4 rounded-xl ${error
-                                    ? 'bg-red-50 border border-red-200'
-                                    : 'bg-green-50 border border-green-200'
-                                    }`}
-                            >
-                                <div className="flex items-center">
-                                    {error ? (
-                                        <ExclamationCircleIcon className="h-5 w-5 text-red-500 mr-2" />
-                                    ) : (
-                                        <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2" />
-                                    )}
-                                    <p className={error ? 'text-red-700' : 'text-green-700'}>
-                                        {error || successMessage}
-                                    </p>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Formulario */}
-                    <form onSubmit={handleSubmit} className="p-6 space-y-6">
-                        {/* Buscador de Productos */}
-                        <div className="space-y-2 relative" ref={searchRef}>
-                            <label className="block text-sm font-semibold text-gray-700">
-                                <MagnifyingGlassIcon className="h-4 w-4 inline mr-2 text-gray-400" />
-                                Buscar Producto *
-                            </label>
-                            <div className="relative">
-                                <input
-                                    ref={inputRef}
-                                    type="text"
-                                    value={busqueda}
-                                    onChange={(e) => {
-                                        setBusqueda(e.target.value);
-                                        setMostrarResultados(true);
-                                    }}
-                                    onFocus={() => setMostrarResultados(true)}
-                                    placeholder="Buscar por código o nombre..."
-                                    className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    disabled={cargandoProductos}
-                                />
-                                <MagnifyingGlassIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
-                                {cargandoProductos && (
-                                    <div className="absolute right-3 top-3.5">
-                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Resultados de búsqueda - ahora con posición relativa y max-height controlada */}
-                            <AnimatePresence>
-                                {mostrarResultados && busqueda && productosFiltrados.length > 0 && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -10 }}
-                                        className="absolute z-30 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-y-auto"
-                                        style={{
-                                            top: '100%',
-                                            left: 0,
-                                            right: 0,
-                                            maxHeight: '300px'
-                                        }}
+                                    <button
+                                        onClick={onCerrar}
+                                        className="p-1.5 hover:bg-gray-100 rounded-full transition-colors text-gray-500 hover:text-gray-700"
                                     >
-                                        {productosFiltrados.map((producto, idx) => (
-                                            <motion.div
-                                                key={producto.id}
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: idx * 0.05 }}
-                                                onClick={() => seleccionarProducto(producto)}
-                                                className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
-                                            >
-                                                <div className="flex justify-between items-start">
-                                                    <div className="flex-1">
-                                                        <div className="font-medium text-gray-900">
-                                                            {producto.codigo} - {producto.nombre}
+                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <div className="bg-blue-50 p-2.5 rounded-lg mb-3">
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <MapPinIcon className="h-4 w-4 text-blue-600" />
+                                        <span className="font-semibold text-blue-700">Origen:</span>
+                                        <span className="text-blue-900">{sucursalActual?.nombre}</span>
+                                    </div>
+                                </div>
+
+                                <div className="relative" ref={searchRef}>
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={busqueda}
+                                        onChange={(e) => {
+                                            setBusqueda(e.target.value);
+                                            setMostrarResultados(true);
+                                        }}
+                                        onFocus={() => setMostrarResultados(true)}
+                                        placeholder="Buscar producto por código o nombre..."
+                                        className="w-full px-4 py-2 pl-9 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                        disabled={cargandoProductos}
+                                    />
+                                    <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                                    {cargandoProductos && (
+                                        <div className="absolute right-3 top-2.5">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Lista de Productos - scrollable y altura fija */}
+                            {!productoSeleccionado && (
+                                <div className="flex-1 overflow-y-auto p-3 min-h-0">
+                                    {productosFiltrados.length === 0 && busqueda ? (
+                                        <div className="text-center py-8">
+                                            <CubeIcon className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                                            <p className="text-gray-500 text-sm">No se encontraron productos</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {(productosFiltrados.length > 0 ? productosFiltrados : productos.slice(0, 20)).map((producto) => (
+                                                <div
+                                                    key={producto.id}
+                                                    onClick={() => handleSeleccionarProducto(producto)}
+                                                    className="p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
+                                                >
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="font-medium text-gray-900 text-sm truncate">{producto.nombre}</div>
+                                                            <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500">
+                                                                <span>Código: {producto.codigo}</span>
+                                                                <span className="text-green-600">Stock: {producto.stock_actual}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
-                                                            <span className="flex items-center">
-                                                                <CubeIcon className="h-3 w-3 mr-1" />
-                                                                Stock: {producto.stock_actual}
-                                                            </span>
-                                                            <span className="flex items-center">
-                                                                <TagIcon className="h-3 w-3 mr-1" />
-                                                                {producto.categoria}
-                                                            </span>
-                                                            <span className="flex items-center">
-                                                                <CurrencyDollarIcon className="h-3 w-3 mr-1" />
-                                                                ${producto.precio}
-                                                            </span>
+                                                        <div className="text-right ml-3">
+                                                            <p className="text-xs text-gray-500">Costo</p>
+                                                            <p className="font-bold text-gray-900 text-sm">${producto.precio?.toFixed(2) || 'N/A'}</p>
                                                         </div>
                                                     </div>
-                                                    <ArrowRightCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0" />
                                                 </div>
-                                            </motion.div>
-                                        ))}
-                                    </motion.div>
-                                )}
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
-                                {/* Mensaje sin resultados */}
-                                {mostrarResultados && busqueda && productosFiltrados.length === 0 && !cargandoProductos && (
+                            {/* Formulario para producto seleccionado */}
+                            <AnimatePresence mode="wait">
+                                {productoSeleccionado && (
                                     <motion.div
-                                        initial={{ opacity: 0, y: -10 }}
+                                        key="producto-form"
+                                        initial={{ opacity: 0, y: 30 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -10 }}
-                                        className="absolute z-30 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-center"
-                                        style={{
-                                            top: '100%',
-                                            left: 0,
-                                            right: 0
-                                        }}
+                                        exit={{ opacity: 0, y: 30 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="border-t border-gray-200 bg-white flex-shrink-0"
                                     >
-                                        <CubeIcon className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                                        <p className="text-gray-500 text-sm">
-                                            No se encontraron productos con stock disponible
-                                        </p>
-                                        <p className="text-gray-400 text-xs mt-1">
-                                            Solo se muestran productos con stock en {sucursalActual?.nombre}
-                                        </p>
+                                        <div className="p-3 border-b border-gray-100 bg-gray-50">
+                                            <div className="flex justify-between items-center">
+                                                <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wide">
+                                                    Producto Seleccionado
+                                                </h3>
+                                                <button
+                                                    onClick={() => {
+                                                        setProductoSeleccionado(null);
+                                                        setBusqueda('');
+                                                    }}
+                                                    className="text-red-500 hover:text-red-700 text-xs font-medium"
+                                                >
+                                                    Cancelar
+                                                </button>
+                                            </div>
+                                            <div className="mt-2">
+                                                <div className="font-medium text-gray-900 text-sm">{productoSeleccionado.nombre}</div>
+                                                <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                                                    <span>Código: {productoSeleccionado.codigo}</span>
+                                                    <span className="text-green-600">Stock: {productoSeleccionado.stock_actual}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-3 space-y-3">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                        Cantidad *
+                                                    </label>
+                                                    <div className="flex items-center gap-1">
+                                                        <input
+                                                            type="number"
+                                                            name="cantidad"
+                                                            min="1"
+                                                            max={stockDisponible}
+                                                            value={formTraspaso.cantidad || 1}
+                                                            onChange={handleChangeForm}
+                                                            className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleChangeForm({
+                                                                target: { name: 'cantidad', value: Math.max(1, (formTraspaso.cantidad || 1) - 1) }
+                                                            })}
+                                                            className="px-3 py-1.5 bg-gray-200 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                                        >
+                                                            -
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleChangeForm({
+                                                                target: { name: 'cantidad', value: Math.min(stockDisponible, (formTraspaso.cantidad || 1) + 1) }
+                                                            })}
+                                                            className="px-3 py-1.5 bg-gray-200 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                        Sucursal Destino *
+                                                    </label>
+                                                    <select
+                                                        ref={selectRef}
+                                                        name="sucursal_destino_id"
+                                                        value={formTraspaso.sucursal_destino_id}
+                                                        onChange={handleChangeForm}
+                                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                                        style={{ WebkitAppearance: 'menulist', appearance: 'menulist' }}
+                                                    >
+                                                        <option value="">Seleccionar</option>
+                                                        {sucursalesDisponibles.map(sucursal => (
+                                                            <option key={sucursal.id} value={sucursal.id}>
+                                                                {sucursal.nombre}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    Observaciones (Opcional)
+                                                </label>
+                                                <textarea
+                                                    name="observaciones"
+                                                    value={formTraspaso.observaciones}
+                                                    onChange={handleChangeForm}
+                                                    rows={2}
+                                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                                    placeholder="Motivo del traspaso..."
+                                                />
+                                            </div>
+
+                                            <div className="bg-gray-50 rounded-lg p-2 text-sm">
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-600">Subtotal:</span>
+                                                    <span className="font-semibold">${valorTotalItemSeleccionado.toFixed(2)}</span>
+                                                </div>
+                                                {sucursalDestinoSeleccionada && (
+                                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                                        <span>Destino:</span>
+                                                        <span>{sucursalDestinoSeleccionada.nombre}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                onClick={handleAgregarAlCarrito}
+                                                disabled={!formTraspaso.sucursal_destino_id || formTraspaso.cantidad < 1 || formTraspaso.cantidad > stockDisponible}
+                                                className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                                            >
+                                                <PlusCircleIcon className="h-4 w-4" />
+                                                Agregar al Carrito
+                                            </button>
+                                        </div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
+
+                            {/* Espacio para mantener altura cuando no hay producto seleccionado */}
+                            {!productoSeleccionado && (
+                                <div className="flex-shrink-0 p-3 text-center text-xs text-gray-400 border-t border-gray-200 bg-gray-50">
+                                    Selecciona un producto para continuar
+                                </div>
+                            )}
                         </div>
 
-                        {/* Información del producto seleccionado */}
-                        {productoSeleccionado && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4"
-                            >
-                                <div className="flex items-start justify-between">
-                                    <div className="flex items-start space-x-3">
-                                        <CheckCircleIcon className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                                        <div>
-                                            <p className="text-sm font-semibold text-blue-800">Producto Seleccionado</p>
-                                            <p className="text-lg font-bold text-gray-900">{productoSeleccionado.nombre}</p>
-                                            <p className="text-sm text-gray-600">Código: {productoSeleccionado.codigo}</p>
-                                            <div className="flex gap-4 mt-2 text-sm">
-                                                <span className="text-gray-600">Stock disponible:</span>
-                                                <span className="font-semibold text-blue-600">{stockDisponible} unidades</span>
+                        {/* Lado Derecho - Carrito de Traspasos - Tamaño fijo */}
+                        <div className="w-1/2 flex flex-col bg-white min-h-0">
+                            <div className="p-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <ShoppingCartIcon className="h-5 w-5 text-blue-600" />
+                                    <h3 className="text-base font-bold text-gray-900">Carrito</h3>
+                                    {totalTraspasos > 0 && (
+                                        <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                            {totalTraspasos}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-3 min-h-0">
+                                {carrito.length === 0 ? (
+                                    <div className="text-center text-gray-500 mt-8">
+                                        <TruckIcon className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                                        <p className="text-sm">Carrito vacío</p>
+                                        <p className="text-xs">Selecciona productos del lado izquierdo</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {carrito.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className="border border-gray-200 rounded-lg p-2 bg-gray-50"
+                                            >
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className="font-medium text-gray-900 text-sm truncate">{item.producto.nombre}</h4>
+                                                        <p className="text-xs text-gray-500">Código: {item.producto.codigo}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleEliminarDelCarrito(item.id)}
+                                                        className="text-red-500 hover:text-red-700 p-0.5"
+                                                    >
+                                                        <TrashIcon className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs text-gray-500">Cant:</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <button
+                                                                onClick={() => handleActualizarCantidadCarrito(item.id, item.cantidad - 1)}
+                                                                className="px-2 py-0.5 bg-gray-200 rounded hover:bg-gray-300 text-xs"
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <span className="text-sm font-medium w-6 text-center">{item.cantidad}</span>
+                                                            <button
+                                                                onClick={() => handleActualizarCantidadCarrito(item.id, item.cantidad + 1)}
+                                                                className="px-2 py-0.5 bg-gray-200 rounded hover:bg-gray-300 text-xs"
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-xs text-gray-500">Total:</span>
+                                                        <span className="ml-1 text-sm font-semibold text-blue-600">${item.total_linea.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer del carrito - siempre visible */}
+                            <div className="border-t border-gray-200 p-3 bg-gray-50 flex-shrink-0">
+                                {carrito.length > 0 ? (
+                                    <>
+                                        <div className="space-y-1 mb-3">
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-600">Productos:</span>
+                                                <span className="font-medium">{totalTraspasos}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-600">Unidades:</span>
+                                                <span className="font-medium">{totalCantidad}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-600">Destino:</span>
+                                                <span className="font-medium text-blue-600 truncate max-w-[150px]">{sucursalDestinoNombre || '—'}</span>
+                                            </div>
+                                            <div className="flex justify-between text-base font-bold pt-1 border-t border-gray-200">
+                                                <span>Total:</span>
+                                                <span className="text-green-600">${totalValor.toFixed(2)}</span>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-xs text-gray-500">Costo unitario</p>
-                                        <p className="text-lg font-bold text-gray-900">
-                                            ${productoSeleccionado.costo?.toFixed(2) || 'N/A'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
 
-                        {/* Grid de Cantidad y Sucursal Destino */}
-                        <div className="grid md:grid-cols-2 gap-6">
-                            {/* Cantidad */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-gray-700">
-                                    <ScaleIcon className="h-4 w-4 inline mr-2 text-gray-400" />
-                                    Cantidad a Traspasar *
-                                </label>
-                                <input
-                                    type="number"
-                                    name="cantidad"
-                                    min="1"
-                                    max={stockDisponible}
-                                    value={formData.cantidad}
-                                    onChange={handleChange}
-                                    disabled={!productoSeleccionado}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                                />
-                                {formData.cantidad > stockDisponible && stockDisponible > 0 && (
-                                    <p className="text-xs text-red-500">
-                                        ⚠️ La cantidad excede el stock disponible
-                                    </p>
-                                )}
-                                {valorTotalTraspaso > 0 && (
-                                    <p className="text-sm text-gray-600 mt-1">
-                                        Valor total del traspaso: <span className="font-semibold text-blue-600">${valorTotalTraspaso.toFixed(2)}</span>
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Sucursal Destino */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-gray-700">
-                                    <BuildingOfficeIcon className="h-4 w-4 inline mr-2 text-gray-400" />
-                                    Sucursal Destino *
-                                </label>
-                                <select
-                                    name="sucursal_destino_id"
-                                    value={formData.sucursal_destino_id}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                >
-                                    <option value="">Seleccionar sucursal</option>
-                                    {sucursales?.filter(s => s.id !== sucursalActual?.id).map(sucursal => (
-                                        <option key={sucursal.id} value={sucursal.id}>
-                                            {sucursal.nombre}
-                                        </option>
-                                    ))}
-                                </select>
-                                {sucursalDestino && (
-                                    <div className="flex items-center gap-2 mt-2 text-xs text-green-600">
-                                        <ArrowRightCircleIcon className="h-3 w-3" />
-                                        <span>Traspaso desde {sucursalActual?.nombre} hacia {sucursalDestino.nombre}</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Observaciones */}
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-gray-700">
-                                <DocumentTextIcon className="h-4 w-4 inline mr-2 text-gray-400" />
-                                Observaciones (Opcional)
-                            </label>
-                            <textarea
-                                name="observaciones"
-                                value={formData.observaciones}
-                                onChange={handleChange}
-                                rows="3"
-                                placeholder="Ej: Reabastecimiento de inventario, venta especial, ajuste entre sucursales..."
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                            />
-                        </div>
-
-                        {/* Resumen del Traspaso */}
-                        {productoSeleccionado && sucursalDestino && formData.cantidad > 0 && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-gray-50 rounded-xl p-4 border border-gray-200"
-                            >
-                                <h3 className="font-semibold text-gray-900 mb-3">Resumen del Traspaso</h3>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <p className="text-gray-500">Producto:</p>
-                                        <p className="font-medium">{productoSeleccionado.nombre}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500">Cantidad:</p>
-                                        <p className="font-medium">{formData.cantidad} unidades</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500">Sucursal Origen:</p>
-                                        <p className="font-medium">{sucursalActual?.nombre}</p>
-                                        <p className="text-xs text-gray-400">Stock: {stockDisponible} → {stockDisponible - formData.cantidad}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500">Sucursal Destino:</p>
-                                        <p className="font-medium">{sucursalDestino.nombre}</p>
-                                        <p className="text-xs text-green-600">Recibirá +{formData.cantidad} unidades</p>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {/* Botones de acción */}
-                        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                            <motion.button
-                                type="button"
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={onCerrar}
-                                className="px-6 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all font-medium"
-                            >
-                                Cancelar
-                            </motion.button>
-                            <motion.button
-                                type="submit"
-                                disabled={loading || !formData.producto_id || !formData.sucursal_destino_id || formData.cantidad < 1 || formData.cantidad > stockDisponible}
-                                whileHover={!loading ? { scale: 1.02 } : {}}
-                                whileTap={!loading ? { scale: 0.98 } : {}}
-                                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md flex items-center gap-2"
-                            >
-                                {loading ? (
-                                    <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                        <span>Procesando...</span>
+                                        <AnimatePresence mode="wait">
+                                            {(error || successMessage) && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                    className={`mb-2 p-2 rounded-lg text-xs ${error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}
+                                                >
+                                                    <div className="flex items-center gap-1">
+                                                        {error ? <ExclamationCircleIcon className="h-3 w-3" /> : <CheckCircleIcon className="h-3 w-3" />}
+                                                        <p>{error || successMessage}</p>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </>
                                 ) : (
-                                    <>
-                                        <TruckIcon className="h-4 w-4" />
-                                        <span>Realizar Traspaso</span>
-                                    </>
+                                    <div className="h-16" />
                                 )}
-                            </motion.button>
+
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={onCerrar}
+                                        className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={creando || carrito.length === 0}
+                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {creando ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                                                <span>Procesando...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <TruckIcon className="h-4 w-4" />
+                                                <span>Traspasar ({totalTraspasos})</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </form>
+                    </div>
                 </motion.div>
             </motion.div>
         </AnimatePresence>

@@ -20,6 +20,7 @@ export default function ControlTraspasos() {
 
     const {
         aumentarStock,
+        traspasarMultiplesStocks,
         traspasarStock,
         loading
     } = useTraspasos();
@@ -58,18 +59,43 @@ export default function ControlTraspasos() {
         return resultado;
     };
 
-    const handleTraspaso = async (datosTraspaso) => {
-        const resultado = await traspasarStock({
-            ...datosTraspaso,
-            usuarioId: currentUser?.id,
-            sucursalOrigenId: sucursalSeleccionada?.id
-        });
-
-        if (resultado.success) {
-            setModalTraspasoAbierto(false);
-            handleRecargar();
+    // CORREGIDO: Usar currentUser del values, no getCurrentUser()
+    const handleTraspaso = async ({ producto, cantidad, sucursalDestinoId, observaciones }) => {
+        if (!currentUser?.id) {
+            return { success: false, error: 'No hay usuario logueado' };
         }
-        return resultado;
+
+        if (!sucursalSeleccionada?.id) {
+            return { success: false, error: 'No hay sucursal seleccionada' };
+        }
+
+        const result = await traspasarStock({
+            usuarioId: currentUser.id,
+            sucursalOrigenId: sucursalSeleccionada.id,
+            sucursalDestinoId,
+            producto,
+            cantidad,
+            observaciones
+        });
+        return result;
+    };
+
+    // CORREGIDO: Usar currentUser del values, no getCurrentUser()
+    const handleTraspasosMultiples = async (items) => {
+        if (!currentUser?.id) {
+            return { success: false, error: 'No hay usuario logueado' };
+        }
+
+        if (!sucursalSeleccionada?.id) {
+            return { success: false, error: 'No hay sucursal seleccionada' };
+        }
+
+        const result = await traspasarMultiplesStocks({
+            usuarioId: currentUser.id,
+            sucursalOrigenId: sucursalSeleccionada.id,
+            items
+        });
+        return result;
     };
 
     return (
@@ -102,9 +128,11 @@ export default function ControlTraspasos() {
                     abierto={modalTraspasoAbierto}
                     onCerrar={() => setModalTraspasoAbierto(false)}
                     onTraspaso={handleTraspaso}
+                    onTraspasosMultiples={handleTraspasosMultiples}
                     sucursalActual={sucursalSeleccionada}
                     sucursales={sucursales}
                     loading={loading}
+                    currentUser={currentUser}
                 />
             )}
         </div>
