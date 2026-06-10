@@ -624,14 +624,7 @@ export default function Tabla({
                                             backgroundColor: getVentaGroupColor(venta) || '#E5E7EB',
                                             border: selectedVentas.has(venta.id) ? '2px solid #3B82F6' : '2px solid transparent'
                                         }}
-                                        title={
-                                            venta.grupo_revision_id
-                                                ? `Grupo: ${getVentaGroupNote(venta) || 'Sin nota'} | Total: Bs. ${(() => {
-                                                    const grupo = gruposExistentes?.find(g => g.id === venta.grupo_revision_id);
-                                                    return grupo?.total?.toFixed(2) || '0.00';
-                                                })()} | Mantén presionado + Z para desagrupar`
-                                                : (venta.estado === 'activa' ? 'Arrastra para agrupar' : 'Venta anulada')
-                                        }
+
                                     >
                                         <span className="text-xs font-bold" style={{
                                             color: getVentaGroupColor(venta) ? '#fff' : '#6B7280'
@@ -645,15 +638,6 @@ export default function Tabla({
                                                 '⋮'
                                             )}
                                         </span>
-
-                                        {/* Tooltip flotante para grupos */}
-                                        {venta.grupo_revision_id && getVentaGroupNote(venta) && (
-                                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                                {getVentaGroupNote(venta).length > 40
-                                                    ? getVentaGroupNote(venta).substring(0, 40) + '...'
-                                                    : getVentaGroupNote(venta)}
-                                            </div>
-                                        )}
                                     </div>
                                 </td>
 

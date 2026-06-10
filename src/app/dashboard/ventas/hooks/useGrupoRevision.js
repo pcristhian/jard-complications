@@ -355,7 +355,7 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
                 </div>,
                 { duration: 2000, icon: '💡' }
             );
-        }, 500);
+        }, 300);
 
         setLongPressTimer(timer);
     }, []);
