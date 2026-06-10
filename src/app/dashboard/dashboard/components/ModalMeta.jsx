@@ -17,7 +17,6 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
     const [availableMonths, setAvailableMonths] = useState([]);
     const [availableYears, setAvailableYears] = useState([]);
     const [loadingPeriods, setLoadingPeriods] = useState(true);
-    const [hasData, setHasData] = useState(false);
 
     const getMonthNumber = (monthName) => {
         const meses = {
@@ -37,89 +36,126 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
         return meses[monthNumber] || 'Enero';
     };
 
-    // Obtener años únicos con datos
+    // Obtener años únicos de metas existentes Y ventas
     const cargarPeriodosDisponibles = async () => {
         setLoadingPeriods(true);
         try {
-            // Obtener años únicos con datos
-            const { data: yearsData, error: yearsError } = await supabase
+            // 1. Obtener años de metas_categorias
+            const { data: yearsFromMetas, error: yearsError } = await supabase
                 .from('metas_categorias')
                 .select('anio', { distinct: true })
                 .order('anio', { ascending: true });
 
             if (yearsError) throw yearsError;
 
-            // 🔹 Asegurar que los años sean únicos y eliminar duplicados
-            let years = [...new Set(yearsData?.map(y => y.anio) || [])];
+            // 2. Obtener años de ventas (para incluir años con datos aunque no tengan metas)
+            const { data: yearsFromVentas, error: ventasYearsError } = await supabase
+                .from('ventas')
+                .select('fecha_venta');
 
-            // Si no hay años, usar el año actual
-            const currentYear = new Date().getFullYear();
-            if (years.length === 0) {
-                years = [currentYear];
-            }
+            if (!ventasYearsError && yearsFromVentas) {
+                const yearsFromVentasSet = new Set(
+                    yearsFromVentas.map(v => new Date(v.fecha_venta).getFullYear())
+                );
 
-            // 🔹 También agregar el año actual si no está en la lista (para poder crear metas nuevas)
-            if (!years.includes(currentYear)) {
-                years.push(currentYear);
-                years.sort((a, b) => a - b);
-            }
+                // Combinar años únicos de ambas fuentes
+                const allYearsSet = new Set([
+                    ...(yearsFromMetas?.map(y => y.anio) || []),
+                    ...yearsFromVentasSet
+                ]);
 
-            setAvailableYears(years);
+                let years = Array.from(allYearsSet).sort((a, b) => a - b);
 
-            // Para el año seleccionado, obtener los meses disponibles
-            const yearToUse = selectedYear || years[0];
-
-            const { data: monthsData, error: monthsError } = await supabase
-                .from('metas_categorias')
-                .select('mes', { distinct: true })
-                .eq('anio', yearToUse)
-                .order('mes', { ascending: true });
-
-            if (monthsError) throw monthsError;
-
-            let months = monthsData?.map(m => getMonthName(m.mes)) || [];
-
-            // Si no hay meses para este año, ver si hay ventas en ese período
-            let hasDataInPeriod = months.length > 0;
-
-            if (!hasDataInPeriod) {
-                // Verificar si hay ventas en este período
-                const { count: ventasCount, error: ventasError } = await supabase
-                    .from('ventas')
-                    .select('id', { count: 'exact', head: true })
-                    .gte('fecha_venta', `${yearToUse}-01-01`)
-                    .lt('fecha_venta', `${yearToUse + 1}-01-01`);
-
-                if (!ventasError && ventasCount > 0) {
-                    hasDataInPeriod = true;
-                    // Si hay ventas pero no metas, usar el mes actual como opción
-                    const currentMonthName = getMonthName(new Date().getMonth() + 1);
-                    months = [currentMonthName];
+                // Asegurar que el año actual está incluido
+                const currentYear = new Date().getFullYear();
+                if (!years.includes(currentYear)) {
+                    years.push(currentYear);
+                    years.sort((a, b) => a - b);
                 }
+
+                setAvailableYears(years);
+
+                // Para el año seleccionado, obtener meses disponibles de metas Y ventas
+                const yearToUse = selectedYear || years[0];
+                await cargarMesesDisponibles(yearToUse);
+            } else {
+                // Fallback: solo usar años de metas
+                let years = yearsFromMetas?.map(y => y.anio) || [];
+                const currentYear = new Date().getFullYear();
+                if (years.length === 0 || !years.includes(currentYear)) {
+                    years = [currentYear];
+                }
+                setAvailableYears(years);
+                await cargarMesesDisponibles(selectedYear || years[0]);
             }
-
-            setHasData(hasDataInPeriod);
-
-            // Si no hay meses específicos, usar el mes actual
-            const currentMonthName = getMonthName(new Date().getMonth() + 1);
-            const finalMonths = months.length > 0 ? [...new Set(months)] : [currentMonthName]; // 🔹 Eliminar duplicados de meses
-            setAvailableMonths(finalMonths);
-
-            // Si el mes seleccionado no está disponible, seleccionar el primero
-            if (selectedMonth && !finalMonths.includes(selectedMonth)) {
-                setSelectedMonth(finalMonths[0]);
-            }
-
         } catch (error) {
             console.error('Error cargando períodos disponibles:', error);
             // Fallback: usar valores por defecto
             const currentYear = new Date().getFullYear();
             const currentMonthName = getMonthName(new Date().getMonth() + 1);
             setAvailableYears([currentYear]);
-            setAvailableMonths([currentMonthName]);
-            setHasData(true);
+            setAvailableMonths(Array.from({ length: 12 }, (_, i) => getMonthName(i + 1)));
         } finally {
             setLoadingPeriods(false);
+        }
+    };
+
+    // Cargar meses disponibles para un año específico (de metas Y ventas)
+    const cargarMesesDisponibles = async (year) => {
+        try {
+            // 1. Obtener meses de metas_categorias para este año
+            const { data: monthsFromMetas, error: monthsError } = await supabase
+                .from('metas_categorias')
+                .select('mes', { distinct: true })
+                .eq('anio', year)
+                .order('mes', { ascending: true });
+
+            if (monthsError) throw monthsError;
+
+            // 2. Obtener meses de ventas para este año
+            const { data: ventasEnAnio, error: ventasError } = await supabase
+                .from('ventas')
+                .select('fecha_venta')
+                .gte('fecha_venta', `${year}-01-01`)
+                .lt('fecha_venta', `${year + 1}-01-01`);
+
+            let monthsSet = new Set();
+
+            // Agregar meses de metas
+            monthsFromMetas?.forEach(m => {
+                monthsSet.add(getMonthName(m.mes));
+            });
+
+            // Agregar meses de ventas
+            if (!ventasError && ventasEnAnio) {
+                ventasEnAnio.forEach(v => {
+                    const monthNum = new Date(v.fecha_venta).getMonth() + 1;
+                    monthsSet.add(getMonthName(monthNum));
+                });
+            }
+
+            // Si no hay datos ni metas, mostrar todos los meses del año
+            let months = Array.from(monthsSet);
+            if (months.length === 0) {
+                // Si no hay datos, mostrar el mes actual
+                const currentMonthName = getMonthName(new Date().getMonth() + 1);
+                months = [currentMonthName];
+            } else {
+                // Ordenar meses cronológicamente
+                months.sort((a, b) => getMonthNumber(a) - getMonthNumber(b));
+            }
+
+            setAvailableMonths(months);
+
+            // Si el mes seleccionado no está disponible, seleccionar el primero
+            if (selectedMonth && !months.includes(selectedMonth)) {
+                setSelectedMonth(months[0]);
+            }
+
+        } catch (error) {
+            console.error('Error cargando meses disponibles:', error);
+            // Fallback: mostrar todos los meses
+            setAvailableMonths(Array.from({ length: 12 }, (_, i) => getMonthName(i + 1)));
         }
     };
 
@@ -265,46 +301,11 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
         setLoading(true);
 
         // Cargar meses disponibles para este año
-        try {
-            const { data: monthsData, error } = await supabase
-                .from('metas_categorias')
-                .select('mes', { distinct: true })
-                .eq('anio', year)
-                .order('mes', { ascending: true });
+        await cargarMesesDisponibles(year);
 
-            if (!error && monthsData?.length > 0) {
-                const months = monthsData.map(m => getMonthName(m.mes));
-                setAvailableMonths(months);
-
-                // Si el mes actual no está disponible, seleccionar el primero
-                if (!months.includes(selectedMonth)) {
-                    setSelectedMonth(months[0]);
-                } else {
-                    // Recargar metas con el nuevo año y mes actual
-                    await cargarMetas();
-                }
-            } else {
-                // Si no hay metas para este año, verificar si hay ventas
-                const { count: ventasCount } = await supabase
-                    .from('ventas')
-                    .select('id', { count: 'exact', head: true })
-                    .gte('fecha_venta', `${year}-01-01`)
-                    .lt('fecha_venta', `${year + 1}-01-01`);
-
-                if (ventasCount > 0) {
-                    // Usar el mes actual
-                    const currentMonthName = getMonthName(new Date().getMonth() + 1);
-                    setAvailableMonths([currentMonthName]);
-                    setSelectedMonth(currentMonthName);
-                }
-                await cargarMetas();
-            }
-        } catch (error) {
-            console.error('Error cargando meses:', error);
-            await cargarMetas();
-        } finally {
-            setLoading(false);
-        }
+        // Recargar metas con el nuevo año
+        await cargarMetas();
+        setLoading(false);
     };
 
     // Cambiar mes
@@ -326,11 +327,6 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
             cargarMetas();
         }
     }, [selectedMonth, selectedYear, isOpen]);
-
-    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-    const years = availableYears.length > 0 ? availableYears : [new Date().getFullYear()];
 
     if (!categories?.length) return null;
 
@@ -374,10 +370,6 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                 <div className="flex justify-center py-2">
                                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
                                 </div>
-                            ) : !hasData && availableYears.length === 1 && availableMonths.length === 1 ? (
-                                <div className="text-center py-2 text-amber-600 text-sm">
-                                    ⚠️ No hay datos de ventas o metas para este período. Crea una meta para comenzar.
-                                </div>
                             ) : (
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -387,8 +379,7 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                             onChange={(e) => handleYearChange(parseInt(e.target.value))}
                                             className="w-full px-3 py-2 border rounded-lg cursor-pointer"
                                         >
-                                            {/* 🔹 Usar Set para eliminar duplicados en el render */}
-                                            {[...new Set(availableYears)].map(year => (
+                                            {availableYears.map(year => (
                                                 <option key={year} value={year}>{year}</option>
                                             ))}
                                         </select>
@@ -399,17 +390,11 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                             value={selectedMonth}
                                             onChange={(e) => handleMonthChange(e.target.value)}
                                             className="w-full px-3 py-2 border rounded-lg cursor-pointer"
-                                            disabled={availableMonths.length === 0}
                                         >
                                             {availableMonths.map(month => (
                                                 <option key={month} value={month}>{month}</option>
                                             ))}
                                         </select>
-                                        {availableMonths.length === 0 && (
-                                            <p className="text-xs text-amber-500 mt-1">
-                                                No hay metas para este año
-                                            </p>
-                                        )}
                                     </div>
                                 </div>
                             )}

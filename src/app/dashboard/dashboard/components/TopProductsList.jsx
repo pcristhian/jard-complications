@@ -183,7 +183,7 @@ export default function TopProductsList({
 
                                             <div className="flex items-center gap-3 mt-0.5">
                                                 <div className="flex items-center gap-1">
-                                                    <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                                                     </svg>
                                                     <span className="text-xs font-medium text-gray-700">
@@ -192,11 +192,11 @@ export default function TopProductsList({
                                                 </div>
                                                 <div className="w-1 h-1 rounded-full bg-gray-300" />
                                                 <div className="flex items-center gap-1">
-                                                    <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
                                                     <span className="text-xs font-medium text-gray-700">
-                                                        ${formatRevenue(product.revenue)}
+                                                        Bs. {formatRevenue(product.revenue)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -205,7 +205,7 @@ export default function TopProductsList({
                                         {/* Métrica de rendimiento */}
                                         <div className="text-right">
                                             <p className="text-sm font-bold text-gray-900">
-                                                ${formatRevenue(product.revenue, true)}
+                                                Bs. {formatRevenue(product.revenue, true)}
                                             </p>
                                             <div className="flex items-center justify-end gap-1 mt-0.5">
                                                 <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
@@ -254,7 +254,7 @@ export default function TopProductsList({
                         <div className="flex items-center gap-2">
                             <span className="text-gray-400">Total:</span>
                             <span className="font-semibold text-gray-800">
-                                ${formatRevenue(totalRevenue, true)}
+                                Bs. {formatRevenue(totalRevenue, true)}
                             </span>
                         </div>
                     </div>

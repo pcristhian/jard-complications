@@ -157,7 +157,7 @@ export default function SalesChart({ data, categories, selectedCategory, onMonth
                     label: (context) => {
                         let label = context.dataset.label || '';
                         if (label) label += ': ';
-                        label += '$' + context.parsed.y.toLocaleString();
+                        label += 'Bs. ' + context.parsed.y.toLocaleString();
                         return label;
                     },
                     afterLabel: (context) => {
@@ -189,9 +189,9 @@ export default function SalesChart({ data, categories, selectedCategory, onMonth
                 border: { display: false },
                 ticks: {
                     callback: (value) => {
-                        if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-                        if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-                        return `$${value}`;
+                        if (value >= 1000000) return `Bs. ${(value / 1000000).toFixed(1)}M`;
+                        if (value >= 1000) return `Bs. ${(value / 1000).toFixed(0)}k`;
+                        return `Bs. ${value}`;
                     },
                     font: { size: 11, weight: '500' },
                     color: '#6B7280',
@@ -305,13 +305,19 @@ export default function SalesChart({ data, categories, selectedCategory, onMonth
                     <div className="text-center">
                         <p className="text-[10px] text-gray-400 uppercase font-semibold">Total Año</p>
                         <p className="text-sm font-bold text-gray-800">
-                            ${(metrics.total / 1000).toFixed(0)}k
+                            Bs. {metrics.total.toLocaleString('es-BO', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            })}
                         </p>
                     </div>
                     <div className="text-center">
                         <p className="text-[10px] text-gray-400 uppercase font-semibold">Promedio</p>
                         <p className="text-sm font-bold text-gray-800">
-                            ${(metrics.average / 1000).toFixed(0)}k
+                            Bs. {metrics.average.toLocaleString('es-BO', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            })}
                         </p>
                     </div>
                     <div className="text-center">

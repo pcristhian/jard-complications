@@ -135,39 +135,38 @@ export default function CategoryCards({
                                         </motion.span>
                                     </div>
                                 </div>
+                                <div className="flex items-center justify-between gap-2">
+                                    {/* Nombre de categoría */}
+                                    <h3 className={`font-bold text-sm truncate ${selectedCategory === category.name ? 'text-white' : 'text-gray-700'}`}>
+                                        {category.name}
+                                    </h3>
 
-                                {/* Nombre de categoría */}
-                                <h3 className={`font-bold text-sm mb-1 truncate ${selectedCategory === category.name ? 'text-white' : 'text-gray-700'}`}>
-                                    {category.name}
-                                </h3>
-
-                                {/* Indicador del mes */}
-                                {displayMonth && (
-                                    <div className="mb-1">
-                                        <span className="text-[10px] font-medium px-1 py-0.5 rounded bg-blue-100 text-blue-700">
+                                    {/* Indicador del mes */}
+                                    {displayMonth && (
+                                        <span className="text-[12px] font-medium px-1 py-0.5 rounded bg-blue-100 text-blue-700 whitespace-nowrap">
                                             📍 {displayMonth}
                                         </span>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
 
                                 {/* Valor de ventas - SIN FORMATO */}
-                                <p className={`text-2xl font-bold tracking-tight ${selectedCategory === category.name ? 'text-white' : 'text-gray-900'}`}>
+                                <p className={`text-3xl font-bold tracking-tight ${selectedCategory === category.name ? 'text-white' : 'text-gray-900'}`}>
                                     Bs. {category.sales?.toLocaleString() || 0}
                                 </p>
 
                                 {/* Meta */}
-                                <div className="mt-2 pt-1">
+                                <div className="pt-1">
                                     <div className="flex items-center justify-between mb-0.5">
                                         <div className="flex items-center gap-1">
                                             <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                                             </svg>
-                                            <span className={`text-[10px] font-medium ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
+                                            <span className={`text-[12px] font-medium ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
                                                 Meta: {metaType === 'quantity' ? 'Unidades' : 'Ingresos'}
                                             </span>
                                         </div>
                                         {hasMeta && (
-                                            <span className={`text-[10px] font-bold ${selectedCategory === category.name
+                                            <span className={`text-[12px] font-bold ${selectedCategory === category.name
                                                 ? 'text-white'
                                                 : progress >= 100
                                                     ? 'text-emerald-600'
@@ -197,13 +196,13 @@ export default function CategoryCards({
                                     </div>
 
                                     <div className="flex items-center justify-between mt-0.5">
-                                        <span className={`text-[10px] ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
+                                        <span className={`text-[12px] ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
                                             Logrado: {metaType === 'quantity'
                                                 ? (realValue?.toLocaleString() || 0)
                                                 : `Bs. ${realValue?.toLocaleString() || 0}`
                                             }
                                         </span>
-                                        <span className={`text-[10px] ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
+                                        <span className={`text-[12px] ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
                                             Meta: {formattedMeta}
                                         </span>
                                     </div>
@@ -216,7 +215,7 @@ export default function CategoryCards({
                                             <svg className={`w-3 h-3 ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                             </svg>
-                                            <span className={`text-[9px] font-medium ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
+                                            <span className={`text-[12px] font-medium ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
                                                 Unidades vendidas
                                             </span>
                                         </div>
@@ -224,33 +223,20 @@ export default function CategoryCards({
                                             <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                             </svg>
-                                            <span className={`text-xs font-bold ${selectedCategory === category.name ? 'text-white' : 'text-gray-700'}`}>
+                                            <span className={`text-[12px] font-bold ${selectedCategory === category.name ? 'text-white' : 'text-gray-700'}`}>
                                                 {category.totalUnits?.toLocaleString() || 0}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Producto más vendido */}
-                                <div className="mt-1">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-[9px]">⭐</span>
-                                        <span className={`text-[9px] font-medium ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
-                                            Más vendido:
-                                        </span>
-                                        <span className={`text-[9px] font-medium truncate max-w-[100px] text-right ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
-                                            {category.topProduct || '—'}
-                                        </span>
-                                    </div>
-                                </div>
-
                                 {/* Productos y ventas totales */}
                                 <div className="mt-1">
                                     <div className="flex items-center justify-between">
-                                        <span className={`text-[10px] ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
+                                        <span className={`text-[12px] ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
                                             📦 {category.totalProducts?.toLocaleString() || 0} productos
                                         </span>
-                                        <span className={`text-[10px] ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
+                                        <span className={`text-[12px] ${selectedCategory === category.name ? 'text-white' : 'text-gray-600'}`}>
                                             🏷️ {category.totalSalesCount?.toLocaleString() || 0} ventas
                                         </span>
                                     </div>

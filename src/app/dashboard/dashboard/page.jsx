@@ -131,8 +131,8 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-7xl mx-auto space-y-5">
+        <div className="min-h-screen bg-gray-50 p-2">
+            <div className="max-w-8xl mx-auto space-y-2">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-2">
                     <div>
@@ -161,37 +161,37 @@ export default function DashboardPage() {
                                     <p className="text-sm text-orange-600 font-medium">
                                         📍 Mostrando datos de {selectedMonth}
                                     </p>
-                                <motion.button
-    onClick={resetFilters}
-    initial={{ scale: 0.8, opacity: 0 }}
-    animate={{
-        scale: 1,
-        opacity: 1,
-        // Efecto de parpadeo suave que se repite 3 veces
-        boxShadow: [
-            "0 0 0 0 rgba(220, 38, 38, 0)",
-            "0 0 0 4px rgba(220, 38, 38, 0.4)",
-            "0 0 0 0 rgba(220, 38, 38, 0)"
-        ]
-    }}
-    transition={{
-        scale: { type: "spring", stiffness: 400, damping: 25 },
-        opacity: { duration: 0.3 },
-        boxShadow: { duration: 0.8, repeat: 3, repeatType: "loop" }
-    }}
-    whileHover={{ scale: 1.05, backgroundColor: "#fee2e2" }}
-    whileTap={{ scale: 0.95 }}
-    className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-all ml-1 flex items-center gap-1 font-medium"
->
-    <motion.span
-        animate={{ rotate: [0, 90, 0] }}
-        transition={{ duration: 0.5, delay: 0.2, repeat: 2 }}
-        className="text-sm"
-    >
-        ✕
-    </motion.span>
-    <span>Limpiar filtro</span>
-</motion.button>
+                                    <motion.button
+                                        onClick={resetFilters}
+                                        initial={{ scale: 0.8, opacity: 0 }}
+                                        animate={{
+                                            scale: 1,
+                                            opacity: 1,
+                                            // Efecto de parpadeo suave que se repite 3 veces
+                                            boxShadow: [
+                                                "0 0 0 0 rgba(220, 38, 38, 0)",
+                                                "0 0 0 4px rgba(220, 38, 38, 0.4)",
+                                                "0 0 0 0 rgba(220, 38, 38, 0)"
+                                            ]
+                                        }}
+                                        transition={{
+                                            scale: { type: "spring", stiffness: 400, damping: 25 },
+                                            opacity: { duration: 0.3 },
+                                            boxShadow: { duration: 0.8, repeat: 3, repeatType: "loop" }
+                                        }}
+                                        whileHover={{ scale: 1.05, backgroundColor: "#fee2e2" }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-all ml-1 flex items-center gap-1 font-medium"
+                                    >
+                                        <motion.span
+                                            animate={{ rotate: [0, 90, 0] }}
+                                            transition={{ duration: 0.5, delay: 0.2, repeat: 2 }}
+                                            className="text-sm"
+                                        >
+                                            ✕
+                                        </motion.span>
+                                        <span>Limpiar filtro</span>
+                                    </motion.button>
                                 </>
                             )}
                         </div>

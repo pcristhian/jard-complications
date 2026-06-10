@@ -522,8 +522,14 @@ export const useVentas = () => {
 
             const { data, error: supabaseError } = await supabase
                 .from('usuarios')
-                .select('id, nombre')
+                .select(`
+                id, 
+                nombre,
+                roles!inner (id, nombre)
+            `)
                 .eq('sucursal_id', currentSucursal.id)
+                .eq('roles.nombre', 'promotor')
+                .eq('activo', true)
                 .order('nombre');
 
             if (supabaseError) {

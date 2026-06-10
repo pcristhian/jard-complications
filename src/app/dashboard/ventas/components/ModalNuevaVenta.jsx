@@ -322,13 +322,6 @@ export default function ModalNuevaVenta({
                                     No hay vendedores disponibles en esta sucursal
                                 </p>
                             )}
-
-                            {/* Mensaje de advertencia si no se selecciona vendedor
-                            {vendedorSeleccionado === null && vendedores.length > 0 && (
-                                <p className="text-sm text-yellow-600 mt-2">
-                                    ⚠️ Debe seleccionar un vendedor para continuar
-                                </p>
-                            )} */}
                             {vendedorSeleccionado === null && vendedores.length > 0 && (
                                 <>
                                     <style>{`
