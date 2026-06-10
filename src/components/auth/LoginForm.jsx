@@ -46,7 +46,7 @@ export default function LoginForm() {
 
     useEffect(() => {
         if (!authLoading && isAuthenticated()) {
-            router.push('/dashboard');
+            router.push('/dashboard/dashboard');
         }
     }, [authLoading, isAuthenticated, router]);
 
