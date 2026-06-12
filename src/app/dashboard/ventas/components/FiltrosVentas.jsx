@@ -2,6 +2,33 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Constantes de zona horaria
+const TIMEZONE_BOLIVIA = -4; // Bolivia está en UTC-4
+
+// Funciones auxiliares de conversión de fechas
+const boliviaToUTC = (fechaBolivia) => {
+    if (!fechaBolivia) return null;
+    const date = new Date(fechaBolivia);
+    // Sumar 4 horas para convertir de Bolivia a UTC
+    return new Date(date.getTime() + (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+};
+
+const utcToBolivia = (fechaUTC) => {
+    if (!fechaUTC) return null;
+    const date = new Date(fechaUTC);
+    // Restar 4 horas para convertir de UTC a Bolivia
+    return new Date(date.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+};
+
+const formatearFechaParaMostrar = (fecha) => {
+    if (!fecha) return '';
+    const date = new Date(fecha);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
 // Variantes fuera del componente — no se recrean en cada render
 const containerVariants = {
     hidden: { opacity: 0, x: 40 },
@@ -58,21 +85,63 @@ const FiltrosVentas = ({
     const manejarCambioUsuarios = (e) => onFiltroUsuariosChange(e.target.value);
     const manejarCambioBusqueda = (e) => onBusquedaChange(e.target.value);
 
+    // Obtener el texto a mostrar para el rango de fechas
+    const getFechaMostrar = () => {
+        if (!filtroFecha?.inicio || !filtroFecha?.fin) return 'Seleccionar fechas';
+
+        const inicioBolivia = utcToBolivia(filtroFecha.inicio);
+        const finBolivia = utcToBolivia(filtroFecha.fin);
+
+        if (!inicioBolivia || !finBolivia) return 'Seleccionar fechas';
+
+        return `${formatearFechaParaMostrar(inicioBolivia)} — ${formatearFechaParaMostrar(finBolivia)}`;
+    };
+
     const limpiarFiltros = () => {
-        const primerDia = new Date();
-        primerDia.setDate(1);
-        primerDia.setHours(0, 0, 0, 0);
-        const ultimoDia = new Date(primerDia.getFullYear(), primerDia.getMonth() + 1, 0);
-        ultimoDia.setHours(23, 59, 59, 999);
+        const ahoraBolivia = new Date();
+        // Ajustar a zona horaria Bolivia
+        const fechaBolivia = new Date(ahoraBolivia.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+
+        const primerDiaBolivia = new Date(fechaBolivia.getFullYear(), fechaBolivia.getMonth(), 1);
+        primerDiaBolivia.setHours(0, 0, 0, 0);
+
+        const ultimoDiaBolivia = new Date(fechaBolivia.getFullYear(), fechaBolivia.getMonth() + 1, 0);
+        ultimoDiaBolivia.setHours(23, 59, 59, 999);
+
+        // Guardar como UTC para la consulta
+        const inicioUTC = boliviaToUTC(primerDiaBolivia);
+        const finUTC = boliviaToUTC(ultimoDiaBolivia);
 
         onBusquedaChange('');
         onFiltroCategoriaChange('');
         onFiltroUsuariosChange('');
-        onFiltroFechaChange({ inicio: primerDia, fin: ultimoDia });
+        onFiltroFechaChange({
+            inicio: inicioUTC,
+            fin: finUTC,
+            aplicadoManualmente: true
+        });
     };
 
-    const manejarSeleccionFecha = (inicio, fin) => {
-        onFiltroFechaChange({ inicio, fin, aplicadoManualmente: true });
+    const manejarSeleccionFecha = (fechaInicioStr, fechaFinStr) => {
+        // fechaInicioStr y fechaFinStr vienen del input date (formato YYYY-MM-DD)
+        // Estas fechas representan fechas en Bolivia
+
+        const [yearInicio, monthInicio, dayInicio] = fechaInicioStr.split('-');
+        const [yearFin, monthFin, dayFin] = fechaFinStr.split('-');
+
+        // Crear fechas en Bolivia (sin ajuste horario, el navegador las interpreta como local)
+        const inicioBolivia = new Date(parseInt(yearInicio), parseInt(monthInicio) - 1, parseInt(dayInicio), 0, 0, 0);
+        const finBolivia = new Date(parseInt(yearFin), parseInt(monthFin) - 1, parseInt(dayFin), 23, 59, 59, 999);
+
+        // Convertir a UTC para la consulta
+        const inicioUTC = boliviaToUTC(inicioBolivia);
+        const finUTC = boliviaToUTC(finBolivia);
+
+        onFiltroFechaChange({
+            inicio: inicioUTC,
+            fin: finUTC,
+            aplicadoManualmente: true
+        });
         setMostrarCalendario(false);
     };
 
@@ -86,46 +155,62 @@ const FiltrosVentas = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Inicializar fechas al cargar el componente
     useEffect(() => {
-        const hoy = new Date();
-        const primerDia = formatearFecha(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
-        const ultimoDia = formatearFecha(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0));
-        onFiltroFechaChange({ inicio: primerDia, fin: ultimoDia });
+        const ahoraBolivia = new Date();
+        const fechaBolivia = new Date(ahoraBolivia.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+
+        const primerDiaBolivia = new Date(fechaBolivia.getFullYear(), fechaBolivia.getMonth(), 1);
+        primerDiaBolivia.setHours(0, 0, 0, 0);
+
+        const ultimoDiaBolivia = new Date(fechaBolivia.getFullYear(), fechaBolivia.getMonth() + 1, 0);
+        ultimoDiaBolivia.setHours(23, 59, 59, 999);
+
+        const inicioUTC = boliviaToUTC(primerDiaBolivia);
+        const finUTC = boliviaToUTC(ultimoDiaBolivia);
+
+        onFiltroFechaChange({
+            inicio: inicioUTC,
+            fin: finUTC,
+            aplicadoManualmente: true
+        });
     }, []);
 
-    const formatearFecha = (fecha) => {
-        if (!fecha) return "";
-        if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) {
-            const [day, month, year] = fecha.split("/");
-            return `${year}-${month}-${day}`;
-        }
-        if (fecha instanceof Date) {
-            const y = fecha.getFullYear();
-            const m = String(fecha.getMonth() + 1).padStart(2, "0");
-            const d = String(fecha.getDate()).padStart(2, "0");
-            return `${y}-${m}-${d}`;
-        }
-        const d = new Date(fecha);
-        if (!isNaN(d)) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, "0");
-            const dd = String(d.getDate()).padStart(2, "0");
-            return `${y}-${m}-${dd}`;
-        }
-        console.warn("Fecha inválida recibida:", fecha);
-        return "";
-    };
+    const hayFiltrosActivos =
+        filtroCategoria ||
+        filtroUsuarios ||
+        terminoBusqueda ||
+        (filtroFecha && filtroFecha.aplicadoManualmente);
 
-    // Calendario — definido fuera del return para no recrear el componente en cada render
+    // Componente Calendario interno
     const Calendario = ({ onSeleccionar, onCerrar }) => {
         const hoy = new Date();
+        const hoyBolivia = new Date(hoy.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
         const [fechaInicio, setFechaInicio] = useState('');
         const [fechaFin, setFechaFin] = useState('');
-        const todayStr = hoy.toISOString().split("T")[0];
+
+        // Obtener fecha actual en formato YYYY-MM-DD para Bolivia
+        const todayStr = `${hoyBolivia.getFullYear()}-${String(hoyBolivia.getMonth() + 1).padStart(2, '0')}-${String(hoyBolivia.getDate()).padStart(2, '0')}`;
 
         const manejarAplicar = () => {
-            if (fechaInicio && fechaFin) onSeleccionar(fechaInicio, fechaFin);
+            if (fechaInicio && fechaFin) {
+                onSeleccionar(fechaInicio, fechaFin);
+            }
+        };
+
+        // Preestablecer últimos 7 días
+        const setUltimos7Dias = () => {
+            const hoy = new Date();
+            const hoyBolivia = new Date(hoy.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+            const hace7 = new Date(hoyBolivia);
+            hace7.setDate(hace7.getDate() - 7);
+
+            const fechaFinStr = `${hoyBolivia.getFullYear()}-${String(hoyBolivia.getMonth() + 1).padStart(2, '0')}-${String(hoyBolivia.getDate()).padStart(2, '0')}`;
+            const fechaInicioStr = `${hace7.getFullYear()}-${String(hace7.getMonth() + 1).padStart(2, '0')}-${String(hace7.getDate()).padStart(2, '0')}`;
+
+            setFechaInicio(fechaInicioStr);
+            setFechaFin(fechaFinStr);
+            onSeleccionar(fechaInicioStr, fechaFinStr);
         };
 
         return (
@@ -138,7 +223,7 @@ const FiltrosVentas = ({
             >
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                        Rango de fechas
+                        Rango de fechas (Bolivia)
                     </h3>
                     <button
                         onClick={onCerrar}
@@ -174,12 +259,7 @@ const FiltrosVentas = ({
 
                 <div className="flex justify-between mt-4 gap-2">
                     <button
-                        onClick={() => {
-                            const hoy = new Date().toISOString().split('T')[0];
-                            const hace7 = new Date();
-                            hace7.setDate(hace7.getDate() - 7);
-                            onSeleccionar(hace7.toISOString().split('T')[0], hoy);
-                        }}
+                        onClick={setUltimos7Dias}
                         className="px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
                     >
                         Últimos 7 días
@@ -204,18 +284,12 @@ const FiltrosVentas = ({
         );
     };
 
-    const hayFiltrosActivos =
-        filtroCategoria ||
-        filtroUsuarios ||
-        terminoBusqueda ||
-        (filtroFecha && filtroFecha.aplicadoManualmente);
-
     return (
         <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="bg-gray-800 divide-gray-700  px-3 py-2.5 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
+            className="bg-gray-800 divide-gray-700 px-3 py-2.5 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
         >
             <div className="flex flex-wrap items-center justify-between gap-3">
 
@@ -237,9 +311,7 @@ const FiltrosVentas = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                             <span className="text-xs">
-                                {filtroFecha
-                                    ? `${formatearFecha(filtroFecha.inicio)} — ${formatearFecha(filtroFecha.fin)}`
-                                    : 'Seleccionar fechas'}
+                                {getFechaMostrar()}
                             </span>
                         </button>
 
@@ -320,7 +392,7 @@ const FiltrosVentas = ({
                 >
                     <span className="text-xs font-semibold text-slate-300">
                         Mostrando:{" "}
-                        <span className="text-cyan-400">{ventasFiltradas?.length}</span>{" "}
+                        <span className="text-cyan-400">{ventasFiltradas?.length || 0}</span>{" "}
                         ventas
                     </span>
 

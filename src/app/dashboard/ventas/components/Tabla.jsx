@@ -499,20 +499,31 @@ export default function Tabla({
                                     </span>
                                 </td>
                                 <td className="px-1 py-1 text-center">
-                                    <span className="text-xs font-bold text-black block">
-                                        {new Date(venta.fecha_venta).toLocaleDateString()}
-                                    </span>
-                                    <span className="text-[11px] text-amber-600 font-semibold   block">
-                                        {new Date(venta.fecha_venta).toLocaleTimeString([], { hour12: false })}
-                                    </span>
+                                    {(() => {
+                                        // Convertir la fecha UTC almacenada a Bolivia
+                                        const fechaUTC = new Date(venta.fecha_venta);
+                                        const fechaBolivia = new Date(fechaUTC.getTime() - (4 * 60 * 60 * 1000));
+
+                                        return (
+                                            <>
+                                                <span className="text-xs font-bold text-black block">
+                                                    {fechaBolivia.toLocaleDateString('es-BO')}
+                                                </span>
+                                                <span className="text-[11px] text-amber-600 font-semibold block">
+                                                    {fechaBolivia.toLocaleTimeString([], { hour12: false })}
+                                                </span>
+                                            </>
+                                        );
+                                    })()}
                                 </td>
                                 <td className="px-2 py-2">
                                     <div className="flex flex-col items-start gap-0.5">
-                                        {venta.rolNombre === "admin" && (
+
+                                        {/* {rolNombre === "cristhian" &&
                                             <span className="text-[12px] font-semibold font-bold text-gray-900">
                                                 #{venta.id}
                                             </span>
-                                        )}
+                                        } */}
                                         <span className="text-xs tracking-widest font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
                                             {venta.producto_codigo}
                                         </span>

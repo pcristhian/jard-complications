@@ -1,6 +1,23 @@
+// src/app/dashboard/ventas/hooks/useVentas.js
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener';
+
+// 🔹 CONSTANTES DE ZONA HORARIA BOLIVIA (UTC-4)
+const TIMEZONE_BOLIVIA = -4;
+
+// 🔹 FUNCIONES DE CONVERSIÓN DE FECHAS
+const boliviaToUTC = (fechaBolivia) => {
+    if (!fechaBolivia) return null;
+    const date = new Date(fechaBolivia);
+    return new Date(date.getTime() + (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+};
+
+const utcToBolivia = (fechaUTC) => {
+    if (!fechaUTC) return null;
+    const date = new Date(fechaUTC);
+    return new Date(date.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+};
 
 export const useVentas = () => {
     const [ventas, setVentas] = useState([]);
@@ -54,7 +71,6 @@ export const useVentas = () => {
 
             setLoading(true);
 
-            // 🔹 NUEVA CONSULTA: Unir productos_stock con productos (catálogo)
             const { data, error: supabaseError } = await supabase
                 .from('productos_stock')
                 .select(`
@@ -86,7 +102,6 @@ export const useVentas = () => {
                 throw new Error(`Error al obtener productos: ${supabaseError.message}`);
             }
 
-            // Transformar datos para mantener la misma estructura que esperan los componentes
             const productosFormateados = data.map(item => ({
                 id: item.producto.id,
                 codigo: item.producto.codigo,
@@ -157,9 +172,10 @@ export const useVentas = () => {
                 throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
             }
 
-            // Enriquecer datos
+            // Enriquecer datos y mantener la fecha original UTC
             const ventasEnriquecidas = (ventasData || []).map(venta => ({
                 ...venta,
+                fecha_venta_utc: venta.fecha_venta, // Guardar UTC original
                 producto_nombre: venta.productos?.nombre || `Producto ${venta.producto_id}`,
                 comision_variable: venta.productos?.comision_variable || 'no var',
                 producto_codigo: venta.productos?.codigo || `COD-${venta.producto_id}`,
@@ -181,7 +197,6 @@ export const useVentas = () => {
     // Función auxiliar para actualizar stock en productos_stock
     const actualizarStockProducto = async (productoId, cantidad, sucursalId) => {
         try {
-            // Obtener el stock actual en la sucursal
             const { data: stockActual, error: errorStock } = await supabase
                 .from('productos_stock')
                 .select('id, stock_actual')
@@ -198,7 +213,6 @@ export const useVentas = () => {
                 throw new Error('Stock insuficiente');
             }
 
-            // Actualizar stock
             const { error: errorUpdate } = await supabase
                 .from('productos_stock')
                 .update({
@@ -224,7 +238,6 @@ export const useVentas = () => {
             const currentUser = getCurrentUser();
             if (!currentUser) return;
 
-            // Obtener datos del producto para el movimiento
             const { data: producto } = await supabase
                 .from('productos')
                 .select('codigo, nombre')
@@ -277,7 +290,7 @@ export const useVentas = () => {
             }
 
             const cantidad = ventaData.cantidad || 1;
-            const promotorId = ventaData.promotor_id; // ✅ Del select del modal
+            const promotorId = ventaData.promotor_id;
 
             if (!promotorId) {
                 throw new Error('Debe seleccionar un promotor/vendedor');
@@ -299,11 +312,15 @@ export const useVentas = () => {
                 throw new Error(`Stock insuficiente. Disponible: ${stockActual.stock_actual}`);
             }
 
+            // 🔹 Obtener fecha actual en Bolivia y convertir a UTC
+            const ahoraBolivia = new Date();
+            const fechaUTC = boliviaToUTC(ahoraBolivia);
+
             const ventaCompleta = {
                 ...ventaData,
                 promotor_id: promotorId,
                 sucursal_id: currentSucursal.id,
-                fecha_venta: new Date().toISOString(),
+                fecha_venta: fechaUTC.toISOString(),
                 estado: 'activa',
                 depositado: false,
                 confirmacion_depositado: false,
@@ -351,9 +368,9 @@ export const useVentas = () => {
             // Registrar movimiento
             await registrarMovimientoStock(ventaData.producto_id, cantidad, 'Venta realizada', currentSucursal.id);
 
-            // ✅ Enriquecer datos usando el promotor de la BD
             const ventaEnriquecida = {
                 ...data,
+                fecha_venta_utc: data.fecha_venta,
                 producto_nombre: data.productos?.nombre || `Producto ${data.producto_id}`,
                 comision_variable: data.productos?.comision_variable || 'no var',
                 producto_codigo: data.productos?.codigo || `COD-${data.producto_id}`,
@@ -361,13 +378,12 @@ export const useVentas = () => {
                 categoria_nombre: data.productos?.categorias?.nombre || `Categoría ${data.productos?.categoria_id}`,
                 usuario_nombre: data.promotor?.nombre || `Vendedor ${promotorId}`,
                 rol_nombre: data.promotor?.roles?.nombre || `Rol ${data.promotor?.rol_id}`,
-                usuarios: data.promotor, // ✅ Estructura que espera la tabla
+                usuarios: data.promotor,
                 promotor_nombre: data.promotor?.nombre || `Vendedor ${promotorId}`
             };
 
             setVentas(prev => [ventaEnriquecida, ...prev]);
 
-            // Actualizar lista de productos (para reflejar nuevo stock)
             await obtenerProductos();
 
             return ventaEnriquecida;
@@ -397,20 +413,18 @@ export const useVentas = () => {
 
             const ventasCreadas = [];
 
-            // Procesar cada venta individualmente
             for (const ventaData of ventasData) {
                 if (!ventaData.producto_id) {
                     throw new Error('Debe seleccionar un producto');
                 }
 
                 const cantidad = ventaData.cantidad || 1;
-                const promotorId = ventaData.promotor_id; // ✅ Este viene del select del modal
+                const promotorId = ventaData.promotor_id;
 
                 if (!promotorId) {
                     throw new Error('Debe seleccionar un promotor/vendedor');
                 }
 
-                // Verificar stock
                 const { data: stockActual, error: errorStock } = await supabase
                     .from('productos_stock')
                     .select('stock_actual')
@@ -426,11 +440,15 @@ export const useVentas = () => {
                     throw new Error(`Stock insuficiente para producto ID ${ventaData.producto_id}`);
                 }
 
+                // 🔹 Obtener fecha actual en Bolivia y convertir a UTC
+                const ahoraBolivia = new Date();
+                const fechaUTC = boliviaToUTC(ahoraBolivia);
+
                 const ventaCompleta = {
                     ...ventaData,
                     promotor_id: promotorId,
                     sucursal_id: currentSucursal.id,
-                    fecha_venta: new Date().toISOString(),
+                    fecha_venta: fechaUTC.toISOString(),
                     estado: 'activa',
                     depositado: false,
                     confirmacion_depositado: false,
@@ -472,34 +490,27 @@ export const useVentas = () => {
                     throw new Error(`Error al crear venta: ${supabaseError.message}`);
                 }
 
-                // Actualizar stock (restar cantidad)
                 await actualizarStockProducto(ventaData.producto_id, -cantidad, currentSucursal.id);
-
-                // Registrar movimiento
                 await registrarMovimientoStock(ventaData.producto_id, cantidad, 'Venta realizada', currentSucursal.id);
 
-                // ✅ Enriquecer datos usando los datos del promotor que vienen de la BD
                 const ventaEnriquecida = {
                     ...data,
+                    fecha_venta_utc: data.fecha_venta,
                     producto_nombre: data.productos?.nombre || `Producto ${data.producto_id}`,
                     comision_variable: data.productos?.comision_variable || 'no var',
                     producto_codigo: data.productos?.codigo || `COD-${data.producto_id}`,
                     producto_precio: data.productos?.precio || 0,
                     categoria_nombre: data.productos?.categorias?.nombre || `Categoría ${data.productos?.categoria_id}`,
-                    // ✅ El nombre del promotor viene de la relación 'promotor' en la consulta
                     usuario_nombre: data.promotor?.nombre || `Vendedor ${promotorId}`,
                     rol_nombre: data.promotor?.roles?.nombre || `Rol ${data.promotor?.rol_id}`,
-                    usuarios: data.promotor, // ✅ Estructura que espera la tabla
+                    usuarios: data.promotor,
                     promotor_nombre: data.promotor?.nombre || `Vendedor ${promotorId}`
                 };
 
                 ventasCreadas.push(ventaEnriquecida);
             }
 
-            // Actualizar el estado local agregando TODAS las ventas creadas al principio
             setVentas(prev => [...ventasCreadas, ...prev]);
-
-            // Actualizar productos para reflejar nuevo stock
             await obtenerProductos();
 
             return ventasCreadas;
@@ -556,7 +567,6 @@ export const useVentas = () => {
                 throw new Error('No hay usuario logueado');
             }
 
-            // Primero obtener la venta para restaurar stock
             const { data: venta, error: errorVenta } = await supabase
                 .from('ventas')
                 .select('producto_id, estado, cantidad')
@@ -571,7 +581,6 @@ export const useVentas = () => {
                 throw new Error('La venta ya está anulada');
             }
 
-            // Actualizar venta
             const { data, error: supabaseError } = await supabase
                 .from('ventas')
                 .update({
@@ -603,13 +612,9 @@ export const useVentas = () => {
                 throw new Error(`Error al anular venta: ${supabaseError.message}`);
             }
 
-            // Restaurar stock (sumar la cantidad devuelta)
             await actualizarStockProducto(venta.producto_id, venta.cantidad, currentSucursal.id);
-
-            // Registrar movimiento de anulación
             await registrarMovimientoStock(venta.producto_id, venta.cantidad, `Anulación de venta: ${motivoAnulacion}`, currentSucursal.id);
 
-            // Enriquecer datos
             const ventaEnriquecida = {
                 ...data,
                 producto_nombre: data.productos?.nombre || `Producto ${data.producto_id}`,
@@ -623,7 +628,6 @@ export const useVentas = () => {
                 )
             );
 
-            // Actualizar lista de productos
             await obtenerProductos();
 
             return ventaEnriquecida;
@@ -741,22 +745,41 @@ export const useVentas = () => {
         );
     };
 
-    // Filtrar ventas por categoria
+    // 🔹 FUNCIÓN CORREGIDA: Filtrar ventas por fecha (manejo de zona horaria)
+    const filtrarVentasFecha = (ventasArray, filtroFecha) => {
+        if (!filtroFecha || !filtroFecha.inicio || !filtroFecha.fin) {
+            return ventasArray;
+        }
+
+        // Las fechas del filtro ya vienen en UTC (convertidas en FiltrosVentas)
+        const inicioUTC = new Date(filtroFecha.inicio);
+        const finUTC = new Date(filtroFecha.fin);
+
+        return ventasArray.filter(venta => {
+            const fechaVentaUTC = new Date(venta.fecha_venta);
+            return fechaVentaUTC >= inicioUTC && fechaVentaUTC <= finUTC;
+        });
+    };
+
+    // Filtrar ventas por categoría
     const filtrarVentasPorCategoria = (ventasArray, categoria) => {
         if (!categoria) return ventasArray;
         return ventasArray.filter(venta => venta.categoria_nombre === categoria);
     };
 
+    // Filtrar ventas por usuario
     const filtrarVentasPorUsuarios = (ventasArray, usuario) => {
         if (!usuario) return ventasArray;
         return ventasArray.filter(venta => venta.usuario_nombre === usuario);
     };
 
+    // Filtrar ventas activas
     const filtrarVentasActivas = (ventasArray, estado) => {
         if (!estado) return ventasArray;
         return ventasArray.filter(venta => venta.estado === 'activa');
     };
 
+    // Filtrar ventas por búsqueda
     const filtrarVentasPorBusqueda = (ventasArray, terminoBusqueda) => {
         if (!terminoBusqueda || typeof terminoBusqueda !== 'string' || terminoBusqueda.trim() === '') {
             return ventasArray;
@@ -769,22 +792,6 @@ export const useVentas = () => {
             venta.total_precio_venta?.toString().includes(termino) ||
             venta.observaciones?.toLowerCase().includes(termino)
         );
-    };
-
-    // Función para filtrar ventas por fecha
-    const filtrarVentasFecha = (ventas, filtroFecha) => {
-        if (!filtroFecha || !filtroFecha.inicio || !filtroFecha.fin) {
-            return ventas;
-        }
-
-        const fechaInicio = new Date(filtroFecha.inicio);
-        const fechaFin = new Date(filtroFecha.fin);
-        fechaFin.setHours(23, 59, 59, 999);
-
-        return ventas.filter(venta => {
-            const fechaVenta = new Date(venta.fecha_venta);
-            return fechaVenta >= fechaInicio && fechaVenta <= fechaFin;
-        });
     };
 
     // Filtrar ventas por depositado
@@ -904,7 +911,7 @@ export const useVentas = () => {
         obtenerVentaPorId,
         filtrarVentasPorCategoria,
         filtrarVentasPorUsuarios,
-        filtrarVentasFecha,
+        filtrarVentasFecha,  // ✅ Función corregida
         filtrarVentasPorBusqueda,
         filtrarVentasPorDepositado,
         filtrarVentasPorConfirmacionDepositado,
