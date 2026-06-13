@@ -445,7 +445,7 @@ export default function Tabla({
                     <thead className="sticky top-0 bg-slate-600 z-50 text-white">
                         <tr>
                             {/* Nueva columna de número consecutivo */}
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-12">
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-1">
                                 <div className="flex items-center justify-center gap-1">
                                     <span>N°</span>
                                 </div>
@@ -453,20 +453,17 @@ export default function Tabla({
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Fecha
                             </th>
-                            <th className="px-2 py-3 text-start text-xs font-medium uppercase tracking-wider">
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Código
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Producto
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Promotor/a
+                                Prom/a
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Categoría
-                            </th>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Cantidad
+                                Cant
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Precio
@@ -494,11 +491,11 @@ export default function Tabla({
                                 className="hover:bg-amber-50 transition-colors duration-150 group">
                                 {/* Celda del número consecutivo */}
                                 <td className="px-1 py-2 text-center">
-                                    <span className="text-xs font-mono font-bold text-black bg-cyan-950/50 px-2 py-1 rounded-md">
-                                        #{index + 1}
+                                    <span className="text-xs font-mono font-bold text-black py-1 rounded-md">
+                                        {index + 1}
                                     </span>
                                 </td>
-                                <td className="px-1 py-1 text-center">
+                                <td className="px-1 py-1 leading-[16px] text-center">
                                     {(() => {
                                         // Convertir la fecha UTC almacenada a Bolivia
                                         const fechaUTC = new Date(venta.fecha_venta);
@@ -509,66 +506,74 @@ export default function Tabla({
                                                 <span className="text-xs font-bold text-black block">
                                                     {fechaBolivia.toLocaleDateString('es-BO')}
                                                 </span>
-                                                <span className="text-[11px] text-amber-600 font-semibold block">
-                                                    {fechaBolivia.toLocaleTimeString([], { hour12: false })}
-                                                </span>
+                                                {rolNombre === "admin" ?
+                                                    <span className="text-[12px] font-semibold text-amber-600">
+                                                        #{venta.id}
+                                                    </span>
+                                                    :
+                                                    <span className="text-[11px] text-amber-600 font-semibold block">
+                                                        {fechaBolivia.toLocaleTimeString([], {
+                                                            hour12: false,
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </span>
+                                                }
                                             </>
                                         );
                                     })()}
                                 </td>
-                                <td className="px-2 py-2">
-                                    <div className="flex flex-col items-start gap-0.5">
-
-                                        {/* {rolNombre === "cristhian" &&
-                                            <span className="text-[12px] font-semibold font-bold text-gray-900">
-                                                #{venta.id}
-                                            </span>
-                                        } */}
+                                <td className="px-1 py-2">
+                                    <div className="flex flex-col items-center gap-0.5">
                                         <span className="text-xs tracking-widest font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
                                             {venta.producto_codigo}
                                         </span>
+
+                                        <span className="text-[10px] text-black">{venta.categoria_nombre}</span>
+
                                     </div>
                                 </td>
-                                <td className="px-1 py-3 max-w-[260px] overflow-hidden">
+                                <td className="px-1 py-3 max-w-[200px] overflow-hidden">
                                     <div className="relative group">
                                         <span className="
-            absolute left-0 top-0 whitespace-nowrap text-sm text-black block leading-snug
-            transition-none
-            group-hover:transition-transform
-            group-hover:duration-[6000ms]
-            group-hover:ease-linear
-            group-hover:-translate-x-full
-        ">
-                                            {venta.producto_nombre}
+                                            absolute left-0 top-0 whitespace-nowrap text-sm text-black block leading-snug
+                                            transition-none
+                                            group-hover:transition-transform
+                                            group-hover:duration-[6000ms]
+                                            group-hover:ease-linear
+                                            group-hover:-translate-x-full
+                                        ">
+                                            {venta.producto_nombre.toLowerCase().split(' ').map(p =>
+                                                p.charAt(0).toUpperCase() + p.slice(1)
+                                            ).join(' ')}
                                         </span>
                                         <span className="invisible whitespace-nowrap text-sm text-slate-300 block leading-snug">
-                                            {venta.producto_nombre}
+                                            {venta.producto_nombre.toLowerCase().split(' ').map(p =>
+                                                p.charAt(0).toUpperCase() + p.slice(1)
+                                            ).join(' ')}
                                         </span>
                                     </div>
                                 </td>
-                                <td className="px-3 py-3 text-center">
+                                <td className="px-1 py-3 leading-[16px] text-center">
                                     <span className="text-xs font-semibold text-black block leading-snug">
                                         {venta.usuarios?.nombre}
                                     </span>
                                     {venta.rol_nombre !== "promotor" ? (
-                                        <span className="inline-block mt-0.5 text-[10px] font-semibold text-indigo-300 bg-indigo-950 px-1.5 py-0.5 rounded-full">
+                                        <span className="inline-block mt-0.5 text-[10px] font-semibold text-indigo-300 bg-indigo-950 px-1 py-0.5 rounded-full">
                                             {venta.rol_nombre}
                                         </span>
                                     ) : (
-                                        <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${colorCaja(venta.usuarios?.caja)}`}>
+                                        <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1 py-0.5 rounded-full ${colorCaja(venta.usuarios?.caja)}`}>
                                             {venta.usuarios?.caja}
                                         </span>
                                     )}
                                 </td>
-                                <td className="px-3 py-3 text-center">
-                                    <span className="text-sm text-black">{venta.categoria_nombre}</span>
-                                </td>
-                                <td className="px-3 py-3 text-center">
+                                <td className="px-1 py-3 text-center">
                                     <span className="text-sm font-semibold text-black">
                                         {venta.cantidad || "—"}
                                     </span>
                                 </td>
-                                <td className="px-1 py-2 text-sm text-black text-center">
+                                <td className="px-1 py-2 text-sm leading-[16px]  text-black text-center">
                                     <span className="font-semibold">
                                         Bs. {parseFloat(venta.total_precio_venta).toFixed(2)}
                                     </span><br />
@@ -609,7 +614,7 @@ export default function Tabla({
                                 </td>
 
                                 <td className={`
-                                        ${venta.observaciones ? 'px-1 py-2 text-[12px] text-center text-indigo-700' : 'px-1 py-2 text-sm text-center text-black'}`}>
+                                        ${venta.observaciones ? 'px-1 py-2 text-[11px] text-center text-indigo-700' : 'px-1 py-2 text-sm text-center text-black'}`}>
                                     {venta.observaciones ?
                                         <span style={{ maxWidth: "190px", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
                                             "{venta.observaciones}"</span>
@@ -651,20 +656,17 @@ export default function Tabla({
                                         </span>
                                     </div>
                                 </td>
-
-                                {/* TD para el botón de anular (visible para todos, solo si está activa) */}
-
                                 <td className="px-2 py-2 text-left">
                                     <input
                                         type="text"
                                         defaultValue={getVentaNote(venta)}
                                         onBlur={(e) => handleNoteChange(venta.id, e.target.value)}
                                         placeholder="Escribe una nota..."
-                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        className="w-full px-1 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                         disabled={venta.estado === 'anulada'}
                                     />
                                 </td>
-                                <td className="px-2 whitespace-nowrap text-center text-sm font-medium">
+                                <td className="px-1 whitespace-nowrap text-center text-sm font-medium">
                                     {venta.estado === "activa" ? (
                                         <button
                                             onClick={() => handleAnularVenta(venta.id)}
@@ -693,7 +695,7 @@ export default function Tabla({
                                             )}
                                         </button>
                                     ) : (
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-gray-400 bg-gray-950 border border-gray-800">
+                                        <span className="inline-flex items-center gap-1.5 px-1 py-1 rounded-full text-xs font-medium text-gray-400 bg-gray-950 border border-gray-800">
                                             <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                                             Anulada
                                         </span>

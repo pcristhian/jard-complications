@@ -115,7 +115,7 @@ export default function VentasPage() {
     }
 
     return (
-        <div className="min-h-screen p-3 space-y-1 text-gray-800 text-gray-500">
+        <div className="min-h-screen p-1 space-y-1 text-gray-800 text-gray-500">
             <Header
                 onMostrarComisiones={() => setModalAbierto(true)}
                 onNuevaVenta={() => setModalVenta(true)}

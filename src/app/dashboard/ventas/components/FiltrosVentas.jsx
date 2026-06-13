@@ -377,7 +377,7 @@ const FiltrosVentas = ({
                                 animate="visible"
                                 exit="exit"
                                 onClick={limpiarFiltros}
-                                className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-950 border border-red-800 rounded-lg hover:bg-red-900 hover:border-red-700 transition-colors"
+                                className="px-3 py-1.5 text-xs font-medium text-white bg-red-950 border border-red-800 rounded-lg hover:bg-red-900 hover:border-red-700 transition-colors"
                             >
                                 Limpiar filtros
                             </motion.button>
