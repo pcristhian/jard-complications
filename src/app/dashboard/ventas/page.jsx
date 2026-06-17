@@ -1,6 +1,6 @@
 // src/app/dashboard/ventas/page.jsx
 "use client";
-
+/////////////////////////////////////////////////
 import { useState, useMemo, useCallback } from "react";
 import { useVentas } from "./hooks/useVentas";
 import Header from "./components/Header";
@@ -10,6 +10,15 @@ import ModalComisionesPorUsuario from "./components/ModalComisionesPorUsuario";
 import FiltroVentas from "./components/FiltrosVentas";
 
 export default function VentasPage() {
+    // 1. TODOS los Hooks primero
+    const [modalAbierto, setModalAbierto] = useState(false);
+    const [modalVenta, setModalVenta] = useState(false);
+    const [filtroCategoria, setFiltroCategoria] = useState('');
+    const [filtroUsuarios, setFiltroUsuarios] = useState('');
+    const [terminoBusqueda, setTerminoBusqueda] = useState('');
+    const [filtroFecha, setFiltroFecha] = useState(null);
+    const [mostrarSoloActivas, setMostrarSoloActivas] = useState(true);
+
     const {
         productos,
         currentUser,
@@ -30,19 +39,9 @@ export default function VentasPage() {
         obtenerMisVentas
     } = useVentas();
 
-    const [modalAbierto, setModalAbierto] = useState(false);
-    const [modalVenta, setModalVenta] = useState(false);
-    const [filtroCategoria, setFiltroCategoria] = useState('');
-    const [filtroUsuarios, setFiltroUsuarios] = useState('');
-    const [terminoBusqueda, setTerminoBusqueda] = useState('');
-    const [filtroFecha, setFiltroFecha] = useState(null);
-    const [mostrarSoloActivas, setMostrarSoloActivas] = useState(true);
-
-    // 🔹 Función para refrescar ventas después de crear
+    // 2. Funciones de manejo
     const handleVentaCreada = useCallback(async () => {
         await obtenerMisVentas();
-        // También refrescar productos para actualizar stock
-        // Si tienes una función para refrescar productos, llámala aquí
     }, [obtenerMisVentas]);
 
     const manejarFiltroCategoria = (categoria) => {
@@ -51,12 +50,13 @@ export default function VentasPage() {
 
     const manejarFiltroUsuarios = (usuario) => {
         setFiltroUsuarios(usuario);
-    }
+    };
 
     const manejarBusqueda = (termino) => {
         setTerminoBusqueda(termino);
     };
 
+    // 3. Obtener categorías únicas de ventas
     const obtenerCategoriasUnicas = () => {
         const categorias = [...new Set(ventas
             .filter(venta => venta.categoria_nombre && venta.categoria_nombre.trim() !== '')
@@ -65,14 +65,7 @@ export default function VentasPage() {
         return categorias;
     };
 
-    const obtenerUsuariosUnicos = () => {
-        const usuarios = [...new Set(ventas
-            .filter(venta => venta.usuarios?.nombre && venta.usuarios?.nombre.trim() !== '')
-            .map(venta => venta.usuarios?.nombre)
-        )].sort();
-        return usuarios;
-    };
-
+    // 4. Ventas filtradas (para la tabla)
     const ventasFiltradas = useMemo(() => {
         let ventasFiltradas = ventas;
 
@@ -94,6 +87,20 @@ export default function VentasPage() {
         return ventasFiltradas;
     }, [ventas, filtroCategoria, filtroUsuarios, terminoBusqueda, filtroFecha, mostrarSoloActivas]);
 
+    // ✅ Usuarios de las ventas filtradas (incluye inactivos si tienen ventas en el período)
+    const usuariosDeVentasFiltradas = useMemo(() => {
+        const usuarios = [...new Set(ventasFiltradas
+            .filter(venta =>
+                venta.usuarios?.nombre &&
+                venta.usuarios?.nombre.trim() !== ''
+            )
+            .map(venta => venta.usuarios.nombre)
+        )].sort();
+
+        return usuarios;
+    }, [ventasFiltradas]);
+
+    // 5. Returns condicionales (DESPUÉS de todos los Hooks)
     if (!currentUser) {
         return (
             <div className="p-6">
@@ -114,6 +121,7 @@ export default function VentasPage() {
         );
     }
 
+    // 6. Return principal
     return (
         <div className="min-h-screen p-1 space-y-1 text-gray-800 text-gray-500">
             <Header
@@ -132,7 +140,7 @@ export default function VentasPage() {
                 terminoBusqueda={terminoBusqueda}
                 onBusquedaChange={manejarBusqueda}
                 categorias={obtenerCategoriasUnicas()}
-                usuarios={obtenerUsuariosUnicos()}
+                usuariosActivos={usuariosDeVentasFiltradas}  // ✅ Usuarios de las ventas filtradas
                 totalVentas={ventas.length}
                 ventasFiltradas={ventasFiltradas}
                 filtroFecha={filtroFecha}
@@ -164,7 +172,7 @@ export default function VentasPage() {
                 onCerrar={() => setModalVenta(false)}
                 productos={productos}
                 onCreateVenta={crearVenta}
-                onCreateMultiplesVentas={crearMultiplesVentas}  // 🔹 NUEVO PROP
+                onCreateMultiplesVentas={crearMultiplesVentas}
                 currentUser={currentUser}
                 currentSucursal={currentSucursal}
                 obtenerVendedores={obtenerVendedores}

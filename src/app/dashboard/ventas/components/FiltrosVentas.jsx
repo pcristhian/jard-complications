@@ -1,7 +1,9 @@
 // src/app/dashboard/ventas/components/FiltrosVentas.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react'; // ✅ Importar iconos
 
+//////////////////////////////////////////////////////
 // Constantes de zona horaria
 const TIMEZONE_BOLIVIA = -4; // Bolivia está en UTC-4
 
@@ -71,7 +73,7 @@ const FiltrosVentas = ({
     terminoBusqueda,
     onBusquedaChange,
     categorias,
-    usuarios,
+    usuariosActivos = [],
     ventasFiltradas,
     filtroFecha,
     onFiltroFechaChange,
@@ -85,6 +87,65 @@ const FiltrosVentas = ({
     const manejarCambioUsuarios = (e) => onFiltroUsuariosChange(e.target.value);
     const manejarCambioBusqueda = (e) => onBusquedaChange(e.target.value);
 
+
+    const [mesSeleccionado, setMesSeleccionado] = useState(() => {
+        const ahora = new Date();
+        return new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    });
+
+    // ✅ Funciones de navegación
+    const mesAnterior = () => {
+        const nuevoMes = new Date(mesSeleccionado);
+        nuevoMes.setMonth(nuevoMes.getMonth() - 1);
+        setMesSeleccionado(nuevoMes);
+        aplicarFiltroMes(nuevoMes);
+    };
+
+    const mesSiguiente = () => {
+        const nuevoMes = new Date(mesSeleccionado);
+        nuevoMes.setMonth(nuevoMes.getMonth() + 1);
+        setMesSeleccionado(nuevoMes);
+        aplicarFiltroMes(nuevoMes);
+    };
+
+    const aplicarFiltroMes = (fecha) => {
+        const primerDia = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+        const ultimoDia = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
+
+        const primerDiaBolivia = new Date(primerDia);
+        primerDiaBolivia.setHours(0, 0, 0, 0);
+
+        const ultimoDiaBolivia = new Date(ultimoDia);
+        ultimoDiaBolivia.setHours(23, 59, 59, 999);
+
+        const inicioUTC = boliviaToUTC(primerDiaBolivia);
+        const finUTC = boliviaToUTC(ultimoDiaBolivia);
+
+        onFiltroFechaChange({
+            inicio: inicioUTC,
+            fin: finUTC,
+            aplicadoManualmente: true
+        });
+    };
+
+    const esMesActual = () => {
+        const ahora = new Date();
+        return mesSeleccionado.getMonth() === ahora.getMonth() &&
+            mesSeleccionado.getFullYear() === ahora.getFullYear();
+    };
+
+    // ✅ Formatear mes para mostrar
+    const formatearMes = (fecha) => {
+        return fecha.toLocaleString('es', {
+            month: 'long',
+            year: 'numeric'
+        });
+    };
+    useEffect(() => {
+        const ahora = new Date();
+        const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+        setMesSeleccionado(mesActual);
+    }, []);
     // Obtener el texto a mostrar para el rango de fechas
     const getFechaMostrar = () => {
         if (!filtroFecha?.inicio || !filtroFecha?.fin) return 'Seleccionar fechas';
@@ -301,28 +362,56 @@ const FiltrosVentas = ({
                     className="flex flex-wrap items-center gap-3"
                 >
                     {/* Fecha */}
-                    <motion.div variants={filterItemVariants} className="flex items-center gap-2 relative" ref={calendarioRef}>
+                    <motion.div variants={filterItemVariants} className="flex items-center gap-2">
                         <label className={labelClass}>Fecha:</label>
+
+                        {/* Botón mes anterior */}
+                        <button
+                            onClick={mesAnterior}
+                            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
+                            title="Mes anterior"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        {/* Botón del mes (abre calendario) */}
                         <button
                             onClick={() => setMostrarCalendario((v) => !v)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 hover:bg-slate-700 hover:border-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-400 transition-colors"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 hover:bg-slate-700 hover:border-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-400 transition-colors min-w-[140px] justify-center"
                         >
                             <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
-                            <span className="text-xs">
-                                {getFechaMostrar()}
+                            <span className="text-xs font-medium capitalize">
+                                {formatearMes(mesSeleccionado)}
                             </span>
                         </button>
 
-                        <AnimatePresence>
-                            {mostrarCalendario && (
-                                <Calendario
-                                    onSeleccionar={manejarSeleccionFecha}
-                                    onCerrar={() => setMostrarCalendario(false)}
-                                />
-                            )}
-                        </AnimatePresence>
+                        {/* Botón mes siguiente */}
+                        <button
+                            onClick={mesSiguiente}
+                            disabled={esMesActual()}
+                            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Mes siguiente"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+
+                        {/* Calendario desplegable */}
+                        <div className="relative" ref={calendarioRef}>
+                            <AnimatePresence>
+                                {mostrarCalendario && (
+                                    <Calendario
+                                        onSeleccionar={(inicio, fin) => {
+                                            manejarSeleccionFecha(inicio, fin);
+                                            const [year, month] = inicio.split('-');
+                                            setMesSeleccionado(new Date(parseInt(year), parseInt(month) - 1, 1));
+                                        }}
+                                        onCerrar={() => setMostrarCalendario(false)}
+                                    />
+                                )}
+                            </AnimatePresence>
+                        </div>
                     </motion.div>
 
                     {/* Buscar */}
@@ -352,7 +441,6 @@ const FiltrosVentas = ({
                         </select>
                     </motion.div>
 
-                    {/* Usuarios */}
                     <motion.div variants={filterItemVariants} className="flex items-center gap-2">
                         <label className={labelClass}>ó</label>
                         <select
@@ -361,13 +449,12 @@ const FiltrosVentas = ({
                             className={inputClass}
                         >
                             <option value="">Promotores</option>
-                            {usuarios.map((u) => (
-                                <option key={u} value={u}>{u}</option>
+                            {usuariosActivos.map((nombre) => (  // ✅ Usar usuariosActivos
+                                <option key={nombre} value={nombre}>{nombre}</option>
                             ))}
                         </select>
                     </motion.div>
 
-                    {/* Botón limpiar — aparece/desaparece sin doble render */}
                     <AnimatePresence mode="popLayout">
                         {hayFiltrosActivos && (
                             <motion.button
