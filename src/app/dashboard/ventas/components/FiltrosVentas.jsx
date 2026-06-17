@@ -369,7 +369,6 @@ const FiltrosVentas = ({
                         <button
                             onClick={mesAnterior}
                             className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
-                            title="Mes anterior"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
@@ -392,7 +391,6 @@ const FiltrosVentas = ({
                             onClick={mesSiguiente}
                             disabled={esMesActual()}
                             className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            title="Mes siguiente"
                         >
                             <ChevronRight className="w-4 h-4" />
                         </button>
