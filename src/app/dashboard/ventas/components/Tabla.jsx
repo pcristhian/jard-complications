@@ -22,7 +22,6 @@ export default function Tabla({
     const [actualizando, setActualizando] = useState(null);
     const [actualizandoConfirmacion, setActualizandoConfirmacion] = useState(null);
 
-
     // Estados para infinite scroll
     const [displayCount, setDisplayCount] = useState(20);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -47,13 +46,10 @@ export default function Tabla({
         setIsLoadingMore(false);
     }, [ventasSeguras.length]);
 
-
-    //para barra de progreso en tabla
-    const [scrollProgress, setScrollProgress] = useState(0);
-    const tableContainerRef = useRef(null);
+    // Referencia para el trigger de infinite scroll
     const loadMoreTriggerRef = useRef(null);
 
-    //estados para modal anulacion
+    // Estados para modal anulacion
     const [mostrarModalAnulacion, setMostrarModalAnulacion] = useState(false);
     const [motivoAnulacion, setMotivoAnulacion] = useState("");
     const [ventaAAnular, setVentaAAnular] = useState(null);
@@ -75,12 +71,11 @@ export default function Tabla({
         getVentaNote,
         getVentaGroupColor,
         getVentaGroupNote,
-        cargarGrupos,              // ✅ Nueva (si la necesitas)
-        recalcularTodosGrupos,     // ✅ Nueva
-        actualizarTotalGrupo,      // ✅ Nueva
-        limpiarGruposHuerfanos     // ✅ Nueva
+        cargarGrupos,
+        recalcularTodosGrupos,
+        actualizarTotalGrupo,
+        limpiarGruposHuerfanos
     } = useGrupoRevision(ventas, obtenerMisVentas);
-
 
     // Función para cargar más registros
     const loadMore = useCallback(async () => {
@@ -120,31 +115,6 @@ export default function Tabla({
         obtenerMisVentas();
         setLoading(false);
     }, [currentUser, currentSucursal]);
-
-    // Efecto para el scroll (barra de progreso)
-    useEffect(() => {
-        const tableContainer = tableContainerRef.current;
-
-        const handleScroll = () => {
-            if (!tableContainer) return;
-
-            const scrollTop = tableContainer.scrollTop;
-            const scrollHeight = tableContainer.scrollHeight - tableContainer.clientHeight;
-            const progress = (scrollTop / scrollHeight) * 100;
-
-            setScrollProgress(Math.min(progress, 100));
-        };
-
-        if (tableContainer) {
-            tableContainer.addEventListener('scroll', handleScroll);
-        }
-
-        return () => {
-            if (tableContainer) {
-                tableContainer.removeEventListener('scroll', handleScroll);
-            }
-        };
-    }, [ventasToShow]);
 
     const MOTIVOS_RAPIDOS = [
         "Error en el monto",
@@ -421,7 +391,6 @@ export default function Tabla({
         );
     }
 
-    // Renderizado principal con infinite scroll y números consecutivos
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -429,18 +398,7 @@ export default function Tabla({
             transition={{ duration: 0.3 }}
             className="bg-white rounded-lg shadow overflow-hidden"
         >
-            <div className="sticky top-0 z-50 w-full bg-gray-200 h-1 overflow-hidden">
-                <motion.div
-                    className="h-full bg-blue-500"
-                    animate={{ width: `${scrollProgress}%` }}
-                    transition={{ duration: 0 }}
-                />
-            </div>
-
-            <div
-                ref={tableContainerRef}
-                className="overflow-x-auto max-h-[73vh] overflow-y-auto"
-            >
+            <div className="overflow-x-auto max-h-[73vh] overflow-y-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="sticky top-0 bg-slate-600 z-50 text-white">
                         <tr>
@@ -535,14 +493,41 @@ export default function Tabla({
                                 </td>
                                 <td className="px-1 py-3 max-w-[200px] overflow-hidden">
                                     <div className="relative group">
-                                        <span className="
-                                            absolute left-0 top-0 whitespace-nowrap text-sm text-black block leading-snug
-                                            transition-none
-                                            group-hover:transition-transform
-                                            group-hover:duration-[6000ms]
-                                            group-hover:ease-linear
-                                            group-hover:-translate-x-full
-                                        ">
+                                        <span
+                                            className="
+                                                    absolute left-0 top-0 whitespace-nowrap text-sm text-black block leading-snug
+                                                    transition-none
+                                                    group-hover:transition-transform
+                                                    group-hover:duration-[6000ms]
+                                                    group-hover:ease-linear
+                                                    group-hover:-translate-x-full
+                                                "
+                                            style={{
+                                                // Solo aplicar la animación si el texto se desborda
+                                                willChange: 'transform'
+                                            }}
+                                            ref={el => {
+                                                if (el) {
+                                                    const parent = el.parentElement;
+                                                    const textWidth = el.scrollWidth;
+                                                    const containerWidth = parent.clientWidth;
+
+                                                    // Si el texto no se desborda, desactivamos la animación
+                                                    if (textWidth <= containerWidth) {
+                                                        el.style.setProperty('--animate', 'none');
+                                                        // Removemos la clase que activa la animación
+                                                        el.classList.remove('group-hover:-translate-x-full');
+                                                        // El texto se queda en su posición original
+                                                        el.style.transform = 'translateX(0)';
+                                                    } else {
+                                                        // El texto se desborda, activamos la animación
+                                                        el.style.setProperty('--animate', 'block');
+                                                        // Aseguramos que la clase esté presente
+                                                        el.classList.add('group-hover:-translate-x-full');
+                                                    }
+                                                }
+                                            }}
+                                        >
                                             {venta.producto_nombre.toLowerCase().split(' ').map(p =>
                                                 p.charAt(0).toUpperCase() + p.slice(1)
                                             ).join(' ')}

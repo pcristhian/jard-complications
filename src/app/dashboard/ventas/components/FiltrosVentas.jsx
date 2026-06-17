@@ -360,7 +360,7 @@ const FiltrosVentas = ({
                             onChange={manejarCambioUsuarios}
                             className={inputClass}
                         >
-                            <option value="">Vendedores</option>
+                            <option value="">Promotores</option>
                             {usuarios.map((u) => (
                                 <option key={u} value={u}>{u}</option>
                             ))}
