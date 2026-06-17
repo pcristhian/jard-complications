@@ -21,7 +21,6 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
     const [anulando, setAnulando] = useState(null);
     const [modalAnulacion, setModalAnulacion] = useState({ abierto: false, movimientoId: null, movimiento: null });
     const [diasExpandidos, setDiasExpandidos] = useState({});
-
     const { anularMovimiento, loading: anulandoLoading } = useTraspasos();
     const { values } = useMultiLocalStorageListener(["currentUser"]);
     const { currentUser } = values;
@@ -165,8 +164,6 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
             setLoading(false);
         }
     };
-
-    // Efecto para recargar cuando cambia la búsqueda
     useEffect(() => {
         if (movimientos.length > 0) {
             const filtrados = movimientos.filter(mov => {
@@ -544,8 +541,16 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
                                                                         {esAnulable && (
                                                                             <button
                                                                                 onClick={() => handleAnularClick(movimiento)}
-                                                                                disabled={anulando === movimiento.id}
-                                                                                className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium disabled:opacity-50"
+                                                                                disabled={anulando === movimiento.id || currentUser?.roles?.nombre !== 'admin'}
+                                                                                className={`
+                                                                                            inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium 
+                                                                                            transition-colors
+                                                                                            ${currentUser?.roles?.nombre === 'admin'
+                                                                                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                                                                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                                                    }
+                                                                                            ${anulando === movimiento.id ? 'opacity-50' : ''}
+                                                                                        `}
                                                                             >
                                                                                 {anulando === movimiento.id ? (
                                                                                     <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-700"></div>
