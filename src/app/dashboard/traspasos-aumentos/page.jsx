@@ -59,7 +59,6 @@ export default function ControlTraspasos() {
         return resultado;
     };
 
-    // CORREGIDO: Usar currentUser del values, no getCurrentUser()
     const handleTraspaso = async ({ producto, cantidad, sucursalDestinoId, observaciones }) => {
         if (!currentUser?.id) {
             return { success: false, error: 'No hay usuario logueado' };
@@ -80,7 +79,6 @@ export default function ControlTraspasos() {
         return result;
     };
 
-    // CORREGIDO: Usar currentUser del values, no getCurrentUser()
     const handleTraspasosMultiples = async (items) => {
         if (!currentUser?.id) {
             return { success: false, error: 'No hay usuario logueado' };
@@ -99,19 +97,25 @@ export default function ControlTraspasos() {
     };
 
     return (
-        <div className="p-3 space-y-3 text-gray-800">
-            <Header
-                onRealizarTraspaso={() => setModalTraspasoAbierto(true)}
-                onAgregarStock={() => setModalStockAbierto(true)}
-                onRecargar={handleRecargar}
-                loading={loading}
-                sucursalSeleccionada={sucursalSeleccionada}
-            />
+        <div className="h-screen flex flex-col p-3 space-y-3 text-gray-800 overflow-hidden">
+            {/* ✅ Header fijo */}
+            <div className="flex-shrink-0">
+                <Header
+                    onRealizarTraspaso={() => setModalTraspasoAbierto(true)}
+                    onAgregarStock={() => setModalStockAbierto(true)}
+                    onRecargar={handleRecargar}
+                    loading={loading}
+                    sucursalSeleccionada={sucursalSeleccionada}
+                />
+            </div>
 
-            <TablaMovimientos
-                sucursalSeleccionada={sucursalSeleccionada}
-                refreshTrigger={refreshTable}
-            />
+            {/* ✅ Tabla con scroll */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+                <TablaMovimientos
+                    sucursalSeleccionada={sucursalSeleccionada}
+                    refreshTrigger={refreshTable}
+                />
+            </div>
 
             {modalStockAbierto && (
                 <ModalAgregarStock

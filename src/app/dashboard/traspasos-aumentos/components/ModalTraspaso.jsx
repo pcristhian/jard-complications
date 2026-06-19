@@ -397,7 +397,7 @@ export default function ModalTraspaso({
                                                         </div>
                                                         <div className="text-right ml-3">
                                                             <p className="text-xs text-gray-500">Costo</p>
-                                                            <p className="font-bold text-gray-900 text-sm">${producto.precio?.toFixed(2) || 'N/A'}</p>
+                                                            <p className="font-bold text-gray-900 text-sm">Bs. {producto.precio?.toFixed(2) || 'N/A'}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -518,7 +518,7 @@ export default function ModalTraspaso({
                                             <div className="bg-gray-50 rounded-lg p-2 text-sm">
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-600">Subtotal:</span>
-                                                    <span className="font-semibold">${valorTotalItemSeleccionado.toFixed(2)}</span>
+                                                    <span className="font-semibold">Bs. {valorTotalItemSeleccionado.toFixed(2)}</span>
                                                 </div>
                                                 {sucursalDestinoSeleccionada && (
                                                     <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -611,7 +611,7 @@ export default function ModalTraspaso({
                                                     </div>
                                                     <div className="text-right">
                                                         <span className="text-xs text-gray-500">Total:</span>
-                                                        <span className="ml-1 text-sm font-semibold text-blue-600">${item.total_linea.toFixed(2)}</span>
+                                                        <span className="ml-1 text-sm font-semibold text-blue-600">Bs. {item.total_linea.toFixed(2)}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -639,7 +639,7 @@ export default function ModalTraspaso({
                                             </div>
                                             <div className="flex justify-between text-base font-bold pt-1 border-t border-gray-200">
                                                 <span>Total:</span>
-                                                <span className="text-green-600">${totalValor.toFixed(2)}</span>
+                                                <span className="text-green-600">Bs. {totalValor.toFixed(2)}</span>
                                             </div>
                                         </div>
 

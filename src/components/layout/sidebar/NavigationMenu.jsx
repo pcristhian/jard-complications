@@ -49,10 +49,10 @@ const menuItems = [
     },
     {
         id: 'traspasos',
-        name: 'Traspaso de Productos',
+        name: 'Traspaso - Aumentos',
         icon: Package,
         roles: [1, 2, 3],
-        path: '/dashboard/control-traspasos'
+        path: '/dashboard/traspasos-aumentos'
     },
     {
         id: 'usuarios',

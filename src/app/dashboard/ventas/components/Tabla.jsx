@@ -402,7 +402,6 @@ export default function Tabla({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="sticky top-0 bg-slate-600 z-50 text-white">
                         <tr>
-                            {/* Nueva columna de número consecutivo */}
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-1">
                                 <div className="flex items-center justify-center gap-1">
                                     <span>N°</span>
@@ -438,50 +437,45 @@ export default function Tabla({
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Nota
                             </th>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Accion
-                            </th>
+                            {rolNombre === "admin" ? (
+                                <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                                    No recibe
+                                </th>
+                            ) :
+                                <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                                    Accion
+                                </th>
+                            }
                         </tr>
                     </thead>
                     <tbody className="bg-amber-50/30 divide-y divide-amber-200/50">
                         {ventasToShow.map((venta, index) => (
                             <tr key={venta.id}
                                 className="hover:bg-amber-50 transition-colors duration-150 group">
-                                {/* Celda del número consecutivo */}
                                 <td className="px-1 py-2 text-center">
                                     <span className="text-xs font-mono font-bold text-black py-1 rounded-md">
                                         {index + 1}
                                     </span>
                                 </td>
-                                <td className="px-1 py-1 leading-[16px] text-center">
+                                <td className="px-1 py-1 leading-[16px] text-center w-18">
                                     {(() => {
-                                        // Convertir la fecha UTC almacenada a Bolivia
                                         const fechaUTC = new Date(venta.fecha_venta);
                                         const fechaBolivia = new Date(fechaUTC.getTime() - (4 * 60 * 60 * 1000));
-
                                         return (
                                             <>
                                                 <span className="text-xs font-bold text-black block">
                                                     {fechaBolivia.toLocaleDateString('es-BO')}
                                                 </span>
-                                                {rolNombre === "admin" ?
+                                                {rolNombre === "admin" && (
                                                     <span className="text-[12px] font-semibold text-amber-600">
                                                         #{venta.id}
                                                     </span>
-                                                    :
-                                                    <span className="text-[11px] text-amber-600 font-semibold block">
-                                                        {fechaBolivia.toLocaleTimeString([], {
-                                                            hour12: false,
-                                                            hour: '2-digit',
-                                                            minute: '2-digit'
-                                                        })}
-                                                    </span>
-                                                }
+                                                )}
                                             </>
                                         );
                                     })()}
                                 </td>
-                                <td className="px-1 py-2">
+                                <td className="px-1 py-2 w-18 ">
                                     <div className="flex flex-col items-center gap-0.5">
                                         <span className="text-xs tracking-widest font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
                                             {venta.producto_codigo}
@@ -553,7 +547,7 @@ export default function Tabla({
                                         </span>
                                     )}
                                 </td>
-                                <td className="px-1 py-3 text-center">
+                                <td className="px-1 py-3 text-center w-5">
                                     <span className="text-sm font-semibold text-black">
                                         {venta.cantidad || "—"}
                                     </span>
@@ -581,21 +575,28 @@ export default function Tabla({
                                         </>
                                     )}
                                 </td>
-                                <td className="px-1 py-2 text-center text-sm font-semibold">
-                                    {venta.productos?.comision_variable ?
-                                        <span>Bs. {parseFloat(venta.productos?.comision_variable).toFixed(2)}</span>
-                                        :
-                                        <span className="px-1 py-2 text-center text-sm text-black font-semibold">
+                                <td className={`
+                                    px-1 py-2 text-center text-sm font-semibold w-5
+                                    transition-all duration-300 ease-in-out
+                                    ${venta.depositado === true
+                                        ? 'bg-red-700 rounded-md '
+                                        : 'bg-transparent text-black'
+                                    }
+`}>
+                                    {venta.productos?.comision_variable ? (
+                                        <span className={`transition-colors duration-300 ${venta.depositado === true ? 'text-white' : ''}`}>
+                                            Bs. {parseFloat(venta.productos?.comision_variable).toFixed(2)}
+                                        </span>
+                                    ) : (
+                                        <span className={`transition-colors duration-300 ${venta.depositado === true ? 'text-white' : ''}`}>
                                             {(() => {
                                                 const reglas = venta.productos?.categorias?.reglas_comision;
                                                 return reglas?.comision_base > 0
-                                                    ? <span>
-                                                        Bs. {parseFloat(reglas.comision_base).toFixed(2)}
-                                                    </span>
+                                                    ? `Bs. ${parseFloat(reglas.comision_base).toFixed(2)}`
                                                     : "—";
                                             })()}
                                         </span>
-                                    }
+                                    )}
                                 </td>
 
                                 <td className={`
@@ -627,7 +628,7 @@ export default function Tabla({
                                         }}
 
                                     >
-                                        <span className="text-xs font-bold" style={{
+                                        <span className="text-xs font-bold min-w-[48px]" style={{
                                             color: getVentaGroupColor(venta) ? '#fff' : '#6B7280'
                                         }}>
                                             {venta.grupo_revision_id ? (
@@ -651,42 +652,64 @@ export default function Tabla({
                                         disabled={venta.estado === 'anulada'}
                                     />
                                 </td>
-                                <td className="px-1 whitespace-nowrap text-center text-sm font-medium">
-                                    {venta.estado === "activa" ? (
-                                        <button
-                                            onClick={() => handleAnularVenta(venta.id)}
-                                            disabled={anulando === venta.id}
-                                            className={`
-                inline-flex items-center gap-1.5 px-1.5 py-1 rounded-full text-xs font-medium
-                border transition-all duration-150
-                ${anulando === venta.id
-                                                    ? "border-red-300 text-red-400 bg-red-50 opacity-60 cursor-not-allowed"
-                                                    : "border-red-600 text-red-700 hover:bg-red-500 hover:border-red-700 hover:text-white active:scale-95 cursor-pointer"
-                                                }
-            `}
-                                        >
-                                            {anulando === venta.id ? (
-                                                <>
-                                                    <svg className="animate-spin w-3 h-3" viewBox="0 0 12 12" fill="none">
-                                                        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14 6" />
-                                                    </svg>
-                                                    Anulando...
-                                                </>
-                                            ) : (
-                                                <>
-
-                                                    Anular
-                                                </>
+                                <td className="px-1 whitespace-nowrap text-center text-sm font-medium w-20">
+                                    {rolNombre === "admin" ? (
+                                        // --- CHECKBOX PARA ADMIN ---
+                                        <div className="flex items-center justify-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={venta.depositado || false}
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    onActualizarDepositado(venta.id, e.target.checked);
+                                                }}
+                                                disabled={actualizando === venta.id || venta.estado === "anulada"}
+                                                className={`
+                    w-4 h-4 rounded border-gray-300 
+                    text-blue-600 focus:ring-blue-500 
+                    transition-all duration-150
+                    ${actualizando === venta.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    ${venta.estado === "anulada" ? 'opacity-30 cursor-not-allowed' : ''}
+                `}
+                                            />
+                                            {actualizando === venta.id && (
+                                                <span className="ml-1.5 text-xs text-gray-400 animate-pulse">⏳</span>
                                             )}
-                                        </button>
+                                        </div>
                                     ) : (
-                                        <span className="inline-flex items-center gap-1.5 px-1 py-1 rounded-full text-xs font-medium text-gray-400 bg-gray-950 border border-gray-800">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                                            Anulada
-                                        </span>
+                                        // --- BOTÓN ANULAR PARA NO-ADMIN ---
+                                        venta.estado === "activa" ? (
+                                            <button
+                                                onClick={() => handleAnularVenta(venta.id)}
+                                                disabled={anulando === venta.id}
+                                                className={`
+                    inline-flex items-center gap-1.5 px-1.5 py-1 rounded-full text-xs font-medium
+                    border transition-all duration-150
+                    ${anulando === venta.id
+                                                        ? "border-red-300 text-red-400 bg-red-50 opacity-60 cursor-not-allowed"
+                                                        : "border-red-600 text-red-700 hover:bg-red-500 hover:border-red-700 hover:text-white active:scale-95 cursor-pointer"
+                                                    }
+                `}
+                                            >
+                                                {anulando === venta.id ? (
+                                                    <>
+                                                        <svg className="animate-spin w-3 h-3" viewBox="0 0 12 12" fill="none">
+                                                            <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14 6" />
+                                                        </svg>
+                                                        Anulando...
+                                                    </>
+                                                ) : (
+                                                    "Anular"
+                                                )}
+                                            </button>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1.5 px-1 py-1 rounded-full text-xs font-medium text-gray-400 bg-gray-950 border border-gray-800">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                                Anulada
+                                            </span>
+                                        )
                                     )}
                                 </td>
-
                             </tr>
                         ))}
                     </tbody>
@@ -716,95 +739,97 @@ export default function Tabla({
                 )}
             </div>
 
-            {mostrarModalAnulacion && (
-                <AnimatePresence>
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4"
-                    >
+            {
+                mostrarModalAnulacion && (
+                    <AnimatePresence>
                         <motion.div
-                            initial={{ scale: 0.94, opacity: 0, y: 8 }}
-                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.94, opacity: 0, y: 8 }}
-                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4"
                         >
-                            <div className="flex flex-col items-center gap-2 px-6 pt-6 pb-4 border-b border-gray-100">
-                                <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center">
-                                    <AlertCircle className="w-5 h-5 text-red-700" />
+                            <motion.div
+                                initial={{ scale: 0.94, opacity: 0, y: 8 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.94, opacity: 0, y: 8 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+                            >
+                                <div className="flex flex-col items-center gap-2 px-6 pt-6 pb-4 border-b border-gray-100">
+                                    <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center">
+                                        <AlertCircle className="w-5 h-5 text-red-700" />
+                                    </div>
+                                    <h2 className="text-base font-medium text-gray-900">Anular venta</h2>
+                                    <p className="text-sm text-gray-500 text-center leading-snug">
+                                        Esta acción no se puede deshacer.<br />
+                                        Selecciona o escribe el motivo.
+                                    </p>
                                 </div>
-                                <h2 className="text-base font-medium text-gray-900">Anular venta</h2>
-                                <p className="text-sm text-gray-500 text-center leading-snug">
-                                    Esta acción no se puede deshacer.<br />
-                                    Selecciona o escribe el motivo.
-                                </p>
-                            </div>
-                            <div className="px-6 py-4 flex flex-col gap-4">
-                                <div>
-                                    <p className="text-xs font-medium text-gray-500 mb-2">Motivo rápido</p>
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                        {MOTIVOS_RAPIDOS.map((m) => (
-                                            <button
-                                                key={m}
-                                                onClick={() => {
-                                                    const nuevo = motivoRapido === m ? null : m;
-                                                    setMotivoRapido(nuevo);
-                                                    setMotivoAnulacion(nuevo ?? "");
-                                                }}
-                                                className={`text-xs px-3 py-2 rounded-lg border text-center transition-all ${motivoRapido === m
-                                                    ? "border-red-600 bg-red-50 text-red-800 font-medium"
-                                                    : "border-gray-200 text-gray-500 hover:border-red-400 hover:text-red-700 hover:bg-red-50"
-                                                    }`}
-                                            >
-                                                {m}
-                                            </button>
-                                        ))}
+                                <div className="px-6 py-4 flex flex-col gap-4">
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-500 mb-2">Motivo rápido</p>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                            {MOTIVOS_RAPIDOS.map((m) => (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => {
+                                                        const nuevo = motivoRapido === m ? null : m;
+                                                        setMotivoRapido(nuevo);
+                                                        setMotivoAnulacion(nuevo ?? "");
+                                                    }}
+                                                    className={`text-xs px-3 py-2 rounded-lg border text-center transition-all ${motivoRapido === m
+                                                        ? "border-red-600 bg-red-50 text-red-800 font-medium"
+                                                        : "border-gray-200 text-gray-500 hover:border-red-400 hover:text-red-700 hover:bg-red-50"
+                                                        }`}
+                                                >
+                                                    {m}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-500 mb-1">
+                                            Detalle adicional{" "}
+                                            <span className="font-normal opacity-60">(opcional)</span>
+                                        </p>
+                                        <textarea
+                                            className="w-full border border-gray-200 rounded-lg p-3 h-20 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 resize-none"
+                                            placeholder="Describe el motivo con más detalle..."
+                                            maxLength={200}
+                                            value={motivoAnulacion}
+                                            onChange={(e) => setMotivoAnulacion(e.target.value)}
+                                        />
+                                        <p className={`text-right text-xs mt-0.5 ${motivoAnulacion.length > 160 ? "text-amber-600" : "text-gray-400"
+                                            }`}>
+                                            {motivoAnulacion.length} / 200
+                                        </p>
                                     </div>
                                 </div>
-                                <div>
-                                    <p className="text-xs font-medium text-gray-500 mb-1">
-                                        Detalle adicional{" "}
-                                        <span className="font-normal opacity-60">(opcional)</span>
-                                    </p>
-                                    <textarea
-                                        className="w-full border border-gray-200 rounded-lg p-3 h-20 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 resize-none"
-                                        placeholder="Describe el motivo con más detalle..."
-                                        maxLength={200}
-                                        value={motivoAnulacion}
-                                        onChange={(e) => setMotivoAnulacion(e.target.value)}
-                                    />
-                                    <p className={`text-right text-xs mt-0.5 ${motivoAnulacion.length > 160 ? "text-amber-600" : "text-gray-400"
-                                        }`}>
-                                        {motivoAnulacion.length} / 200
-                                    </p>
+                                <div className="flex gap-2 px-6 pb-5">
+                                    <button
+                                        onClick={() => { setMostrarModalAnulacion(false); setMotivoRapido(null); }}
+                                        className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={confirmarAnulacion}
+                                        disabled={(!motivoRapido && motivoAnulacion.trim().length < 3) || anulando === ventaAAnular}
+                                        className="flex-[2] py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                                    >
+                                        {anulando === ventaAAnular ? (
+                                            <>
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                Anulando...
+                                            </>
+                                        ) : "Anular venta"}
+                                    </button>
                                 </div>
-                            </div>
-                            <div className="flex gap-2 px-6 pb-5">
-                                <button
-                                    onClick={() => { setMostrarModalAnulacion(false); setMotivoRapido(null); }}
-                                    className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={confirmarAnulacion}
-                                    disabled={(!motivoRapido && motivoAnulacion.trim().length < 3) || anulando === ventaAAnular}
-                                    className="flex-[2] py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                                >
-                                    {anulando === ventaAAnular ? (
-                                        <>
-                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            Anulando...
-                                        </>
-                                    ) : "Anular venta"}
-                                </button>
-                            </div>
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                </AnimatePresence>
-            )}
-        </motion.div>
+                    </AnimatePresence>
+                )
+            }
+        </motion.div >
     );
 }

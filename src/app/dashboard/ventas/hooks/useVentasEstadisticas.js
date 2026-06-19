@@ -8,6 +8,7 @@ export const useVentasEstadisticas = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [mesSeleccionado, setMesSeleccionado] = useState(new Date());
+    const [productosExcluidos, setProductosExcluidos] = useState(0); // Nuevo estado
 
     // Listener para localStorage
     const { values: localStorageValues } = useMultiLocalStorageListener([
@@ -39,22 +40,18 @@ export const useVentasEstadisticas = () => {
         if (!reglasComision) return 0;
 
         try {
-            // Parsear reglas de comisión
             const reglas = typeof reglasComision === 'string'
                 ? JSON.parse(reglasComision)
                 : reglasComision;
 
-            // Si comisión variable es true, sumar todas las comisiones variables
             if (reglas.comision_variable === true) {
                 return comisionesVariables.reduce((sum, comision) => sum + comision, 0);
             }
 
-            // Comisión simple (solo comisión_base)
             if (reglas.tipo === 'simple' || !reglas.comision_limite) {
                 return cantidadProductos * (reglas.comision_base || 0);
             }
 
-            // Comisión con límite
             const comisionBase = reglas.comision_base || 0;
             const limite = reglas.comision_limite || 0;
             const comisionPostLimite = reglas.comision_post_limite || 0;
@@ -79,6 +76,7 @@ export const useVentasEstadisticas = () => {
 
         if (!currentUser || !currentSucursal) {
             setVentas([]);
+            setProductosExcluidos(0);
             return;
         }
 
@@ -86,11 +84,8 @@ export const useVentasEstadisticas = () => {
             setLoading(true);
             setError(null);
 
-            // Usar fecha personalizada o la del mes seleccionado
             const fechaReferencia = fechaPersonalizada || mesSeleccionado;
             const { inicio: fechaInicio, fin: fechaFin } = obtenerFechasDelMes(fechaReferencia);
-
-            console.log(`Consultando ventas desde ${fechaInicio.toLocaleDateString()} hasta ${fechaFin.toLocaleDateString()}`);
 
             const { data: ventasData, error: supabaseError } = await supabase
                 .from('ventas')
@@ -128,13 +123,19 @@ export const useVentasEstadisticas = () => {
                 throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
             }
 
-            console.log("Datos crudos de ventas:", ventasData);
+            // --- NUEVO: Separar ventas por depositado ---
+            const ventasNoDepositadas = (ventasData || []).filter(v => v.depositado === false);
+            const ventasDepositadas = (ventasData || []).filter(v => v.depositado === true);
 
-            // Estructura para almacenar datos agrupados
+            // Calcular productos excluidos (depositados)
+            const totalProductosExcluidos = ventasDepositadas.reduce((sum, v) => sum + (v.cantidad || 0), 0);
+            setProductosExcluidos(totalProductosExcluidos);
+
+            // Estructura para almacenar datos agrupados (SOLO de ventas no depositadas)
             const ventasAgrupadas = {};
             const comisionesVariablesMap = {};
 
-            (ventasData || []).forEach(venta => {
+            ventasNoDepositadas.forEach(venta => {
                 const usuarioId = venta.promotor_id;
                 const usuarioNombre = venta.usuarios?.nombre || `Usuario ${usuarioId}`;
                 const usuarioCaja = venta.usuarios?.caja || ``;
@@ -145,7 +146,6 @@ export const useVentasEstadisticas = () => {
                 const comisionVariableProducto = venta.productos?.comision_variable || 0;
                 const cantidadEnVenta = venta.cantidad || 1;
 
-                // Inicializar estructuras si no existen
                 if (!ventasAgrupadas[usuarioId]) {
                     ventasAgrupadas[usuarioId] = {
                         usuario_id: usuarioId,
@@ -172,13 +172,11 @@ export const useVentasEstadisticas = () => {
                     comisionesVariablesMap[usuarioId][categoriaId] = [];
                 }
 
-                // Sumar cantidad de productos vendidos
                 ventasAgrupadas[usuarioId].total_productos += cantidadEnVenta;
                 ventasAgrupadas[usuarioId].total_ventas += parseFloat(venta.total_precio_venta || 0);
                 ventasAgrupadas[usuarioId].categorias[categoriaId].cantidad += cantidadEnVenta;
                 ventasAgrupadas[usuarioId].categorias[categoriaId].total_ventas += parseFloat(venta.total_precio_venta || 0);
 
-                // Guardar comisión variable por cada unidad vendida
                 if (comisionVariableProducto > 0) {
                     for (let i = 0; i < cantidadEnVenta; i++) {
                         comisionesVariablesMap[usuarioId][categoriaId].push(comisionVariableProducto);
@@ -186,7 +184,7 @@ export const useVentasEstadisticas = () => {
                 }
             });
 
-            // Calcular comisiones después de agrupar todas las ventas
+            // Calcular comisiones
             Object.keys(ventasAgrupadas).forEach(usuarioId => {
                 const usuario = ventasAgrupadas[usuarioId];
                 const comisionesVariablesUsuario = comisionesVariablesMap[usuarioId] || {};
@@ -207,16 +205,13 @@ export const useVentasEstadisticas = () => {
                 });
             });
 
-            // Convertir a un array formateado
             const resultado = Object.values(ventasAgrupadas).map(usuario => ({
                 ...usuario,
                 categorias: Object.values(usuario.categorias)
             }));
 
-            // Ordenar por total de productos (descendente)
             resultado.sort((a, b) => b.total_productos - a.total_productos);
 
-            console.log("Resultado final:", resultado);
             setVentas(resultado);
             setError(null);
 
@@ -224,6 +219,7 @@ export const useVentasEstadisticas = () => {
             console.error('Error en obtenerMisVentas:', err);
             setError(err.message);
             setVentas([]);
+            setProductosExcluidos(0);
         } finally {
             setLoading(false);
         }
@@ -262,18 +258,17 @@ export const useVentasEstadisticas = () => {
             obtenerMisVentas();
         } else {
             setVentas([]);
+            setProductosExcluidos(0);
         }
     }, [localStorageValues.sucursalSeleccionada]);
 
     return {
-        // Estado
         loading,
         error,
         ventas,
         currentSucursal: getCurrentSucursal(),
         mesSeleccionado,
-
-        // Funciones principales
+        productosExcluidos, // Nuevo: cantidad de productos excluidos
         obtenerMisVentas,
         calcularComision,
         cambiarMes,
