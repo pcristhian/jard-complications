@@ -74,7 +74,14 @@ export default function Tabla({
         cargarGrupos,
         recalcularTodosGrupos,
         actualizarTotalGrupo,
-        limpiarGruposHuerfanos
+        limpiarGruposHuerfanos,
+
+        showColorPicker,
+        selectedGroupForColor,
+        colorPickerPosition,
+        cambiarColorGrupo,
+        handleGroupContextMenu,
+        closeColorPicker
     } = useGrupoRevision(ventas, obtenerMisVentas);
 
     // Función para cargar más registros
@@ -116,6 +123,20 @@ export default function Tabla({
         setLoading(false);
     }, [currentUser, currentSucursal]);
 
+    // Cerrar color picker al hacer scroll
+    useEffect(() => {
+        const handleScroll = () => {
+            if (showColorPicker) {
+                closeColorPicker();
+            }
+        };
+
+        const container = document.querySelector('.overflow-x-auto');
+        if (container) {
+            container.addEventListener('scroll', handleScroll);
+            return () => container.removeEventListener('scroll', handleScroll);
+        }
+    }, [showColorPicker, closeColorPicker]);
     const MOTIVOS_RAPIDOS = [
         "Error en el monto",
         "Pedido duplicado",
@@ -448,15 +469,25 @@ export default function Tabla({
                             }
                         </tr>
                     </thead>
-                    <tbody className="bg-amber-50/30 divide-y divide-amber-200/50">
+                    <tbody className="bg-sky-50/30 divide-y divide-amber-200/50">
                         {ventasToShow.map((venta, index) => (
-                            <tr key={venta.id}
-                                className="hover:bg-amber-50 transition-colors duration-150 group">
+                            <tr
+                                key={venta.id}
+                                className={`
+                                     hover:bg-green-600/3 transition-colors duration-150 group 
+                                    ${venta.depositado === true
+                                        ? '[&>td]:border-y [&>td]:border-red-400 [&>td]:bg-red-50'
+                                        : ''
+                                    }
+                                    h-0.5
+    `}
+                            >
                                 <td className="px-1 py-2 text-center">
                                     <span className="text-xs font-mono font-bold text-black py-1 rounded-md">
                                         {index + 1}
                                     </span>
                                 </td>
+                                {/* fecha */}
                                 <td className="px-1 py-1 leading-[16px] text-center w-18">
                                     {(() => {
                                         const fechaUTC = new Date(venta.fecha_venta);
@@ -475,6 +506,7 @@ export default function Tabla({
                                         );
                                     })()}
                                 </td>
+                                {/* codigo */}
                                 <td className="px-1 py-2 w-18 ">
                                     <div className="flex flex-col items-center gap-0.5">
                                         <span className="text-xs tracking-widest font-mono font-semibold text-sky-300 bg-sky-950 px-1.5 py-0.5 rounded">
@@ -485,6 +517,7 @@ export default function Tabla({
 
                                     </div>
                                 </td>
+                                {/* producto */}
                                 <td className="px-1 py-3 max-w-[200px] overflow-hidden">
                                     <div className="relative group">
                                         <span
@@ -533,6 +566,7 @@ export default function Tabla({
                                         </span>
                                     </div>
                                 </td>
+                                {/* promotor */}
                                 <td className="px-1 py-3 leading-[16px] text-center">
                                     <span className="text-xs font-semibold text-black block leading-snug">
                                         {venta.usuarios?.nombre}
@@ -547,11 +581,13 @@ export default function Tabla({
                                         </span>
                                     )}
                                 </td>
+                                {/* cantidad */}
                                 <td className="px-1 py-3 text-center w-5">
                                     <span className="text-sm font-semibold text-black">
                                         {venta.cantidad || "—"}
                                     </span>
                                 </td>
+                                {/* precio */}
                                 <td className="px-1 py-2 text-sm leading-[16px]  text-black text-center">
                                     <span className="font-semibold">
                                         Bs. {parseFloat(venta.total_precio_venta).toFixed(2)}
@@ -575,20 +611,18 @@ export default function Tabla({
                                         </>
                                     )}
                                 </td>
+                                {/* comision */}
                                 <td className={`
                                     px-1 py-2 text-center text-sm font-semibold w-5
                                     transition-all duration-300 ease-in-out
-                                    ${venta.depositado === true
-                                        ? 'bg-red-700 rounded-md '
-                                        : 'bg-transparent text-black'
-                                    }
-`}>
+                                  `}>
+
                                     {venta.productos?.comision_variable ? (
-                                        <span className={`transition-colors duration-300 ${venta.depositado === true ? 'text-white' : ''}`}>
+                                        <span className={`transition-colors duration-300 ${venta.depositado === true ? 'text-red-600' : ''}`}>
                                             Bs. {parseFloat(venta.productos?.comision_variable).toFixed(2)}
                                         </span>
                                     ) : (
-                                        <span className={`transition-colors duration-300 ${venta.depositado === true ? 'text-white' : ''}`}>
+                                        <span className={`transition-colors duration-300 ${venta.depositado === true ? 'text-black' : ''}`}>
                                             {(() => {
                                                 const reglas = venta.productos?.categorias?.reglas_comision;
                                                 return reglas?.comision_base > 0
@@ -598,7 +632,7 @@ export default function Tabla({
                                         </span>
                                     )}
                                 </td>
-
+                                {/* observaciones */}
                                 <td className={`
                                         ${venta.observaciones ? 'px-1 py-2 text-[11px] text-center text-indigo-700' : 'px-1 py-2 text-sm text-center text-black'}`}>
                                     {venta.observaciones ?
@@ -617,6 +651,12 @@ export default function Tabla({
                                         onMouseDown={(e) => venta.grupo_revision_id && handleMouseDown(e, venta)}
                                         onMouseUp={handleMouseUp}
                                         onMouseLeave={handleMouseUp}
+                                        // 🔥 AGREGAR CLIC DERECHO
+                                        onContextMenu={(e) => {
+                                            if (venta.grupo_revision_id && venta.estado === 'activa') {
+                                                handleGroupContextMenu(e, venta.grupo_revision_id);
+                                            }
+                                        }}
                                         className={`select-none inline-flex items-center justify-center min-w-[48px] h-7 px-2 rounded-full transition-all group relative ${venta.estado === 'activa'
                                             ? 'hover:scale-105 hover:shadow-md cursor-grab active:cursor-grabbing'
                                             : 'opacity-30 cursor-not-allowed'
@@ -626,7 +666,6 @@ export default function Tabla({
                                             backgroundColor: getVentaGroupColor(venta) || '#E5E7EB',
                                             border: selectedVentas.has(venta.id) ? '2px solid #3B82F6' : '2px solid transparent'
                                         }}
-
                                     >
                                         <span className="text-xs font-bold min-w-[48px]" style={{
                                             color: getVentaGroupColor(venta) ? '#fff' : '#6B7280'
@@ -830,6 +869,38 @@ export default function Tabla({
                     </AnimatePresence>
                 )
             }
+            {/* Color Picker flotante - agrégalo al final del componente Tabla */}
+            {showColorPicker && selectedGroupForColor && (
+                <div
+                    id="color-picker-container"
+                    className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-3"
+                    style={{
+                        left: colorPickerPosition.x,
+                        top: colorPickerPosition.y,
+                        transform: 'translate(-50%, 0)'
+                    }}
+                >
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-medium text-gray-600">🎨 Cambiar color</span>
+                        <button
+                            onClick={closeColorPicker}
+                            className="ml-auto text-gray-400 hover:text-gray-600"
+                        >
+                            <X className="w-3 h-3" />
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                        {coloresGrupo.map((color) => (
+                            <button
+                                key={color.hex}
+                                onClick={() => cambiarColorGrupo(selectedGroupForColor, color.hex)}
+                                className="w-7 h-7 cursor-pointer rounded-lg transition-all hover:scale-110 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400"
+                                style={{ backgroundColor: color.hex }}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
         </motion.div >
     );
 }

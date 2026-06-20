@@ -7,6 +7,9 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
     const [selectedVentas, setSelectedVentas] = useState(new Set());
     const [loadingGroup, setLoadingGroup] = useState(false);
     const [gruposExistentes, setGruposExistentes] = useState([]);
+    const [showColorPicker, setShowColorPicker] = useState(false);
+    const [selectedGroupForColor, setSelectedGroupForColor] = useState(null);
+    const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
 
     const saveNoteTimeoutRef = useRef({});
 
@@ -15,20 +18,93 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
     const [currentPressVenta, setCurrentPressVenta] = useState(null);
     const [zPressed, setZPressed] = useState(false);
 
+    // En useGrupoRevision.js
     const coloresGrupo = [
         { nombre: 'Rojo', hex: '#FF6B6B' },
-        { nombre: 'Verde', hex: '#4CAF50' },
-        { nombre: 'Azul', hex: '#2196F3' },
-        { nombre: 'Amarillo', hex: '#FFC107' },
-        { nombre: 'Morado', hex: '#9C27B0' },
         { nombre: 'Naranja', hex: '#FF9800' },
+        { nombre: 'Amarillo', hex: '#FFC107' },
+        { nombre: 'Lima', hex: '#8BC34A' },
+        { nombre: 'Verde', hex: '#4CAF50' },
+        { nombre: 'Celeste', hex: '#00BCD4' },
+        { nombre: 'Azules', hex: '#2196F3' },
+        { nombre: 'Índigo', hex: '#3F51B5' },
+        { nombre: 'Morado', hex: '#9C27B0' },
         { nombre: 'Rosa', hex: '#E91E63' },
-        { nombre: 'Celeste', hex: '#00BCD4' }
+        { nombre: 'Gris', hex: '#607D8B' },
+        { nombre: 'Negro', hex: '#000000' }  // Al final (más oscuro)
     ];
 
     const getColorForGroup = useCallback((groupId) => {
         const index = (groupId % coloresGrupo.length);
         return coloresGrupo[index].hex;
+    }, []);
+
+    // 🔥 NUEVA FUNCIÓN: Cambiar color del grupo
+    const cambiarColorGrupo = useCallback(async (grupoId, nuevoColor) => {
+        if (!grupoId || !nuevoColor) return false;
+
+        try {
+            setLoadingGroup(true);
+
+            const { error } = await supabase
+                .from('grupos_revision')
+                .update({ color_hex: nuevoColor })
+                .eq('id', grupoId);
+
+            if (error) throw error;
+
+            // Actualizar estado local
+            setGruposExistentes(prev => prev.map(g =>
+                g.id === grupoId ? { ...g, color_hex: nuevoColor } : g
+            ));
+
+            setShowColorPicker(false);
+            setSelectedGroupForColor(null);
+
+            toast.success('🎨 Color del grupo actualizado');
+            await obtenerMisVentas();
+
+            return true;
+        } catch (error) {
+            console.error('Error cambiando color del grupo:', error);
+            toast.error('Error al cambiar el color del grupo');
+            return false;
+        } finally {
+            setLoadingGroup(false);
+        }
+    }, [obtenerMisVentas]);
+
+    // 🔥 NUEVA FUNCIÓN: Manejar clic derecho en el grupo
+    const handleGroupContextMenu = useCallback((e, grupoId) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const grupo = gruposExistentes.find(g => g.id === grupoId);
+        if (!grupo) return;
+
+        // Verificar si el grupo tiene ventas activas
+        const ventasDelGrupo = (Array.isArray(ventas) ? ventas : [])
+            .filter(v => v.grupo_revision_id === grupoId && v.estado === 'activa');
+
+        if (ventasDelGrupo.length === 0) {
+            toast.error('Este grupo no tiene ventas activas');
+            return;
+        }
+
+        // Posicionar el color picker cerca del cursor
+        setColorPickerPosition({
+            x: e.clientX,
+            y: e.clientY
+        });
+
+        setSelectedGroupForColor(grupoId);
+        setShowColorPicker(true);
+    }, [gruposExistentes, ventas]);
+
+    // 🔥 NUEVA FUNCIÓN: Cerrar selector de colores
+    const closeColorPicker = useCallback(() => {
+        setShowColorPicker(false);
+        setSelectedGroupForColor(null);
     }, []);
 
     const cargarGrupos = useCallback(async () => {
@@ -58,7 +134,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         return ventasArray.filter(v => v.grupo_revision_id === grupoId && v.estado === 'activa');
     }, [ventas]);
 
-    // 🔥 ACTUALIZAR TOTAL DE UN GRUPO
     const actualizarTotalGrupo = useCallback(async (grupoId) => {
         if (!grupoId) return 0;
 
@@ -90,7 +165,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         }
     }, [ventas]);
 
-    // 🔥 RECALCULAR TODOS LOS GRUPOS (útil después de cambios)
     const recalcularTodosGrupos = useCallback(async () => {
         try {
             const gruposActivos = gruposExistentes.filter(g => g.activo === true);
@@ -102,7 +176,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
                 );
 
                 if (ventasDelGrupo.length === 0) {
-                    // Si no quedan ventas, desactivar el grupo
                     await supabase
                         .from('grupos_revision')
                         .update({ activo: false })
@@ -127,7 +200,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         }
     }, [gruposExistentes, ventas, cargarGrupos, obtenerMisVentas]);
 
-    // 🔥 NOTAS INDIVIDUALES
     const guardarNotaIndividual = useCallback(async (ventaId, nota) => {
         try {
             const { error } = await supabase
@@ -167,7 +239,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         const grupoId = venta.grupo_revision_id;
 
         try {
-            // 1. Quitar la venta seleccionada del grupo
             const { error } = await supabase
                 .from('ventas')
                 .update({ grupo_revision_id: null })
@@ -175,10 +246,8 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
 
             if (error) throw error;
 
-            // 2. Recargar datos para tener la información actualizada
             await obtenerMisVentas();
 
-            // 3. Verificar cuántas ventas quedan en el grupo
             const { data: ventasRestantes, error: queryError } = await supabase
                 .from('ventas')
                 .select('id, total_precio_venta, estado')
@@ -190,56 +259,43 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
             const cantidadRestante = ventasRestantes?.length || 0;
 
             if (cantidadRestante === 0) {
-                // Si no quedan ventas, desactivar el grupo
                 await supabase
                     .from('grupos_revision')
                     .update({ activo: false })
                     .eq('id', grupoId);
                 toast.success('Grupo eliminado por estar vacío');
-            }
-            else if (cantidadRestante === 1) {
-                // 🔥 Si queda UNA sola venta, también la desagrupamos (no tiene sentido un grupo de 1)
+            } else if (cantidadRestante === 1) {
                 const ventaSolaId = ventasRestantes[0].id;
-
                 await supabase
                     .from('ventas')
                     .update({ grupo_revision_id: null })
                     .eq('id', ventaSolaId);
-
-                // Desactivar el grupo
                 await supabase
                     .from('grupos_revision')
                     .update({ activo: false })
                     .eq('id', grupoId);
-
                 toast.success('Grupo disuelto - solo quedaba una venta');
-            }
-            else {
-                // Si quedan 2 o más ventas, solo actualizar el total
+            } else {
                 const nuevoTotal = ventasRestantes.reduce((sum, v) =>
                     sum + parseFloat(v.total_precio_venta || 0), 0
                 );
-
                 await supabase
                     .from('grupos_revision')
                     .update({ total: nuevoTotal })
                     .eq('id', grupoId);
-
                 toast.success(`Venta removida - Grupo actualizado: Bs. ${nuevoTotal.toFixed(2)}`);
             }
 
-            // Recargar todo para asegurar consistencia
             await cargarGrupos();
             await obtenerMisVentas();
-
             return true;
-
         } catch (error) {
             console.error('Error al desagrupar:', error);
             toast.error('Error al desagrupar la venta');
             return false;
         }
     }, [obtenerMisVentas, cargarGrupos]);
+
     // Manejador de tecla Z
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -276,10 +332,23 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         };
     }, [isLongPressing, currentPressVenta, zPressed, longPressTimer, desagruparVenta]);
 
-    // 🔥 LIMPIAR GRUPOS HUÉRFANOS (para ejecutar ocasionalmente)
+    // Cerrar color picker al hacer click fuera
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (showColorPicker) {
+                const picker = document.getElementById('color-picker-container');
+                if (picker && !picker.contains(e.target)) {
+                    closeColorPicker();
+                }
+            }
+        };
+
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [showColorPicker, closeColorPicker]);
+
     const limpiarGruposHuerfanos = useCallback(async () => {
         try {
-            // Obtener todos los grupos activos
             const { data: gruposActivos, error: gruposError } = await supabase
                 .from('grupos_revision')
                 .select('id')
@@ -290,7 +359,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
             let limpiados = 0;
 
             for (const grupo of gruposActivos) {
-                // Contar ventas activas en este grupo
                 const { count, error: countError } = await supabase
                     .from('ventas')
                     .select('id', { count: 'exact', head: true })
@@ -299,10 +367,8 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
 
                 if (countError) throw countError;
 
-                // Si tiene 0 o 1 venta, desactivar el grupo
                 if (count === 0 || count === 1) {
                     if (count === 1) {
-                        // La venta solitaria también pierde el grupo
                         const { data: ventaSola } = await supabase
                             .from('ventas')
                             .select('id')
@@ -409,12 +475,10 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
             const ventasIds = ventasSeleccionadas.map(v => v.id);
             const total = calcularTotalSeleccionado(new Set(ventasIds));
 
-            // Guardar grupos afectados antes de modificarlos
             const gruposAfectados = [...new Set(ventasSeleccionadas
                 .filter(v => v.grupo_revision_id)
                 .map(v => v.grupo_revision_id))];
 
-            // Quitar grupos existentes de estas ventas
             if (gruposAfectados.length > 0) {
                 await supabase
                     .from('ventas')
@@ -422,7 +486,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
                     .in('id', ventasSeleccionadas.filter(v => v.grupo_revision_id).map(v => v.id));
             }
 
-            // Crear nuevo grupo
             const { data: grupo, error: grupoError } = await supabase
                 .from('grupos_revision')
                 .insert({
@@ -435,7 +498,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
 
             if (grupoError) throw grupoError;
 
-            // Asignar ventas al nuevo grupo
             const { error: updateError } = await supabase
                 .from('ventas')
                 .update({ grupo_revision_id: grupo.id })
@@ -443,7 +505,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
 
             if (updateError) throw updateError;
 
-            // Actualizar los grupos que perdieron ventas
             for (const grupoId of gruposAfectados) {
                 await actualizarTotalGrupo(grupoId);
             }
@@ -452,7 +513,6 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
             await cargarGrupos();
 
             toast.success(`✅ ${ventasIds.length} ventas agrupadas | Total: Bs. ${total.toFixed(2)}`);
-
         } catch (error) {
             console.error('Error creando grupo:', error);
             toast.error('Error al crear el grupo: ' + error.message);
@@ -498,6 +558,9 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         loadingGroup,
         coloresGrupo,
         gruposExistentes,
+        showColorPicker,
+        selectedGroupForColor,
+        colorPickerPosition,
         handleDragStart,
         handleDragEnd,
         handleDrop,
@@ -511,6 +574,9 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         cargarGrupos,
         recalcularTodosGrupos,
         actualizarTotalGrupo,
-        limpiarGruposHuerfanos
+        limpiarGruposHuerfanos,
+        cambiarColorGrupo,
+        handleGroupContextMenu,
+        closeColorPicker
     };
 };
