@@ -79,7 +79,6 @@ const SidebarHeader = memo(({ isCollapsed }) => {
                             className="w-7 h-7"
                         />
                     </div>
-
                     {/* Texto - solo visible cuando expandido */}
                     <div className={`min-w-0 flex-1 transition-opacity duration-200 ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100'}`}>
                         <h1 className="text-lg font-bold text-white truncate">

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { LogOut, User } from 'lucide-react'
+import { LogOut, User, Power } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 
@@ -15,6 +15,7 @@ export default function LogoutButton({ isCollapsed }) {
     const [avatarUrl, setAvatarUrl] = useState('/image/promotores/default.png')
     const [userData, setUserData] = useState(null)
     const mountedRef = useRef(true)
+    const [isHovered, setIsHovered] = useState(false)
 
     // Escuchar cambios en localStorage para obtener los datos del usuario actual
     const { values } = useMultiLocalStorageListener(["currentUser"]);
@@ -31,7 +32,6 @@ export default function LogoutButton({ isCollapsed }) {
 
         if (mountedRef.current) {
             setUserData(currentUser)
-            // Determinar la URL del avatar basado en el nombre del usuario
             const avatarPath = getAvatarPath(currentUser)
             setAvatarUrl(avatarPath)
         }
@@ -43,7 +43,6 @@ export default function LogoutButton({ isCollapsed }) {
 
         const nombre = user.nombre.toLowerCase()
 
-        // Mapeo de nombres a sus imágenes
         const avatarMap = {
             'angela': '/image/promotores/promotor1.png',
             'bolivia': '/image/promotores/promotor4.png',
@@ -51,7 +50,6 @@ export default function LogoutButton({ isCollapsed }) {
             'grisel': '/image/promotores/promotor2.png',
         }
 
-        // Buscar coincidencia exacta o por parte del nombre
         for (const [key, path] of Object.entries(avatarMap)) {
             if (nombre.includes(key) || key.includes(nombre)) {
                 return path
@@ -132,8 +130,9 @@ export default function LogoutButton({ isCollapsed }) {
 
     return (
         <motion.div
-            className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}
-            whileHover={{ scale: 1.02 }}
+            className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} relative`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
             {/* Avatar del usuario */}
             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden bg-gradient-to-br from-indigo-500 to-indigo-600">
@@ -169,18 +168,24 @@ export default function LogoutButton({ isCollapsed }) {
                     </motion.div>
                 )}
             </AnimatePresence>
-
-            {/* Botón de logout */}
+            {/* Botón de cerrar sesión - Versión compacta */}
             <motion.button
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handleLogout}
-                className={`${isCollapsed
-                    ? 'p-2 bg-red-50 text-red-600 hover:bg-red-100'
-                    : 'p-2 text-gray-500 hover:text-red-600 hover:bg-red-50'
-                    } rounded-lg transition-colors`}
+                className={`
+        flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200
+        ${isCollapsed
+                        ? 'p-2 bg-red-50 text-red-600 hover:bg-red-100'
+                        : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
+                    }
+    `}
+                title="Cerrar sesión"
             >
-                <LogOut className="w-5 h-5" />
+                <LogOut className={`w-4 h-4 ${isCollapsed ? 'w-5 h-5' : ''}`} />
+                {!isCollapsed && (
+                    <span className="text-sm font-medium">Salir</span>
+                )}
             </motion.button>
         </motion.div>
     )

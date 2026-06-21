@@ -12,24 +12,85 @@ import {
     PencilIcon,
     FunnelIcon,
     UsersIcon,
-    EyeIcon
+    EyeIcon,
+    AdjustmentsHorizontalIcon
 } from "@heroicons/react/24/outline";
+import { useState, useEffect, useMemo } from "react";
 
 export default function UsuariosTable({
     usuarios,
     loading,
     onEditarUsuario,
     sucursalSeleccionada,
-    sucursalSeleccionadaId
+    sucursalSeleccionadaId,
+    roles = []
 }) {
+    // Estado para el filtro de roles
+    const [rolFiltro, setRolFiltro] = useState('administrador');
 
-    const usuariosFiltrados = sucursalSeleccionadaId
-        ? usuarios.filter(usuario =>
-            usuario.rol_id === 1 ||
-            !usuario.sucursal_id ||
-            usuario.sucursal_id === sucursalSeleccionadaId
-        )
-        : usuarios;
+    // 🔥 NUEVO: Estado para el filtro de estado (mostrar solo activos o todos)
+    const [mostrarSoloActivos, setMostrarSoloActivos] = useState(true); // true por defecto
+
+    // Obtener todos los roles únicos de los usuarios
+    const rolesDisponibles = useMemo(() => {
+        const rolesSet = new Set();
+        usuarios.forEach(usuario => {
+            if (usuario.roles?.nombre) {
+                rolesSet.add(usuario.roles.nombre);
+            }
+        });
+        return Array.from(rolesSet);
+    }, [usuarios]);
+
+    // Aplicar filtros (sucursal + rol + estado)
+    const usuariosFiltrados = useMemo(() => {
+        let filtrados = usuarios;
+
+        // Filtro por sucursal
+        if (sucursalSeleccionadaId) {
+            filtrados = filtrados.filter(usuario =>
+                usuario.rol_id === 1 ||
+                !usuario.sucursal_id ||
+                usuario.sucursal_id === sucursalSeleccionadaId
+            );
+        }
+
+        // Filtro por rol
+        if (rolFiltro && rolFiltro !== 'todos') {
+            filtrados = filtrados.filter(usuario =>
+                usuario.roles?.nombre?.toLowerCase() === rolFiltro.toLowerCase()
+            );
+        }
+
+        if (mostrarSoloActivos) {
+            filtrados = filtrados.filter(usuario => usuario.activo === true);
+        }
+        // Si es false, no filtramos por estado, mostramos todos
+
+        return filtrados;
+    }, [usuarios, sucursalSeleccionadaId, rolFiltro, mostrarSoloActivos]);
+
+    // Resetear el filtro cuando cambian los usuarios o la sucursal
+    useEffect(() => {
+        if (rolFiltro && rolFiltro !== 'todos') {
+            const rolExiste = usuarios.some(u =>
+                u.roles?.nombre?.toLowerCase() === rolFiltro.toLowerCase()
+            );
+            if (!rolExiste && rolesDisponibles.length > 0) {
+                setRolFiltro('admin');
+            }
+        }
+    }, [usuarios, rolesDisponibles, rolFiltro]);
+
+    // Cambiar filtro de rol
+    const handleRolChange = (e) => {
+        setRolFiltro(e.target.value);
+    };
+
+    // 🔥 NUEVO: Alternar filtro de estado
+    const toggleMostrarSoloActivos = () => {
+        setMostrarSoloActivos(!mostrarSoloActivos);
+    };
 
     const formatFecha = (fecha) => {
         if (!fecha) return 'N/A';
@@ -69,7 +130,7 @@ export default function UsuariosTable({
             );
         }
 
-        if (!usuario.sucursales?.nombre || usuario.roles?.nombre?.toLowerCase() === 'administrador') {
+        if (!usuario.sucursales?.nombre || usuario.roles?.nombre?.toLowerCase() === 'admin') {
             return (
                 <div className="flex items-center justify-center space-x-1">
                     <EyeIcon className="h-3 w-3 text-amber-500" />
@@ -101,15 +162,6 @@ export default function UsuariosTable({
 
     const rowVariants = {
         hidden: { opacity: 0, y: 10 },
-        visible: {
-            opacity: 1,
-            y: 0,
-            transition: { duration: 0.3 }
-        }
-    };
-
-    const headerVariants = {
-        hidden: { opacity: 0, y: -10 },
         visible: {
             opacity: 1,
             y: 0,
@@ -151,80 +203,104 @@ export default function UsuariosTable({
             initial="hidden"
             animate="visible"
             className="bg-white rounded-2xl shadow-xl border border-gray-200 flex flex-col h-full"
-            style={{ maxHeight: 'calc(100vh - 140px)' }} // Ajusta este valor según la altura de tu header
+            style={{ maxHeight: 'calc(100vh - 140px)' }}
         >
             {/* Encabezado del filtro - Parte fija */}
             <div className="flex-shrink-0">
                 <AnimatePresence>
-                    {sucursalSeleccionadaId ? (
-                        <motion.div
-                            variants={statsVariants}
-                            initial="hidden"
-                            animate="visible"
-                            className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 px-2 py-2"
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <motion.div
-                                        whileHover={{ rotate: 15 }}
-                                        className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg"
-                                    >
-                                        <FunnelIcon className="h-5 w-5 text-white" />
-                                    </motion.div>
-                                    <div>
-                                        <p className="text-sm font-semibold text-blue-800">
-                                            Filtro aplicado
-                                        </p>
-                                        <p className="text-sm text-blue-600">
-                                            Sucursal: <span className="font-medium">{sucursalSeleccionada?.nombre || `ID: ${sucursalSeleccionadaId}`}</span>
-                                        </p>
-                                    </div>
-                                </div>
+                    <motion.div
+                        variants={statsVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className={`px-2 py-2 ${sucursalSeleccionadaId
+                            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100'
+                            : 'bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200'
+                            }`}
+                    >
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                            {/* Filtro de sucursal */}
+                            <div className="flex items-center space-x-3">
                                 <motion.div
-                                    whileHover={{ scale: 1.05 }}
-                                    className="px-3 py-1 bg-white border border-blue-200 rounded-lg shadow-sm"
+                                    whileHover={{ rotate: 15 }}
+                                    className={`p-2 rounded-lg ${sucursalSeleccionadaId
+                                        ? 'bg-gradient-to-br from-blue-500 to-blue-600'
+                                        : 'bg-gradient-to-br from-gray-500 to-gray-600'
+                                        }`}
                                 >
-                                    <span className="text-sm font-semibold text-blue-700">
-                                        {usuariosFiltrados.length} usuarios
-                                    </span>
+                                    <FunnelIcon className="h-5 w-5 text-white" />
                                 </motion.div>
-                            </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            variants={statsVariants}
-                            initial="hidden"
-                            animate="visible"
-                            className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 px-2 py-2"
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <motion.div
-                                        whileHover={{ scale: 1.1 }}
-                                        className="p-2 bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg"
-                                    >
-                                        <UsersIcon className="h-5 w-5 text-white" />
-                                    </motion.div>
-                                    <div>
-                                        <p className="text-sm font-semibold text-gray-800">
-                                            Todos los usuarios
-                                        </p>
-                                        <p className="text-sm text-gray-600">
-                                            Mostrando todas las sucursales
-                                        </p>
-                                    </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-800">
+                                        {sucursalSeleccionadaId ? 'Filtro aplicado' : 'Todos los usuarios'}
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                        {sucursalSeleccionadaId
+                                            ? `Sucursal: ${sucursalSeleccionada?.nombre || `ID: ${sucursalSeleccionadaId}`}`
+                                            : 'Mostrando todas las sucursales'
+                                        }
+                                    </p>
                                 </div>
-                                <motion.div
-                                    whileHover={{ scale: 1.05 }}
-                                    className="px-3 py-1 bg-white border border-gray-300 rounded-lg shadow-sm"
-                                >
-                                    <span className="text-sm font-semibold text-gray-700">
-                                        {usuariosFiltrados.length} usuarios totales
-                                    </span>
-                                </motion.div>
                             </div>
-                        </motion.div>
-                    )}
+
+                            {/* Filtros: Rol + Estado */}
+                            <div className="flex items-center gap-3">
+                                {/* Selector de roles */}
+                                <div className="flex items-center gap-1.5">
+                                    <AdjustmentsHorizontalIcon className="h-4 w-4 text-gray-500" />
+                                    <span className="text-xs font-medium text-gray-600">Rol:</span>
+                                </div>
+                                <motion.select
+                                    whileHover={{ scale: 1.02 }}
+                                    value={rolFiltro}
+                                    onChange={handleRolChange}
+                                    className="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer min-w-[120px]"
+                                >
+                                    <option value="todos">Todos los roles</option>
+                                    {rolesDisponibles.map((rol) => (
+                                        <option key={rol} value={rol.toLowerCase()}>
+                                            {rol}
+                                        </option>
+                                    ))}
+                                </motion.select>
+
+                                {/* 🔥 NUEVO: Switch "Mostrar solo activos" */}
+                                <div className="flex items-center gap-2 ml-2">
+                                    <span className="text-xs font-medium text-gray-700">
+                                        📋  Mostrar solo activos
+                                    </span>
+                                    <button
+                                        onClick={toggleMostrarSoloActivos}
+                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${mostrarSoloActivos ? 'bg-emerald-500' : 'bg-gray-300'
+                                            }`}
+                                        role="switch"
+                                        aria-checked={mostrarSoloActivos}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${mostrarSoloActivos ? 'translate-x-4' : 'translate-x-0.5'
+                                                }`}
+                                        />
+                                    </button>
+
+                                </div>
+                            </div>
+
+                            {/* Contador de usuarios */}
+                            <motion.div
+                                whileHover={{ scale: 1.05 }}
+                                className={`px-3 py-1 bg-white border rounded-lg shadow-sm ${sucursalSeleccionadaId
+                                    ? 'border-blue-200'
+                                    : 'border-gray-300'
+                                    }`}
+                            >
+                                <span className={`text-sm font-semibold ${sucursalSeleccionadaId
+                                    ? 'text-blue-700'
+                                    : 'text-gray-700'
+                                    }`}>
+                                    {usuariosFiltrados.length} usuarios
+                                </span>
+                            </motion.div>
+                        </div>
+                    </motion.div>
                 </AnimatePresence>
 
                 {/* Encabezados de tabla - Parte fija */}
@@ -475,6 +551,20 @@ export default function UsuariosTable({
                                     </span>
                                 </div>
                             </div>
+                        </div>
+                        {/* Mostrar filtros activos */}
+                        <div className="flex items-center gap-2">
+                            {rolFiltro && rolFiltro !== 'todos' && (
+                                <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                                    {rolFiltro.charAt(0).toUpperCase() + rolFiltro.slice(1)}
+                                </span>
+                            )}
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${mostrarSoloActivos
+                                ? 'text-emerald-600 bg-emerald-50'
+                                : 'text-gray-600 bg-gray-100'
+                                }`}>
+                                {mostrarSoloActivos ? '✅ Solo activos' : '📋 Todos los usuarios'}
+                            </span>
                         </div>
                     </div>
                 </motion.div>

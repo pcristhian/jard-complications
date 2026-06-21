@@ -8,9 +8,8 @@ export const useVentasEstadisticas = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [mesSeleccionado, setMesSeleccionado] = useState(new Date());
-    const [productosExcluidos, setProductosExcluidos] = useState(0); // Nuevo estado
+    const [productosExcluidos, setProductosExcluidos] = useState(0);
 
-    // Listener para localStorage
     const { values: localStorageValues } = useMultiLocalStorageListener([
         'currentUser',
         'sucursalSeleccionada'
@@ -24,7 +23,6 @@ export const useVentasEstadisticas = () => {
         return localStorageValues.sucursalSeleccionada || null;
     };
 
-    // Función para obtener las fechas del mes
     const obtenerFechasDelMes = (fecha) => {
         const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
         inicio.setHours(0, 0, 0, 0);
@@ -35,7 +33,6 @@ export const useVentasEstadisticas = () => {
         return { inicio, fin };
     };
 
-    // Función para calcular comisión según reglas
     const calcularComision = (reglasComision, cantidadProductos, comisionesVariables = []) => {
         if (!reglasComision) return 0;
 
@@ -123,80 +120,112 @@ export const useVentasEstadisticas = () => {
                 throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
             }
 
-            // --- NUEVO: Separar ventas por depositado ---
+            // Separar ventas por depositado
             const ventasNoDepositadas = (ventasData || []).filter(v => v.depositado === false);
             const ventasDepositadas = (ventasData || []).filter(v => v.depositado === true);
 
-            // Calcular productos excluidos (depositados)
+            // Calcular productos excluidos (depositados) - SOLO para el badge
             const totalProductosExcluidos = ventasDepositadas.reduce((sum, v) => sum + (v.cantidad || 0), 0);
             setProductosExcluidos(totalProductosExcluidos);
 
-            // Estructura para almacenar datos agrupados (SOLO de ventas no depositadas)
-            const ventasAgrupadas = {};
+            // --- ESTRUCTURA PARA TODAS LAS VENTAS (incluyendo depositadas) ---
+            // Esta estructura guardará TODAS las cantidades (depositadas + no depositadas)
+            const ventasAgrupadasTotales = {};
+
+            // --- ESTRUCTURA PARA COMISIONES (solo no depositadas) ---
             const comisionesVariablesMap = {};
 
-            ventasNoDepositadas.forEach(venta => {
+            // PRIMERO: Procesar TODAS las ventas para contar cantidades
+            (ventasData || []).forEach(venta => {
                 const usuarioId = venta.promotor_id;
                 const usuarioNombre = venta.usuarios?.nombre || `Usuario ${usuarioId}`;
                 const usuarioCaja = venta.usuarios?.caja || ``;
                 const usuarioRol = venta.usuarios?.roles?.nombre || 'no info';
                 const categoriaId = venta.productos?.categoria_id;
                 const categoriaNombre = venta.productos?.categorias?.nombre || `Categoría ${categoriaId}`;
-                const reglasComision = venta.productos?.categorias?.reglas_comision;
-                const comisionVariableProducto = venta.productos?.comision_variable || 0;
                 const cantidadEnVenta = venta.cantidad || 1;
 
-                if (!ventasAgrupadas[usuarioId]) {
-                    ventasAgrupadas[usuarioId] = {
+                // Inicializar usuario si no existe
+                if (!ventasAgrupadasTotales[usuarioId]) {
+                    ventasAgrupadasTotales[usuarioId] = {
                         usuario_id: usuarioId,
                         usuario_nombre: usuarioNombre,
                         usuario_caja: usuarioCaja,
                         usuario_rol: usuarioRol,
-                        total_productos: 0,
-                        total_comision: 0,
+                        total_productos: 0,      // ← TODAS las ventas
+                        total_comision: 0,        // ← SOLO no depositadas
                         total_ventas: 0,
                         categorias: {}
                     };
                     comisionesVariablesMap[usuarioId] = {};
                 }
 
-                if (!ventasAgrupadas[usuarioId].categorias[categoriaId]) {
-                    ventasAgrupadas[usuarioId].categorias[categoriaId] = {
+                // Inicializar categoría si no existe
+                if (!ventasAgrupadasTotales[usuarioId].categorias[categoriaId]) {
+                    ventasAgrupadasTotales[usuarioId].categorias[categoriaId] = {
                         categoria_id: categoriaId,
                         categoria_nombre: categoriaNombre,
-                        reglas_comision: reglasComision,
-                        cantidad: 0,
-                        comision: 0,
+                        reglas_comision: venta.productos?.categorias?.reglas_comision,
+                        cantidad: 0,           // ← TODAS las ventas
+                        comision: 0,            // ← SOLO no depositadas
                         total_ventas: 0
                     };
                     comisionesVariablesMap[usuarioId][categoriaId] = [];
                 }
 
-                ventasAgrupadas[usuarioId].total_productos += cantidadEnVenta;
-                ventasAgrupadas[usuarioId].total_ventas += parseFloat(venta.total_precio_venta || 0);
-                ventasAgrupadas[usuarioId].categorias[categoriaId].cantidad += cantidadEnVenta;
-                ventasAgrupadas[usuarioId].categorias[categoriaId].total_ventas += parseFloat(venta.total_precio_venta || 0);
+                // SUMAR CANTIDADES (siempre, sin importar depositado)
+                ventasAgrupadasTotales[usuarioId].total_productos += cantidadEnVenta;
+                ventasAgrupadasTotales[usuarioId].total_ventas += parseFloat(venta.total_precio_venta || 0);
+                ventasAgrupadasTotales[usuarioId].categorias[categoriaId].cantidad += cantidadEnVenta;
+                ventasAgrupadasTotales[usuarioId].categorias[categoriaId].total_ventas += parseFloat(venta.total_precio_venta || 0);
 
-                if (comisionVariableProducto > 0) {
-                    for (let i = 0; i < cantidadEnVenta; i++) {
-                        comisionesVariablesMap[usuarioId][categoriaId].push(comisionVariableProducto);
+                // SOLO si NO está depositado, guardamos comisiones variables
+                if (venta.depositado === false) {
+                    const comisionVariableProducto = venta.productos?.comision_variable || 0;
+                    if (comisionVariableProducto > 0) {
+                        for (let i = 0; i < cantidadEnVenta; i++) {
+                            comisionesVariablesMap[usuarioId][categoriaId].push(comisionVariableProducto);
+                        }
                     }
                 }
             });
 
-            // Calcular comisiones
-            Object.keys(ventasAgrupadas).forEach(usuarioId => {
-                const usuario = ventasAgrupadas[usuarioId];
+            // SEGUNDO: Calcular comisiones SOLO para ventas no depositadas
+            // Pero usando las cantidades totales (porque la comisión se calcula sobre el total de productos vendidos,
+            // pero solo se paga por los no depositados)
+            // Para esto, necesitamos las cantidades de ventas NO depositadas por categoría
+            const ventasNoDepositadasPorUsuario = {};
+
+            ventasNoDepositadas.forEach(venta => {
+                const usuarioId = venta.promotor_id;
+                const categoriaId = venta.productos?.categoria_id;
+                const cantidadEnVenta = venta.cantidad || 1;
+
+                if (!ventasNoDepositadasPorUsuario[usuarioId]) {
+                    ventasNoDepositadasPorUsuario[usuarioId] = {};
+                }
+                if (!ventasNoDepositadasPorUsuario[usuarioId][categoriaId]) {
+                    ventasNoDepositadasPorUsuario[usuarioId][categoriaId] = 0;
+                }
+                ventasNoDepositadasPorUsuario[usuarioId][categoriaId] += cantidadEnVenta;
+            });
+
+            // Calcular comisiones solo para las cantidades NO depositadas
+            Object.keys(ventasAgrupadasTotales).forEach(usuarioId => {
+                const usuario = ventasAgrupadasTotales[usuarioId];
                 const comisionesVariablesUsuario = comisionesVariablesMap[usuarioId] || {};
 
                 Object.keys(usuario.categorias).forEach(categoriaId => {
                     const categoria = usuario.categorias[categoriaId];
-                    const cantidadProductos = categoria.cantidad;
+
+                    // Obtener la cantidad NO depositada para esta categoría
+                    const cantidadNoDepositada = ventasNoDepositadasPorUsuario[usuarioId]?.[categoriaId] || 0;
                     const comisionesVariablesCategoria = comisionesVariablesUsuario[categoriaId] || [];
 
+                    // Calcular comisión SOLO sobre la cantidad no depositada
                     const comisionCalculada = calcularComision(
                         categoria.reglas_comision,
-                        cantidadProductos,
+                        cantidadNoDepositada,  // ← SOLO no depositadas
                         comisionesVariablesCategoria
                     );
 
@@ -205,7 +234,7 @@ export const useVentasEstadisticas = () => {
                 });
             });
 
-            const resultado = Object.values(ventasAgrupadas).map(usuario => ({
+            const resultado = Object.values(ventasAgrupadasTotales).map(usuario => ({
                 ...usuario,
                 categorias: Object.values(usuario.categorias)
             }));
@@ -225,13 +254,11 @@ export const useVentasEstadisticas = () => {
         }
     };
 
-    // Función para cambiar mes y recargar datos
     const cambiarMes = async (nuevaFecha) => {
         setMesSeleccionado(nuevaFecha);
         await obtenerMisVentas(nuevaFecha);
     };
 
-    // Función para obtener meses disponibles (últimos 12 meses)
     const obtenerMesesDisponibles = () => {
         const meses = [];
         const hoy = new Date();
@@ -268,7 +295,7 @@ export const useVentasEstadisticas = () => {
         ventas,
         currentSucursal: getCurrentSucursal(),
         mesSeleccionado,
-        productosExcluidos, // Nuevo: cantidad de productos excluidos
+        productosExcluidos,
         obtenerMisVentas,
         calcularComision,
         cambiarMes,
