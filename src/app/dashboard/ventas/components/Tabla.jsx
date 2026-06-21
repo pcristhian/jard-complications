@@ -455,12 +455,12 @@ export default function Tabla({
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-12">
                                 Grupo
                             </th>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-60">
                                 Nota
                             </th>
                             {rolNombre === "admin" ? (
                                 <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                    No recibe
+                                    Sin comision
                                 </th>
                             ) :
                                 <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
@@ -480,15 +480,16 @@ export default function Tabla({
                                         : ''
                                     }
                                     h-0.5
-    `}
+                                 `}
                             >
-                                <td className="px-1 py-2 text-center">
-                                    <span className="text-xs font-mono font-bold text-black py-1 rounded-md">
+                                {/* enumerador */}
+                                <td className="px-1 w-8 py-2 text-center">
+                                    <span className="text-xs font-bold text-[#3F51B5] rounded-md block">
                                         {index + 1}
                                     </span>
                                 </td>
                                 {/* fecha */}
-                                <td className="px-1 py-1 leading-[16px] text-center w-18">
+                                <td className="px-1 py-2 leading-[16px] text-center w-18">
                                     {(() => {
                                         const fechaUTC = new Date(venta.fecha_venta);
                                         const fechaBolivia = new Date(fechaUTC.getTime() - (4 * 60 * 60 * 1000));
@@ -518,7 +519,7 @@ export default function Tabla({
                                     </div>
                                 </td>
                                 {/* producto */}
-                                <td className="px-1 py-3 max-w-[200px] overflow-hidden">
+                                <td className="px-1 py-3 max-w-[180px] overflow-hidden">
                                     <div className="relative group">
                                         <span
                                             className="
@@ -568,7 +569,7 @@ export default function Tabla({
                                 </td>
                                 {/* promotor */}
                                 <td className="px-1 py-3 leading-[16px] text-center">
-                                    <span className="text-xs font-semibold text-black block leading-snug">
+                                    <span className="text-xs text-black block tracking-[1px] font-bold">
                                         {venta.usuarios?.nombre}
                                     </span>
                                     {venta.rol_nombre !== "promotor" ? (
@@ -640,7 +641,7 @@ export default function Tabla({
                                             "{venta.observaciones}"</span>
                                         : <span> - </span>}
                                 </td>
-
+                                {/* marcar conjunto de depositos */}
                                 <td className="px-2 py-2 text-center">
                                     <div
                                         draggable={venta.estado === 'activa'}
@@ -681,6 +682,7 @@ export default function Tabla({
                                         </span>
                                     </div>
                                 </td>
+                                {/* notas */}
                                 <td className="px-2 py-2 text-left">
                                     <input
                                         type="text"
@@ -689,8 +691,10 @@ export default function Tabla({
                                         placeholder="Escribe una nota..."
                                         className="w-full px-1 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                         disabled={venta.estado === 'anulada'}
+                                        readOnly={rolNombre !== 'admin'}
                                     />
                                 </td>
+                                {/* boton anular o checkbox para no recibir comision */}
                                 <td className="px-1 whitespace-nowrap text-center text-sm font-medium w-20">
                                     {rolNombre === "admin" ? (
                                         // --- CHECKBOX PARA ADMIN ---

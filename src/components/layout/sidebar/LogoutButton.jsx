@@ -174,13 +174,12 @@ export default function LogoutButton({ isCollapsed }) {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleLogout}
                 className={`
-        flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200
+        flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200 cursor-pointer
         ${isCollapsed
                         ? 'p-2 bg-red-50 text-red-600 hover:bg-red-100'
                         : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
                     }
     `}
-                title="Cerrar sesión"
             >
                 <LogOut className={`w-4 h-4 ${isCollapsed ? 'w-5 h-5' : ''}`} />
                 {!isCollapsed && (
