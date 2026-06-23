@@ -1,12 +1,15 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FaHistory, FaClock } from 'react-icons/fa';
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
+import { ModalCrearBackups } from './ModalCrearBackups';
 
 export default function Header({ onNuevoProducto, onRecargar, loading, sucursalSeleccionada }) {
     const { values } = useMultiLocalStorageListener(["currentUser"]);
     const { currentUser } = values;
     const [isLoading, setIsLoading] = useState(true);
+    const [modalBackupsAbierto, setModalBackupsAbierto] = useState(false);
 
     useEffect(() => {
         if (!currentUser) return;
@@ -86,80 +89,82 @@ export default function Header({ onNuevoProducto, onRecargar, loading, sucursalS
     }
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: -40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white p-2 rounded-xl shadow-md border-l-4 border-amber-500"
-        >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex-1">
-                    <motion.h1
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className="text-xl font-bold text-gray-900 mb-2"
-                    >
-                        Gestión de Productos
-                    </motion.h1>
-
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.2 }}
-                            className="inline-flex items-center gap-1 bg-amber-100 px-3 py-1 rounded-full"
+        <>
+            <motion.div
+                initial={{ opacity: 0, y: -40 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white p-2 rounded-xl shadow-md border-l-4 border-amber-500"
+            >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex-1">
+                        <motion.h1
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.1 }}
+                            className="text-xl font-bold text-gray-900 mb-2"
                         >
-                            <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                            <span className="text-amber-600">Sucursal:</span>
-                            <span className="font-semibold text-amber-800">
-                                {sucursalSeleccionada ? sucursalSeleccionada.nombre : 'No seleccionada'}
-                            </span>
-                        </motion.div>
+                            Gestión de Productos
+                        </motion.h1>
 
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.3 }}
-                            className="inline-flex items-center gap-1 bg-amber-100 px-3 py-1 rounded-full"
-                        >
-                            <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            <span className="text-amber-600">Usuario:</span>
-                            <span className="font-semibold text-amber-800">{currentUser?.nombre}</span>
-                        </motion.div>
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.2 }}
+                                className="inline-flex items-center gap-1 bg-amber-100 px-3 py-1 rounded-full"
+                            >
+                                <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                                <span className="text-amber-600">Sucursal:</span>
+                                <span className="font-semibold text-amber-800">
+                                    {sucursalSeleccionada ? sucursalSeleccionada.nombre : 'No seleccionada'}
+                                </span>
+                            </motion.div>
 
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.4 }}
-                            className="inline-flex items-center gap-1 bg-amber-100 px-3 py-1 rounded-full"
-                        >
-                            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
-                            <span className="text-amber-600">Rol:</span>
-                            <span className="font-semibold text-amber-700">{currentUser?.roles?.nombre}</span>
-                        </motion.div>
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.3 }}
+                                className="inline-flex items-center gap-1 bg-amber-100 px-3 py-1 rounded-full"
+                            >
+                                <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span className="text-amber-600">Usuario:</span>
+                                <span className="font-semibold text-amber-800">{currentUser?.nombre}</span>
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.4 }}
+                                className="inline-flex items-center gap-1 bg-amber-100 px-3 py-1 rounded-full"
+                            >
+                                <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                <span className="text-amber-600">Rol:</span>
+                                <span className="font-semibold text-amber-700">{currentUser?.roles?.nombre}</span>
+                            </motion.div>
+                        </div>
                     </div>
-                </div>
 
-                <AnimatePresence>
-                    <motion.div
-                        initial={{ scale: 0, opacity: 0, x: -100 }}
-                        animate={{ scale: 1, opacity: 1, x: 0 }}
-                        exit={{ scale: 0, opacity: 0, x: -20 }}
-                        transition={{
-                            duration: 0.3,
-                            type: "spring",
-                            stiffness: 300,
-                            damping: 20
-                        }}
-                        className="flex items-center gap-2"
-                    >
+                    {/* Botones de acción */}
+                    <div className="flex items-center gap-2">
+                        {/* Botón único para Backups (Historial + Configuración) */}
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setModalBackupsAbierto(true)}
+                            className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 text-amber-700 px-3 py-2.5 rounded-full text-sm font-medium transition-colors"
+                        >
+                            <FaClock className="text-amber-600" />
+                            <span>Backups</span>
+                        </motion.button>
+
+                        {/* Botón Nuevo Producto */}
                         <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
@@ -172,13 +177,17 @@ export default function Header({ onNuevoProducto, onRecargar, loading, sucursalS
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                             </div>
-                            <span>
-                                Nuevo Producto
-                            </span>
+                            <span>Nuevo Producto</span>
                         </motion.button>
-                    </motion.div>
-                </AnimatePresence>
-            </div>
-        </motion.div>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* Modal Unificado de Backups (Historial + Configuración) */}
+            <ModalCrearBackups
+                isOpen={modalBackupsAbierto}
+                onClose={() => setModalBackupsAbierto(false)}
+            />
+        </>
     );
 }

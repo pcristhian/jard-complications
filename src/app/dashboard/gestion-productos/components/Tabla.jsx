@@ -77,15 +77,6 @@ export default function Tabla({
             transition={{ duration: 0.3 }}
             className="bg-white rounded-lg shadow overflow-hidden"
         >
-            {/* Barra de progreso del scroll */}
-            <div className="sticky top-0 z-50 w-full bg-gray-200 h-1 overflow-hidden">
-                <motion.div
-                    className="h-full bg-blue-500"
-                    animate={{ width: `${scrollProgress}%` }}
-                    transition={{ duration: 0 }}
-                />
-            </div>
-
             {/* Tabla con scroll interno (solo los datos) */}
             <div
                 ref={tableContainerRef}
