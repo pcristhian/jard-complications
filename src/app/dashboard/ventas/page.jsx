@@ -25,7 +25,7 @@ export default function VentasPage() {
         currentSucursal,
         sucursalCargada,
         rolNombre,
-        ventas,
+        ventas,  // ⬅️ Estas son las ventas originales (sin filtrar)
         crearVenta,
         crearMultiplesVentas,
         obtenerVendedores,
@@ -67,7 +67,7 @@ export default function VentasPage() {
 
     // 4. Ventas filtradas (para la tabla)
     const ventasFiltradas = useMemo(() => {
-        let ventasFiltradas = ventas;
+        let ventasFiltradas = ventas;  // ⬅️ Partimos de las ventas originales
 
         if (filtroCategoria) {
             ventasFiltradas = filtrarVentasPorCategoria(ventasFiltradas, filtroCategoria);
@@ -140,13 +140,15 @@ export default function VentasPage() {
                 terminoBusqueda={terminoBusqueda}
                 onBusquedaChange={manejarBusqueda}
                 categorias={obtenerCategoriasUnicas()}
-                usuariosActivos={usuariosDeVentasFiltradas}  // ✅ Usuarios de las ventas filtradas
+                usuariosActivos={usuariosDeVentasFiltradas}
                 totalVentas={ventas.length}
                 ventasFiltradas={ventasFiltradas}
                 filtroFecha={filtroFecha}
                 onFiltroFechaChange={setFiltroFecha}
                 mostrarSoloActivas={mostrarSoloActivas}
                 setMostrarSoloActivas={setMostrarSoloActivas}
+                // ⬇️ PASAR LAS VENTAS ORIGINALES PARA LA DESCARGA ⬇️
+                ventasOriginales={ventas}  // 🔥 NUEVA PROP
             />
 
             <Tabla
