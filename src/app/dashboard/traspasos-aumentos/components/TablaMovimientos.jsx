@@ -249,7 +249,55 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
         }
     };
 
-    // ... resto de funciones (getTipoMovimientoInfo, handleAnularClick, etc.) ...
+    const handleAnularClick = (movimiento) => {
+        setModalAnulacion({
+            abierto: true,
+            movimientoId: movimiento.id,
+            movimiento: movimiento
+        });
+    };
+
+    const handleConfirmarAnulacion = async (motivo) => {
+        if (!modalAnulacion.movimientoId || !motivo.trim()) {
+            toast.error('Debes ingresar un motivo para la anulación');
+            return;
+        }
+
+        setAnulando(modalAnulacion.movimientoId);
+
+        try {
+            const resultado = await anularMovimiento({
+                movimientoId: modalAnulacion.movimientoId,
+                usuarioId: currentUser?.id,
+                motivo: motivo.trim()
+            });
+
+            if (resultado.success) {
+                toast.success('✅ Movimiento anulado correctamente');
+
+                // Recargar la lista de movimientos
+                await cargarMovimientos();
+
+                // Notificar al componente padre si existe callback
+                if (onMovimientoAnulado) {
+                    onMovimientoAnulado(modalAnulacion.movimientoId);
+                }
+            } else {
+                toast.error(resultado.error || 'Error al anular el movimiento');
+            }
+        } catch (err) {
+            console.error('Error al anular:', err);
+            toast.error('Error al anular el movimiento');
+        } finally {
+            setAnulando(null);
+            setModalAnulacion({
+                abierto: false,
+                movimientoId: null,
+                movimiento: null
+            });
+        }
+    };
+
 
     const esMesActual = () => {
         const ahora = new Date();
