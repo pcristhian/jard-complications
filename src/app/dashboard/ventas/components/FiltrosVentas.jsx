@@ -251,7 +251,7 @@ const FiltrosVentas = ({
     // 🟢 FUNCIÓN PARA DESCARGAR EXCEL
     const descargarExcel = () => {
         if (!ventasOriginales || ventasOriginales.length === 0) {
-            alert('No hay ventas para descargar');
+            toast.error('No hay ventas para descargar');
             return;
         }
 
@@ -262,7 +262,7 @@ const FiltrosVentas = ({
             const ventasActivas = ventasOriginales.filter(v => v.estado === 'activa');
 
             if (ventasActivas.length === 0) {
-                alert('No hay ventas activas para descargar');
+                toast.error('No hay ventas activas para descargar');
                 setDescargando(false);
                 return;
             }
@@ -323,7 +323,7 @@ const FiltrosVentas = ({
                     'Producto': venta.producto_nombre || '',
                     'Promotor': venta.usuarios?.nombre || '',
                     'Caja': venta.usuarios?.caja || '',
-                    'Rol': venta.rol_nombre || '',
+                    // 'Rol': venta.rol_nombre || '',
                     'Cantidad': venta.cantidad || 0,
                     'Precio Unitario': parseFloat(venta.producto_precio || 0).toFixed(2),
                     'Total': parseFloat(venta.total_precio_venta || 0).toFixed(2),
@@ -336,7 +336,7 @@ const FiltrosVentas = ({
                     'Categoría': venta.categoria_nombre || '',
                     'Observaciones': venta.observaciones || '',
                     'Estado': venta.estado || '',
-                    'Depositado': venta.depositado ? 'Sí' : 'No',
+                    // 'Depositado': venta.depositado ? 'Sí' : 'No',
                 };
             });
 
@@ -349,10 +349,10 @@ const FiltrosVentas = ({
                 { wch: 6 },  // N°
                 { wch: 12 }, // Fecha
                 { wch: 12 }, // Código
-                { wch: 30 }, // Producto
+                { wch: 40 }, // Producto
                 { wch: 15 }, // Promotor
                 { wch: 12 }, // Caja
-                { wch: 10 }, // Rol
+                // { wch: 10 }, // Rol
                 { wch: 10 }, // Cantidad
                 { wch: 14 }, // Precio Unitario
                 { wch: 14 }, // Total
@@ -361,7 +361,7 @@ const FiltrosVentas = ({
                 { wch: 15 }, // Categoría
                 { wch: 25 }, // Observaciones
                 { wch: 10 }, // Estado
-                { wch: 10 }, // Depositado
+                // { wch: 10 }, // Depositado
             ];
             ws['!cols'] = colWidths;
 

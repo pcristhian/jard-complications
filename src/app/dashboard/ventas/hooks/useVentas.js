@@ -128,73 +128,6 @@ export const useVentas = () => {
         }
     };
 
-    // Consultar ventas del usuario actual
-    // const obtenerMisVentas = async () => {
-    //     const currentUser = getCurrentUser();
-    //     const currentSucursal = getCurrentSucursal();
-    //     if (!currentUser || !currentSucursal) return;
-
-    //     try {
-    //         setLoading(true);
-
-    //         const { data: ventasData, error: supabaseError } = await supabase
-    //             .from('ventas')
-    //             .select(`
-    //                 *,
-    //                 productos:producto_id (
-    //                     id,
-    //                     nombre,
-    //                     codigo,
-    //                     precio,
-    //                     comision_variable,
-    //                     categoria_id,
-    //                     categorias:categoria_id (
-    //                         id,
-    //                         nombre,
-    //                         reglas_comision
-    //                     )
-    //                 ),
-    //                 usuarios:promotor_id (
-    //                     id,
-    //                     nombre,
-    //                     rol_id,
-    //                     caja,
-    //                     roles:rol_id (
-    //                         id,
-    //                         nombre
-    //                     )
-    //                 )
-    //             `)
-    //             .eq('sucursal_id', currentSucursal.id)
-    //             .eq('usuarios.activo', false)
-    //             .order('fecha_venta', { ascending: false });
-
-    //         if (supabaseError) {
-    //             throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
-    //         }
-
-    //         // Enriquecer datos y mantener la fecha original UTC
-    //         const ventasEnriquecidas = (ventasData || []).map(venta => ({
-    //             ...venta,
-    //             fecha_venta_utc: venta.fecha_venta, // Guardar UTC original
-    //             producto_nombre: venta.productos?.nombre || `Producto ${venta.producto_id}`,
-    //             comision_variable: venta.productos?.comision_variable || 'no var',
-    //             producto_codigo: venta.productos?.codigo || `COD-${venta.producto_id}`,
-    //             producto_precio: venta.productos?.precio || 0,
-    //             categoria_nombre: venta.productos?.categorias?.nombre || `Categoría ${venta.productos?.categoria_id}`,
-    //             usuario_nombre: venta.usuarios?.nombre || `Usuario ${venta.promotor_id}`,
-    //             rol_nombre: venta.usuarios?.roles?.nombre || `Rol ${venta.usuarios?.rol_id}`
-    //         }));
-
-    //         setVentas(ventasEnriquecidas);
-    //         setError(null);
-    //     } catch (err) {
-    //         setError(err.message);
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
-
     const obtenerMisVentas = async () => {
         const currentUser = getCurrentUser();
         const currentSucursal = getCurrentSucursal();
@@ -311,7 +244,6 @@ export const useVentas = () => {
                 .select('codigo, nombre')
                 .eq('id', productoId)
                 .single();
-
             const movimiento = {
                 usuario_id: currentUser.id,
                 tipo_movimiento: 'salida_stock',

@@ -534,6 +534,7 @@ export default function Tabla({
                                                 // Solo aplicar la animación si el texto se desborda
                                                 willChange: 'transform'
                                             }}
+                                            //desbordamiento de texto animacion
                                             ref={el => {
                                                 if (el) {
                                                     const parent = el.parentElement;
@@ -556,14 +557,10 @@ export default function Tabla({
                                                 }
                                             }}
                                         >
-                                            {venta.producto_nombre.toLowerCase().split(' ').map(p =>
-                                                p.charAt(0).toUpperCase() + p.slice(1)
-                                            ).join(' ')}
+                                            {venta.producto_nombre}
                                         </span>
                                         <span className="invisible whitespace-nowrap text-sm text-slate-300 block leading-snug">
-                                            {venta.producto_nombre.toLowerCase().split(' ').map(p =>
-                                                p.charAt(0).toUpperCase() + p.slice(1)
-                                            ).join(' ')}
+                                            {venta.producto_nombre}
                                         </span>
                                     </div>
                                 </td>
