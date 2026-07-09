@@ -102,22 +102,24 @@ export const useVentas = () => {
                 throw new Error(`Error al obtener productos: ${supabaseError.message}`);
             }
 
-            const productosFormateados = data.map(item => ({
-                id: item.producto.id,
-                codigo: item.producto.codigo,
-                nombre: item.producto.nombre,
-                descripcion: item.producto.descripcion,
-                precio: item.producto.precio,
-                costo: item.producto.costo,
-                comision_variable: item.producto.comision_variable,
-                stock_actual: item.stock_actual,
-                stock_minimo: item.stock_minimo,
-                activo: item.producto.activo,
-                created_at: item.producto.created_at,
-                updated_at: item.producto.updated_at,
-                categoria_id: item.producto.categoria_id,
-                categorias: item.producto.categorias
-            }));
+            const productosFormateados = data
+                .filter(item => item.producto !== null)
+                .map(item => ({
+                    id: item.producto.id,
+                    codigo: item.producto.codigo,
+                    nombre: item.producto.nombre,
+                    descripcion: item.producto.descripcion,
+                    precio: item.producto.precio,
+                    costo: item.producto.costo,
+                    comision_variable: item.producto.comision_variable,
+                    stock_actual: item.stock_actual,
+                    stock_minimo: item.stock_minimo,
+                    activo: item.producto.activo,
+                    created_at: item.producto.created_at,
+                    updated_at: item.producto.updated_at,
+                    categoria_id: item.producto.categoria_id,
+                    categorias: item.producto.categorias
+                }));
 
             setProductos(productosFormateados || []);
         } catch (err) {

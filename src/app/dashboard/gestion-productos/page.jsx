@@ -70,7 +70,7 @@ export default function GestionProductos() {
     };
 
     return (
-        <div className="p-3 space-y-3 text-gray-800">
+        <div className="p-3 space-y-1 text-gray-800">
             <Header
                 onNuevoProducto={() => setModalNuevoAbierto(true)}
                 onRecargar={recargarProductos}

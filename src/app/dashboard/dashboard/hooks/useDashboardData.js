@@ -85,9 +85,10 @@ export const useDashboardData = () => {
     const obtenerProductos = useCallback(async (sucursalId) => {
         if (!sucursalId) return [];
 
-        const { data, error: supabaseError } = await supabase
-            .from('productos_stock')
-            .select(`
+        try {
+            const { data, error: supabaseError } = await supabase
+                .from('productos_stock')
+                .select(`
                 stock_actual,
                 producto:producto_id (
                     id,
@@ -99,23 +100,42 @@ export const useDashboardData = () => {
                     )
                 )
             `)
-            .eq('sucursal_id', sucursalId)
-            .eq('producto.activo', true);
+                .eq('sucursal_id', sucursalId)
+                .eq('producto.activo', true);
 
-        if (supabaseError) {
-            throw new Error(`Error al obtener productos: ${supabaseError.message}`);
+            if (supabaseError) {
+                console.error('Error Supabase:', supabaseError);
+                return [];
+            }
+
+            // Validar y transformar datos
+            const productosValidos = (data || [])
+                .filter(item => {
+                    // Verificar que el producto existe
+                    if (!item.producto) {
+                        console.warn('Registro con producto null encontrado:', item);
+                        return false;
+                    }
+                    return true;
+                })
+                .map(item => ({
+                    id: item.producto.id,
+                    nombre: item.producto.nombre,
+                    stock_actual: item.stock_actual,
+                    categoria_id: item.producto.categoria_id,
+                    categorias: item.producto.categorias,
+                    // Añadir flag para identificar si el producto es válido
+                    es_valido: true
+                }));
+
+            console.log(`✅ Productos cargados: ${productosValidos.length}`);
+            return productosValidos;
+
+        } catch (error) {
+            console.error('Error en obtenerProductos:', error);
+            return [];
         }
-
-        // Transformar datos a la estructura esperada por el dashboard
-        return (data || []).map(item => ({
-            id: item.producto.id,
-            nombre: item.producto.nombre,
-            stock_actual: item.stock_actual,
-            categoria_id: item.producto.categoria_id,
-            categorias: item.producto.categorias
-        }));
     }, []);
-
     const getCurrentMonth = useCallback(() => {
         const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];

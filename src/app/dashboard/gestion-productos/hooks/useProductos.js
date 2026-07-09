@@ -25,28 +25,28 @@ export const useProductos = (sucursalId) => {
             const { data, error } = await supabase
                 .from('productos_stock')
                 .select(`
-                    *,
-                    producto:producto_id (
+                *,
+                producto:producto_id (
+                    id,
+                    codigo,
+                    nombre,
+                    descripcion,
+                    precio,
+                    costo,
+                    comision_variable,
+                    activo,
+                    created_at,
+                    updated_at,
+                    categoria_id,
+                    categorias (
                         id,
-                        codigo,
                         nombre,
-                        descripcion,
-                        precio,
-                        costo,
-                        comision_variable,
-                        activo,
-                        created_at,
-                        updated_at,
-                        categoria_id,
-                        categorias (
-                            id,
-                            nombre,
-                            reglas_comision
-                        )
+                        reglas_comision
                     )
-                `)
+                )
+            `)
                 .eq('sucursal_id', sucursal_id)
-                .eq('producto.activo', true)
+                // .eq('producto.activo', true) // Comentado para mostrar todos
                 .order('producto(codigo)', { ascending: true });
 
             if (error) throw error;
@@ -59,28 +59,31 @@ export const useProductos = (sucursalId) => {
                 .maybeSingle();
 
             // 🔹 Transformar datos manteniendo la estructura original
-            const productosFormateados = data.map(item => ({
-                id: item.producto.id,
-                codigo: item.producto.codigo,
-                nombre: item.producto.nombre,
-                descripcion: item.producto.descripcion,
-                precio: item.producto.precio,
-                costo: item.producto.costo,
-                comision_variable: item.producto.comision_variable,
-                stock_actual: item.stock_actual,
-                stock_inicial: item.stock_inicial,
-                stock_minimo: item.stock_minimo,
-                activo: item.producto.activo,
-                created_at: item.producto.created_at,
-                updated_at: item.producto.updated_at,
-                categoria_id: item.producto.categoria_id,
-                sucursal_id: sucursal_id,
-                categorias: item.producto.categorias,
-                sucursales: sucursalData || { id: sucursal_id, nombre: 'Cargando...' },
-                stock_id: item.id,
-                stock_created_at: item.created_at,
-                stock_updated_at: item.updated_at
-            }));
+            // FILTRAR productos que tienen datos válidos
+            const productosFormateados = data
+                .filter(item => item.producto !== null) // 👈 FILTRO IMPORTANTE
+                .map(item => ({
+                    id: item.producto.id,
+                    codigo: item.producto.codigo,
+                    nombre: item.producto.nombre,
+                    descripcion: item.producto.descripcion,
+                    precio: item.producto.precio,
+                    costo: item.producto.costo,
+                    comision_variable: item.producto.comision_variable,
+                    stock_actual: item.stock_actual,
+                    stock_inicial: item.stock_inicial,
+                    stock_minimo: item.stock_minimo,
+                    activo: item.producto.activo,
+                    created_at: item.producto.created_at,
+                    updated_at: item.producto.updated_at,
+                    categoria_id: item.producto.categoria_id,
+                    sucursal_id: sucursal_id,
+                    categorias: item.producto.categorias,
+                    sucursales: sucursalData || { id: sucursal_id, nombre: 'Cargando...' },
+                    stock_id: item.id,
+                    stock_created_at: item.created_at,
+                    stock_updated_at: item.updated_at
+                }));
 
             setProductos(productosFormateados);
         } catch (error) {
@@ -295,7 +298,8 @@ export const useProductos = (sucursalId) => {
         }
     };
 
-    // Actualizar producto existente
+
+    // Actualizar producto existente    
     const actualizarProducto = async (id, productoData) => {
         setLoading(true);
         setError(null);
@@ -322,13 +326,14 @@ export const useProductos = (sucursalId) => {
                     comision_variable: categoriaPermiteComisionVariable(productoData.categoria_id) && productoData.comision_variable
                         ? parseFloat(productoData.comision_variable)
                         : null,
+                    activo: productoData.activo, // 👈 AGREGAR ESTA LÍNEA
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', id)
                 .select(`
-                    *,
-                    categorias (*)
-                `)
+                *,
+                categorias (*)
+            `)
                 .single();
 
             if (errorCatalogo) throw errorCatalogo;
