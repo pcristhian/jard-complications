@@ -1,5 +1,4 @@
-// src/app/dashboard/gestion-inventario/page.js
-
+// src/app/dashboard/gestion-inventario/page.jsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,6 +13,7 @@ export default function GestionInventario() {
     const [filtroCategoria, setFiltroCategoria] = useState(null);
     const [fechaConteo, setFechaConteo] = useState(new Date().toISOString().split('T')[0]);
 
+    // ✅ Extraemos todas las funciones y estados del hook
     const {
         productos,
         conteos,
@@ -22,22 +22,42 @@ export default function GestionInventario() {
         saving,
         cargarProductos,
         cargarConteos,
-        guardarConteo
+        guardarConteo,
+        limpiarConteos,      // ✅ Nuevo: para limpiar conteos al cambiar fecha
+        fechaActual,         // ✅ Nuevo: fecha desde el hook (sincronizada)
+        setFechaActual       // ✅ Nuevo: para actualizar fecha desde el hook
     } = useInventarioFisico();
+
+    // ✅ Sincronizar fechaConteo local con fechaActual del hook
+    useEffect(() => {
+        if (fechaActual && fechaActual !== fechaConteo) {
+            setFechaConteo(fechaActual);
+        }
+    }, [fechaActual]);
 
     // Cargar productos cuando cambia la sucursal o categoría
     useEffect(() => {
         if (sucursalSeleccionada?.id) {
             cargarProductos(sucursalSeleccionada.id, filtroCategoria);
         }
-    }, [sucursalSeleccionada?.id, filtroCategoria]);
+    }, [sucursalSeleccionada?.id, filtroCategoria, cargarProductos]);
 
     // Cargar conteos cuando cambia la fecha o sucursal
     useEffect(() => {
         if (sucursalSeleccionada?.id) {
             cargarConteos(sucursalSeleccionada.id, fechaConteo);
         }
-    }, [sucursalSeleccionada?.id, fechaConteo]);
+    }, [sucursalSeleccionada?.id, fechaConteo, cargarConteos]);
+
+    // ✅ Función para manejar cambio de fecha (integrada con el hook)
+    const handleCambiarFecha = (nuevaFecha) => {
+        setFechaConteo(nuevaFecha);        // Actualizar estado local
+        setFechaActual(nuevaFecha);        // Actualizar estado del hook
+        limpiarConteos();                  // Limpiar conteos anteriores
+        if (sucursalSeleccionada?.id) {
+            cargarConteos(sucursalSeleccionada.id, nuevaFecha); // Recargar con nueva fecha
+        }
+    };
 
     if (!sucursalSeleccionada) {
         return (
@@ -64,6 +84,8 @@ export default function GestionInventario() {
                 saving={saving}
                 sucursalId={sucursalSeleccionada.id}
                 onGuardarConteo={guardarConteo}
+                onCambiarFecha={handleCambiarFecha}  // ✅ Nueva prop
+                fechaActual={fechaConteo}            // ✅ Nueva prop
             />
         </div>
     );

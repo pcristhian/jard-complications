@@ -67,6 +67,7 @@ export default function Tabla({
         handleDragOver,
         handleMouseDown,
         handleMouseUp,
+        handleDoubleClick,
         handleNoteChange,
         getVentaNote,
         getVentaGroupColor,
@@ -649,7 +650,14 @@ export default function Tabla({
                                         onMouseDown={(e) => venta.grupo_revision_id && handleMouseDown(e, venta)}
                                         onMouseUp={handleMouseUp}
                                         onMouseLeave={handleMouseUp}
-                                        // 🔥 AGREGAR CLIC DERECHO
+                                        // 🔥 AGREGAR DOBLE CLIC
+                                        onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            if (venta.grupo_revision_id && venta.estado === 'activa') {
+                                                handleDoubleClick(venta);
+                                            }
+                                        }}
+                                        // 🔥 CLIC DERECHO (mantener existente)
                                         onContextMenu={(e) => {
                                             if (venta.grupo_revision_id && venta.estado === 'activa') {
                                                 handleGroupContextMenu(e, venta.grupo_revision_id);
@@ -679,6 +687,46 @@ export default function Tabla({
                                         </span>
                                     </div>
                                 </td>
+                                {/* <td className="px-2 py-2 text-center">
+                                    <div
+                                        draggable={venta.estado === 'activa'}
+                                        onDragStart={(e) => handleDragStart(e, index, venta.id)}
+                                        onDragEnd={handleDragEnd}
+                                        onDrop={(e) => handleDrop(e, venta.id, index)}
+                                        onDragOver={handleDragOver}
+                                        onMouseDown={(e) => venta.grupo_revision_id && handleMouseDown(e, venta)}
+                                        onMouseUp={handleMouseUp}
+                                        onMouseLeave={handleMouseUp}
+                                        // 🔥 AGREGAR CLIC DERECHO
+                                        onContextMenu={(e) => {
+                                            if (venta.grupo_revision_id && venta.estado === 'activa') {
+                                                handleGroupContextMenu(e, venta.grupo_revision_id);
+                                            }
+                                        }}
+                                        className={`select-none inline-flex items-center justify-center min-w-[48px] h-7 px-2 rounded-full transition-all group relative ${venta.estado === 'activa'
+                                            ? 'hover:scale-105 hover:shadow-md cursor-grab active:cursor-grabbing'
+                                            : 'opacity-30 cursor-not-allowed'
+                                            } ${venta.grupo_revision_id ? 'cursor-pointer' : ''
+                                            }`}
+                                        style={{
+                                            backgroundColor: getVentaGroupColor(venta) || '#E5E7EB',
+                                            border: selectedVentas.has(venta.id) ? '2px solid #3B82F6' : '2px solid transparent'
+                                        }}
+                                    >
+                                        <span className="text-xs font-bold min-w-[48px]" style={{
+                                            color: getVentaGroupColor(venta) ? '#fff' : '#6B7280'
+                                        }}>
+                                            {venta.grupo_revision_id ? (
+                                                `Bs. ${(() => {
+                                                    const grupo = gruposExistentes?.find(g => g.id === venta.grupo_revision_id);
+                                                    return grupo?.total?.toFixed(2) || '0.00';
+                                                })()}`
+                                            ) : (
+                                                '⋮'
+                                            )}
+                                        </span>
+                                    </div>
+                                </td> */}
                                 {/* notas */}
                                 <td className="px-2 py-2 text-left">
                                     <input

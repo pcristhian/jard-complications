@@ -1,4 +1,5 @@
 // src/app/dashboard/gestion-inventario/hooks/useInventarioFisico.js
+"use client";
 
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
@@ -9,6 +10,7 @@ export function useInventarioFisico() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [saving, setSaving] = useState({});
+    const [fechaActual, setFechaActual] = useState(new Date().toISOString().split('T')[0]);
 
     const debounceTimers = useRef({});
 
@@ -82,9 +84,14 @@ export function useInventarioFisico() {
     }, []);
 
     const cargarConteos = useCallback(async (sucursalId, fechaConteo) => {
-        if (!sucursalId || !fechaConteo) return {};
+        if (!sucursalId || !fechaConteo) {
+            setConteos({});
+            return {};
+        }
 
         try {
+            console.log('Cargando conteos para fecha:', fechaConteo);
+
             const { data, error } = await supabase
                 .from('inventario_fisico')
                 .select('producto_id, conteos')
@@ -94,25 +101,45 @@ export function useInventarioFisico() {
             if (error) throw error;
 
             const conteosMap = {};
-            if (data) {
+            if (data && data.length > 0) {
                 data.forEach(item => {
                     conteosMap[item.producto_id] = item.conteos || {};
                 });
             }
 
+            console.log('Conteos cargados:', Object.keys(conteosMap).length, 'productos');
             setConteos(conteosMap);
             return conteosMap;
 
         } catch (err) {
             console.error('Error cargando conteos:', err);
+            setConteos({});
             return {};
         }
     }, []);
 
+    const limpiarConteos = useCallback(() => {
+        setConteos({});
+    }, []);
+
     const guardarConteoReal = useCallback(async (sucursalId, productoId, columna, valor, fechaConteo) => {
-        setSaving(prev => ({ ...prev, [`${productoId}_${columna}`]: true }));
+        // Validar parámetros
+        if (!sucursalId || !productoId || !columna || !fechaConteo) {
+            console.error('Parámetros inválidos:', { sucursalId, productoId, columna, fechaConteo });
+            return { success: false, error: 'Parámetros inválidos' };
+        }
+
+        const savingKey = `${productoId}_${columna}`;
+        setSaving(prev => ({ ...prev, [savingKey]: true }));
 
         try {
+            // Limpiar el valor (string vacío si es null o undefined)
+            const valorLimpio = (valor === null || valor === undefined) ? '' : String(valor);
+
+            console.log(`Guardando: producto ${productoId}, ${columna} = "${valorLimpio}"`);
+
+            // ✅ Estrategia: UPSERT - intentar actualizar o insertar en una sola operación
+            // Primero, obtener el registro actual
             const { data: existente, error: fetchError } = await supabase
                 .from('inventario_fisico')
                 .select('id, conteos')
@@ -121,48 +148,85 @@ export function useInventarioFisico() {
                 .eq('fecha_conteo', fechaConteo)
                 .maybeSingle();
 
-            if (fetchError) throw fetchError;
+            if (fetchError) {
+                console.error('Error al buscar registro:', fetchError);
+                throw fetchError;
+            }
 
-            const conteosActuales = existente?.conteos || {};
-            const nuevosConteos = {
-                ...conteosActuales,
-                [columna]: valor
-            };
-
+            let nuevosConteos;
             let result;
+
             if (existente) {
-                result = await supabase
+                // ✅ Actualizar registro existente
+                nuevosConteos = {
+                    ...(existente.conteos || {}),
+                    [columna]: valorLimpio
+                };
+
+                const { data, error } = await supabase
                     .from('inventario_fisico')
-                    .update({ conteos: nuevosConteos })
-                    .eq('id', existente.id);
+                    .update({
+                        conteos: nuevosConteos
+                    })
+                    .eq('id', existente.id)
+                    .select();
+
+                if (error) throw error;
+                result = data;
             } else {
-                result = await supabase
+                // ✅ Insertar nuevo registro
+                nuevosConteos = {
+                    [columna]: valorLimpio
+                };
+
+                const { data, error } = await supabase
                     .from('inventario_fisico')
-                    .insert([{
+                    .insert({
                         producto_id: productoId,
                         sucursal_id: sucursalId,
                         fecha_conteo: fechaConteo,
                         conteos: nuevosConteos,
-                        tipo_conteo: 'normal'
-                    }]);
+                        tipo_conteo: 'normal',
+                        estado: 'pendiente'
+                    })
+                    .select();
+
+                if (error) throw error;
+                result = data;
             }
 
-            if (result.error) throw result.error;
+            // ✅ Verificar que la operación fue exitosa
+            if (!result || result.length === 0) {
+                throw new Error('No se recibieron datos de la operación');
+            }
 
+            console.log(`✅ Guardado exitoso: ${columna} = "${valorLimpio}"`);
+
+            // ✅ Actualizar estado local con los datos devueltos
+            const conteoGuardado = result[0].conteos || nuevosConteos;
             setConteos(prev => ({
                 ...prev,
-                [productoId]: nuevosConteos
+                [productoId]: conteoGuardado
             }));
 
             return { success: true };
 
         } catch (err) {
-            console.error('Error guardando:', err);
-            return { success: false, error: err.message };
+            console.error(`❌ Error guardando ${columna}:`, err);
+            console.error('Detalles:', {
+                message: err.message,
+                code: err.code,
+                details: err.details
+            });
+
+            return {
+                success: false,
+                error: err.message || 'Error al guardar'
+            };
         } finally {
             setSaving(prev => {
                 const newState = { ...prev };
-                delete newState[`${productoId}_${columna}`];
+                delete newState[savingKey];
                 return newState;
             });
         }
@@ -171,22 +235,36 @@ export function useInventarioFisico() {
     const guardarConteo = useCallback((sucursalId, productoId, columna, valor, fechaConteo) => {
         const key = `${productoId}_${columna}`;
 
+        // Limpiar timer anterior
         if (debounceTimers.current[key]) {
             clearTimeout(debounceTimers.current[key]);
         }
 
-        setConteos(prev => ({
-            ...prev,
-            [productoId]: {
-                ...(prev[productoId] || {}),
-                [columna]: valor
-            }
-        }));
+        // ✅ Asegurar que el valor sea string
+        const valorLimpio = (valor === null || valor === undefined) ? '' : String(valor);
 
+        // ✅ Actualizar estado local inmediatamente
+        setConteos(prev => {
+            const conteosProducto = prev[productoId] || {};
+            return {
+                ...prev,
+                [productoId]: {
+                    ...conteosProducto,
+                    [columna]: valorLimpio
+                }
+            };
+        });
+
+        // ✅ Guardar en base de datos con debounce
         debounceTimers.current[key] = setTimeout(async () => {
-            await guardarConteoReal(sucursalId, productoId, columna, valor, fechaConteo);
-            delete debounceTimers.current[key];
-        }, 800);
+            try {
+                await guardarConteoReal(sucursalId, productoId, columna, valorLimpio, fechaConteo);
+            } catch (err) {
+                console.error('Error en guardado programado:', err);
+            } finally {
+                delete debounceTimers.current[key];
+            }
+        }, 600);
     }, [guardarConteoReal]);
 
     return {
@@ -195,8 +273,11 @@ export function useInventarioFisico() {
         loading,
         error,
         saving,
+        fechaActual,
+        setFechaActual,
         cargarProductos,
         cargarConteos,
-        guardarConteo
+        guardarConteo,
+        limpiarConteos
     };
 }

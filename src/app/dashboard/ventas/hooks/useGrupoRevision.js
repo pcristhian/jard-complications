@@ -224,6 +224,7 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
     const getVentaNote = useCallback((venta) => {
         return venta?.nota_individual || '';
     }, []);
+    // hooks/useGrupoRevision.js - Versión optimizada de desagruparVenta
 
     const desagruparVenta = useCallback(async (venta) => {
         if (!venta.grupo_revision_id) {
@@ -239,6 +240,9 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         const grupoId = venta.grupo_revision_id;
 
         try {
+            setLoadingGroup(true); // Mostrar estado de carga
+
+            // 1. Desagrupar la venta
             const { error } = await supabase
                 .from('ventas')
                 .update({ grupo_revision_id: null })
@@ -246,8 +250,7 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
 
             if (error) throw error;
 
-            await obtenerMisVentas();
-
+            // 2. Obtener ventas restantes del grupo
             const { data: ventasRestantes, error: queryError } = await supabase
                 .from('ventas')
                 .select('id, total_precio_venta, estado')
@@ -258,13 +261,15 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
 
             const cantidadRestante = ventasRestantes?.length || 0;
 
+            // 3. Actualizar grupo según cantidad restante
             if (cantidadRestante === 0) {
+                // Grupo vacío - desactivar
                 await supabase
                     .from('grupos_revision')
                     .update({ activo: false })
                     .eq('id', grupoId);
-                toast.success('Grupo eliminado por estar vacío');
             } else if (cantidadRestante === 1) {
+                // Solo una venta - mover a sin grupo y desactivar
                 const ventaSolaId = ventasRestantes[0].id;
                 await supabase
                     .from('ventas')
@@ -274,8 +279,8 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
                     .from('grupos_revision')
                     .update({ activo: false })
                     .eq('id', grupoId);
-                toast.success('Grupo disuelto - solo quedaba una venta');
             } else {
+                // Actualizar total del grupo
                 const nuevoTotal = ventasRestantes.reduce((sum, v) =>
                     sum + parseFloat(v.total_precio_venta || 0), 0
                 );
@@ -283,18 +288,48 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
                     .from('grupos_revision')
                     .update({ total: nuevoTotal })
                     .eq('id', grupoId);
-                toast.success(`Venta removida - Grupo actualizado: Bs. ${nuevoTotal.toFixed(2)}`);
             }
 
-            await cargarGrupos();
-            await obtenerMisVentas();
+            // 4. Recargar datos en paralelo para mayor velocidad
+            await Promise.all([
+                cargarGrupos(),
+                obtenerMisVentas()
+            ]);
+
+            // 5. Mostrar toast rápido
+            toast.success('✅ Venta desagrupada', {
+                duration: 1500,
+                icon: '🔄'
+            });
+
             return true;
         } catch (error) {
             console.error('Error al desagrupar:', error);
             toast.error('Error al desagrupar la venta');
             return false;
+        } finally {
+            setLoadingGroup(false);
         }
     }, [obtenerMisVentas, cargarGrupos]);
+    // hooks/useGrupoRevision.js
+
+    const handleDoubleClick = useCallback(async (venta) => {
+        if (!venta.grupo_revision_id) {
+            toast('Esta venta no pertenece a ningún grupo', { icon: 'ℹ️' });
+            return false;
+        }
+
+        if (venta.estado === 'anulada') {
+            toast.error('No se puede desagrupar una venta anulada');
+            return false;
+        }
+
+        // ❌ Eliminamos la confirmación
+        // ✅ Desagrupar directamente y de forma más rápida
+
+        // Usar la función existente de desagrupar
+        return await desagruparVenta(venta);
+    }, [desagruparVenta]);
 
     // Manejador de tecla Z
     useEffect(() => {
@@ -566,6 +601,7 @@ export const useGrupoRevision = (ventas, obtenerMisVentas) => {
         handleDrop,
         handleDragOver,
         handleMouseDown,
+        handleDoubleClick,
         handleMouseUp,
         handleNoteChange,
         getVentaNote,

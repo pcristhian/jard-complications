@@ -7,24 +7,25 @@ import { supabase } from '@/lib/supabase/client';
 import * as XLSX from 'xlsx';
 
 export default function TablaInventario({
-    productos,
-    conteos,
+    productos: productosProp,
+    conteos: conteosProp,
     loading,
     saving,
     sucursalId,
-    onGuardarConteo
+    onGuardarConteo,
+    onCambiarFecha
 }) {
+    // Estado local para fecha
     const [fechaGlobal, setFechaGlobal] = useState(new Date().toISOString().split('T')[0]);
     const [filtroCategoria, setFiltroCategoria] = useState('');
     const [busquedaTexto, setBusquedaTexto] = useState('');
     const [categorias, setCategorias] = useState([]);
 
-    // Estado local para cambios inmediatos (optimistic updates)
+    // Estado local para conteos (sincronizado con props)
     const [conteosLocales, setConteosLocales] = useState({});
     const [titulosLocales, setTitulosLocales] = useState({});
 
-    // Estado para indicador de guardado (más discreto)
-    const [ultimoGuardado, setUltimoGuardado] = useState(null);
+    // Estado para indicador de guardado
     const [cambiosPendientes, setCambiosPendientes] = useState(0);
 
     // Timeouts para debounce
@@ -37,27 +38,30 @@ export default function TablaInventario({
     const loadMoreRef = useRef(null);
     const tableContainerRef = useRef(null);
 
+    // Ahora solo 4 columnas
     const [titulosColumnas, setTitulosColumnas] = useState({
         col1: '',
         col2: '',
         col3: '',
-        col4: '',
-        col5: '',
-        col6: '',
-        col7: ''
+        col4: ''
     });
 
     const inputRefs = useRef({});
     const tituloInputRefs = useRef({});
-    const columnas = ['col1', 'col2', 'col3', 'col4', 'col5', 'col6', 'col7'];
+    const columnas = ['col1', 'col2', 'col3', 'col4'];
 
     // Sincronizar conteos locales con props
     useEffect(() => {
-        setConteosLocales(prev => ({
-            ...prev,
-            ...conteos
-        }));
-    }, [conteos]);
+        if (conteosProp && Object.keys(conteosProp).length > 0) {
+            setConteosLocales(prev => ({
+                ...prev,
+                ...conteosProp
+            }));
+        } else {
+            // Si no hay conteos, limpiar
+            setConteosLocales({});
+        }
+    }, [conteosProp]);
 
     // Sincronizar títulos locales
     useEffect(() => {
@@ -76,7 +80,7 @@ export default function TablaInventario({
 
     // Filtrar productos por categoría y búsqueda
     const productosFiltrados = useMemo(() => {
-        let filtrados = productos.filter(producto => {
+        let filtrados = productosProp.filter(producto => {
             if (filtroCategoria && producto.categoria !== filtroCategoria) return false;
             if (busquedaTexto.trim() !== '') {
                 const textoBusqueda = busquedaTexto.toLowerCase().trim();
@@ -89,7 +93,7 @@ export default function TablaInventario({
             return true;
         });
         return filtrados;
-    }, [productos, filtroCategoria, busquedaTexto]);
+    }, [productosProp, filtroCategoria, busquedaTexto]);
 
     // Productos visibles (solo los primeros 'visibleCount')
     const productosVisibles = useMemo(() => {
@@ -146,7 +150,6 @@ export default function TablaInventario({
 
             XLSX.utils.book_append_sheet(wb, ws, 'Inventario_Fisico');
 
-            // SOLUCIÓN: Obtener fecha local correcta
             const ahora = new Date();
             const año = ahora.getFullYear();
             const mes = String(ahora.getMonth() + 1).padStart(2, '0');
@@ -164,11 +167,11 @@ export default function TablaInventario({
             mostrarNotificacionTemporal('Error al generar Excel', 'error');
         }
     };
+
     // Notificación temporal discreta
     const mostrarNotificacionTemporal = (mensaje, tipo = 'success') => {
         const notificacion = document.createElement('div');
-        notificacion.className = `fixed bottom-4 right-4 px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg transition-all duration-300 z-50 ${tipo === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-            }`;
+        notificacion.className = `fixed bottom-4 right-4 px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg transition-all duration-300 z-50 ${tipo === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`;
         notificacion.style.opacity = '0';
         notificacion.style.transform = 'translateY(20px)';
         notificacion.textContent = mensaje;
@@ -192,7 +195,7 @@ export default function TablaInventario({
         setConteosLocales(prev => ({
             ...prev,
             [productoId]: {
-                ...prev[productoId],
+                ...(prev[productoId] || {}),
                 [columnaKey]: valor
             }
         }));
@@ -208,21 +211,13 @@ export default function TablaInventario({
         // Nuevo timeout para guardar
         debounceTimeouts.current[`${productoId}_${columnaKey}`] = setTimeout(async () => {
             await onGuardarConteo(sucursalId, productoId, columnaKey, valor, fechaGlobal);
-
-            // Decrementar cambios pendientes
             setCambiosPendientes(prev => Math.max(0, prev - 1));
-
-            // Actualizar timestamp del último guardado
-            setUltimoGuardado(new Date());
-
-            // Limpiar timeout de la referencia
             delete debounceTimeouts.current[`${productoId}_${columnaKey}`];
-        }, 500); // Debounce de 500ms
+        }, 500);
     };
 
     // Guardar título de columna
     const handleTituloChange = (columnaKey, nuevoTitulo) => {
-        // Actualizar inmediatamente
         setTitulosColumnas(prev => ({
             ...prev,
             [columnaKey]: nuevoTitulo
@@ -240,11 +235,10 @@ export default function TablaInventario({
         }
 
         tituloDebounceRef.current[columnaKey] = setTimeout(async () => {
-            if (productos.length > 0) {
-                const primerProductoId = productos[0].id;
+            if (productosProp.length > 0) {
+                const primerProductoId = productosProp[0].id;
                 await onGuardarConteo(sucursalId, primerProductoId, `titulo_${columnaKey}`, nuevoTitulo, fechaGlobal);
                 setCambiosPendientes(prev => Math.max(0, prev - 1));
-                setUltimoGuardado(new Date());
                 delete tituloDebounceRef.current[columnaKey];
             }
         }, 800);
@@ -290,9 +284,9 @@ export default function TablaInventario({
 
     // Cargar títulos desde el primer producto
     useEffect(() => {
-        if (productos.length > 0 && Object.keys(conteos).length > 0) {
-            for (const productoId in conteos) {
-                const conteo = conteos[productoId];
+        if (productosProp.length > 0 && Object.keys(conteosProp).length > 0) {
+            for (const productoId in conteosProp) {
+                const conteo = conteosProp[productoId];
                 const tieneTitulos = columnas.some(col => conteo[`titulo_${col}`]);
                 if (tieneTitulos) {
                     const nuevosTitulos = {};
@@ -305,7 +299,7 @@ export default function TablaInventario({
                 }
             }
         }
-    }, [conteos, productos]);
+    }, [conteosProp, productosProp]);
 
     // Cargar categorías
     useEffect(() => {
@@ -326,6 +320,17 @@ export default function TablaInventario({
 
         cargarCategorias();
     }, []);
+
+    // Manejar cambio de fecha
+    const handleFechaChange = (nuevaFecha) => {
+        setFechaGlobal(nuevaFecha);
+        // Limpiar conteos locales antes de cargar nuevos
+        setConteosLocales({});
+        // Notificar al padre para que recargue
+        if (onCambiarFecha) {
+            onCambiarFecha(nuevaFecha);
+        }
+    };
 
     // Navegación con teclado
     const handleKeyDown = (e, productoId, columnaIndex, rowIndex) => {
@@ -350,8 +355,7 @@ export default function TablaInventario({
                     inputRefs.current[firstColKey].select();
                 }
             }
-        }
-        else if (key === 'ArrowLeft') {
+        } else if (key === 'ArrowLeft') {
             if (columnaIndex - 1 >= 0) {
                 const prevKey = `${productoId}_${columnas[columnaIndex - 1]}`;
                 if (inputRefs.current[prevKey]) {
@@ -366,8 +370,7 @@ export default function TablaInventario({
                     inputRefs.current[lastColKey].select();
                 }
             }
-        }
-        else if (key === 'ArrowDown') {
+        } else if (key === 'ArrowDown') {
             if (rowIndex + 1 < productosVisibles.length) {
                 const nextRow = productosVisibles[rowIndex + 1];
                 const downKey = `${nextRow.id}_${columnas[columnaIndex]}`;
@@ -376,8 +379,7 @@ export default function TablaInventario({
                     inputRefs.current[downKey].select();
                 }
             }
-        }
-        else if (key === 'ArrowUp') {
+        } else if (key === 'ArrowUp') {
             if (rowIndex - 1 >= 0) {
                 const prevRow = productosVisibles[rowIndex - 1];
                 const upKey = `${prevRow.id}_${columnas[columnaIndex]}`;
@@ -392,8 +394,7 @@ export default function TablaInventario({
                     tituloInputRefs.current[tituloKey].select();
                 }
             }
-        }
-        else if (key === 'Enter') {
+        } else if (key === 'Enter') {
             if (rowIndex + 1 < productosVisibles.length) {
                 const nextRow = productosVisibles[rowIndex + 1];
                 const downKey = `${nextRow.id}_${columnas[columnaIndex]}`;
@@ -402,8 +403,7 @@ export default function TablaInventario({
                     inputRefs.current[downKey].select();
                 }
             }
-        }
-        else if (key === 'Tab') {
+        } else if (key === 'Tab') {
             if (rowIndex + 1 < productosVisibles.length) {
                 const nextRow = productosVisibles[rowIndex + 1];
                 const tabkey = `${nextRow.id}_${columnas[columnaIndex]}`;
@@ -425,16 +425,14 @@ export default function TablaInventario({
                 tituloInputRefs.current[nextKey].focus();
                 tituloInputRefs.current[nextKey].select();
             }
-        }
-        else if (key === 'ArrowLeft' && columnaIndex - 1 >= 0) {
+        } else if (key === 'ArrowLeft' && columnaIndex - 1 >= 0) {
             e.preventDefault();
             const prevKey = `titulo_${columnas[columnaIndex - 1]}`;
             if (tituloInputRefs.current[prevKey]) {
                 tituloInputRefs.current[prevKey].focus();
                 tituloInputRefs.current[prevKey].select();
             }
-        }
-        else if (key === 'ArrowDown' && productosVisibles.length > 0) {
+        } else if (key === 'ArrowDown' && productosVisibles.length > 0) {
             e.preventDefault();
             const firstRow = productosVisibles[0];
             const downKey = `${firstRow.id}_${columnas[columnaIndex]}`;
@@ -442,8 +440,7 @@ export default function TablaInventario({
                 inputRefs.current[downKey].focus();
                 inputRefs.current[downKey].select();
             }
-        }
-        else if (key === 'Enter') {
+        } else if (key === 'Enter') {
             e.preventDefault();
             if (productosVisibles.length > 0) {
                 const firstRow = productosVisibles[0];
@@ -456,7 +453,7 @@ export default function TablaInventario({
         }
     };
 
-    if (loading && productos.length === 0) {
+    if (loading && productosProp.length === 0) {
         return (
             <div className="bg-white rounded-xl shadow-sm p-8">
                 <div className="text-center">
@@ -478,6 +475,19 @@ export default function TablaInventario({
             <div className="p-2 py-1 bg-linear-to-r from-gray-50 to-gray-100 border-b shrink-0">
                 <div className="flex flex-wrap gap-2 items-end justify-between">
                     <div className="flex flex-wrap gap-4 items-end">
+                        {/* Selector de fecha */}
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs font-medium text-gray-700 whitespace-nowrap">
+                                Fecha de conteo
+                            </label>
+                            <input
+                                type="date"
+                                value={fechaGlobal}
+                                onChange={(e) => handleFechaChange(e.target.value)}
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                            />
+                        </div>
+
                         <div className="flex items-center gap-2">
                             <label className="text-xs font-medium text-gray-700 whitespace-nowrap">
                                 Filtrar por Categoría
@@ -557,13 +567,13 @@ export default function TablaInventario({
                             onClick={descargarExcel}
                             disabled={productosFiltrados.length === 0}
                             className={`
-                    px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 
-                    flex items-center gap-2 shadow-sm hover:shadow-md
-                    ${productosFiltrados.length === 0
+                                px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 
+                                flex items-center gap-2 shadow-sm hover:shadow-md
+                                ${productosFiltrados.length === 0
                                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                     : 'bg-green-600 hover:bg-green-700 text-white'
                                 }
-                `}
+                            `}
                         >
                             <svg
                                 className="w-4 h-4" fill="none" stroke="currentColor"
@@ -615,10 +625,10 @@ export default function TablaInventario({
                                     <input
                                         ref={el => tituloInputRefs.current[`titulo_${col}`] = el}
                                         type="text"
-                                        value={titulosColumnas[col]}
+                                        value={titulosColumnas[col] || ''}
                                         onChange={(e) => handleTituloChange(col, e.target.value)}
                                         onKeyDown={(e) => handleTituloKeyDown(e, idx)}
-                                        placeholder={`Fecha ${idx + 1}`}
+                                        placeholder={`Conteo ${idx + 1}`}
                                         className="w-full min-w-[60px] px-2 py-1 text-center text-sm font-bold text-purple-700 bg-transparent border-b-2 border-gray-300 focus:border-purple-600 focus:outline-none transition-colors"
                                     />
                                 </th>
@@ -663,67 +673,71 @@ export default function TablaInventario({
                             </tr>
                         ) : (
                             <>
-                                {productosVisibles.map((producto, idx) => (
-                                    <tr key={producto.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-1 py-2 whitespace-nowrap font-bold text-sm text-center text-zinc-500 border-r border-gray-200 min-w-10">
-                                            {idx + 1}
-                                        </td>
-                                        <td className="px-3 py-2 whitespace-nowrap text-sm font-mono font-medium text-gray-900 border-r border-gray-200">
-                                            {producto.codigo}
-                                        </td>
-                                        <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200 min-w-100">
-                                            <div className="font-medium">{producto.nombre}</div>
-                                            <div className="text-xs text-amber-600">{producto.categoria}</div>
-                                        </td>
-                                        <td className="px-2 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900 border-r border-gray-200">
-                                            Bs. {producto.precio}
-                                        </td>
-                                        <td className="px-1 py-2 whitespace-nowrap text-sm text-center font-bold text-blue-600 border-r border-gray-200 min-w-10">
-                                            {producto.stock_actual?.toLocaleString() || 0}
-                                        </td>
-                                        {columnas.map((col, colIdx) => {
-                                            const inputKey = `${producto.id}_${col}`;
-                                            const valor = conteosLocales[producto.id]?.[col] || '';
-                                            const isSaving = saving[`${producto.id}_${col}`];
-                                            const tieneCambioPendiente = !!debounceTimeouts.current[`${producto.id}_${col}`];
+                                {productosVisibles.map((producto, idx) => {
+                                    // Obtener conteos para este producto
+                                    const conteosProducto = conteosLocales[producto.id] || {};
 
-                                            return (
-                                                <td key={col} className="px-1 py-2 text-center relative">
-                                                    <input
-                                                        ref={el => inputRefs.current[inputKey] = el}
-                                                        type="text"
-                                                        value={valor}
-                                                        onChange={(e) => handleInputChange(producto.id, col, e.target.value)}
-                                                        onKeyDown={(e) => handleKeyDown(e, producto.id, colIdx, idx)}
-                                                        placeholder={titulosColumnas[col] || `Conteo ${colIdx + 1}`}
-                                                        className={`
-                                                            w-full min-w-20 px-1 py-1 text-center text-sm 
-                                                            border rounded transition-all duration-200
-                                                            ${tieneCambioPendiente
-                                                                ? 'bg-amber-50 border-amber-300'
-                                                                : valor
-                                                                    ? 'bg-green-50 border-green-200'
-                                                                    : 'border-gray-200 hover:border-gray-300'
-                                                            }
-                                                            focus:ring-2 focus:ring-purple-200 focus:border-purple-500 focus:outline-none
-                                                        `}
-                                                    />
-                                                    {/* Indicador de guardado sútil en la celda */}
-                                                    {tieneCambioPendiente && (
-                                                        <div className="absolute bottom-0 right-0 mb-1 mr-1">
-                                                            <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
-                                                        </div>
-                                                    )}
-                                                    {!tieneCambioPendiente && valor && !isSaving && (
-                                                        <div className="absolute bottom-0 right-0 mb-1 mr-1">
-                                                            <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
+                                    return (
+                                        <tr key={producto.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-1 py-2 whitespace-nowrap font-bold text-sm text-center text-zinc-500 border-r border-gray-200 min-w-10">
+                                                {idx + 1}
+                                            </td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm font-mono font-medium text-gray-900 border-r border-gray-200">
+                                                {producto.codigo}
+                                            </td>
+                                            <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-200 min-w-100">
+                                                <div className="font-medium">{producto.nombre}</div>
+                                                <div className="text-xs text-amber-600">{producto.categoria}</div>
+                                            </td>
+                                            <td className="px-2 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900 border-r border-gray-200">
+                                                Bs. {producto.precio}
+                                            </td>
+                                            <td className="px-1 py-2 whitespace-nowrap text-sm text-center font-bold text-blue-600 border-r border-gray-200 min-w-10">
+                                                {producto.stock_actual?.toLocaleString() || 0}
+                                            </td>
+                                            {columnas.map((col, colIdx) => {
+                                                const inputKey = `${producto.id}_${col}`;
+                                                const valor = conteosProducto[col] || '';
+                                                const isSaving = saving[`${producto.id}_${col}`];
+                                                const tieneCambioPendiente = !!debounceTimeouts.current[`${producto.id}_${col}`];
+
+                                                return (
+                                                    <td key={col} className="px-1 py-2 text-center relative">
+                                                        <input
+                                                            ref={el => inputRefs.current[inputKey] = el}
+                                                            type="text"
+                                                            value={valor}
+                                                            onChange={(e) => handleInputChange(producto.id, col, e.target.value)}
+                                                            onKeyDown={(e) => handleKeyDown(e, producto.id, colIdx, idx)}
+                                                            placeholder={titulosColumnas[col] || `Conteo ${colIdx + 1}`}
+                                                            className={`
+                                                                w-full min-w-20 px-1 py-1 text-center text-sm 
+                                                                border rounded transition-all duration-200
+                                                                ${tieneCambioPendiente
+                                                                    ? 'bg-amber-50 border-amber-300'
+                                                                    : valor
+                                                                        ? 'bg-green-50 border-green-200'
+                                                                        : 'border-gray-200 hover:border-gray-300'
+                                                                }
+                                                                focus:ring-2 focus:ring-purple-200 focus:border-purple-500 focus:outline-none
+                                                            `}
+                                                        />
+                                                        {tieneCambioPendiente && (
+                                                            <div className="absolute bottom-0 right-0 mb-1 mr-1">
+                                                                <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                                                            </div>
+                                                        )}
+                                                        {!tieneCambioPendiente && valor && !isSaving && (
+                                                            <div className="absolute bottom-0 right-0 mb-1 mr-1">
+                                                                <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    );
+                                })}
 
                                 {/* Elemento observador para scroll infinito */}
                                 {visibleCount < productosFiltrados.length && (
