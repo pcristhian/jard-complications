@@ -424,7 +424,7 @@ export default function Tabla({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="sticky top-0 bg-slate-600 z-50 text-white">
                         <tr>
-                            <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-1">
+                            <th className="px-1 py-1 text-center text-xs font-medium uppercase tracking-wider w-1">
                                 <div className="flex items-center justify-center gap-1">
                                     <span>N°</span>
                                 </div>
@@ -439,10 +439,10 @@ export default function Tabla({
                                 Producto
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Prom/a
+                                Prom/a.
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Cant
+                                Cant.
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
                                 Precio
@@ -451,17 +451,17 @@ export default function Tabla({
                                 Comisión
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                Motivo desc
+                                Nota
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-12">
-                                Grupo
+                                Total
                             </th>
                             <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider w-60">
-                                Nota
+                                Depositado
                             </th>
                             {rolNombre === "admin" ? (
                                 <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                                    Sin comision
+                                    Obs.
                                 </th>
                             ) :
                                 <th className="px-1 py-3 text-center text-xs font-medium uppercase tracking-wider">

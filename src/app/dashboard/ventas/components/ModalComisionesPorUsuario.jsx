@@ -240,7 +240,7 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                                                     </option>
                                                 ))}
                                             </select>
-                                            <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                                            <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-700 pointer-events-none" />
                                         </div>
                                         <button
                                             onClick={mesSiguiente}
@@ -285,7 +285,7 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                                     onClick={onCerrar}
                                     className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                 >
-                                    <X className="w-5 h-5" />
+                                    <X className="w-7 h-7" />
                                 </motion.button>
                             </div>
 
@@ -340,12 +340,12 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                                                             </span>
                                                         </th>
                                                     ))}
-                                                    <th colSpan={2} className="px-3 py-2 text-center text-xs font-medium text-gray-600 uppercase bg-gray-100">
+                                                    <th colSpan={2} className="px-3 py-2 text-center text-xs font-bold text-gray-700 uppercase bg-gray-100">
                                                         Total
                                                     </th>
                                                 </tr>
                                                 <tr className="border-b border-gray-200">
-                                                    <th className="px-4 py-1.5 text-left text-xs text-gray-500 sticky left-0 bg-gray-100 z-10 w-15">
+                                                    <th className="px-4 py-1.5 text-center text-xs text-gray-600 sticky left-0 bg-gray-100 z-10 w-15">
                                                         Promotor
                                                     </th>
                                                     {todasLasCategorias.map((categoria) => (
@@ -368,81 +368,82 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                                             </thead>
 
                                             <tbody>
-                                                {ventas.map((usuario, usuarioIndex) => {
-                                                    const totalUsuario = calcularTotalUsuario(usuario);
-                                                    const totalComisionUsuario = calcularComisionTotalUsuario(usuario);
+                                                {ventas
+                                                    .map((usuario, usuarioIndex) => {
+                                                        const totalUsuario = calcularTotalUsuario(usuario);
+                                                        const totalComisionUsuario = calcularComisionTotalUsuario(usuario);
 
-                                                    return (
-                                                        <motion.tr
-                                                            key={`usuario-${usuario.usuario_id || usuarioIndex}`}
-                                                            initial={{ opacity: 0 }}
-                                                            animate={{ opacity: 1 }}
-                                                            transition={{ delay: usuarioIndex * 0.03 }}
-                                                            className={`border-b border-gray-100 hover:bg-gray-100/50 transition-colors ${usuarioIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
-                                                        >
-                                                            <td className="px-4 py-2 whitespace-nowrap sticky left-0 bg-inherit z-10">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white ${usuario.usuario_rol === 'admin' ? 'bg-gray-700' : 'bg-gray-600'}`}>
-                                                                        {usuario.usuario_nombre.charAt(0)}
-                                                                    </div>
-                                                                    <div>
-                                                                        <div className="font-medium text-gray-900 text-sm">{usuario.usuario_nombre}</div>
-                                                                        <div className="text-[10px] text-gray-500">
-                                                                            {usuario.usuario_rol === 'admin' ? (
-                                                                                <span className="flex items-center gap-0.5">
-                                                                                    <Shield className="w-2.5 h-2.5" />
-                                                                                    admin
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-gray-600">
-                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                                                                                    {usuario.usuario_caja}
-                                                                                </span>
-                                                                            )}
+                                                        return (
+                                                            <motion.tr
+                                                                key={`usuario-${usuario.usuario_id || usuarioIndex}`}
+                                                                initial={{ opacity: 0 }}
+                                                                animate={{ opacity: 1 }}
+                                                                transition={{ delay: usuarioIndex * 0.03 }}
+                                                                className={`border-b border-gray-100 hover:bg-gray-100/50 transition-colors ${usuarioIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                                                            >
+                                                                <td className="px-4 py-2 whitespace-nowrap sticky left-0 bg-inherit z-10">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white ${usuario.usuario_rol === 'admin' ? 'bg-gray-700' : 'bg-gray-600'}`}>
+                                                                            {usuario.usuario_nombre.charAt(0)}
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="font-medium text-gray-900 text-sm">{usuario.usuario_nombre}</div>
+                                                                            <div className="text-[10px] text-gray-500">
+                                                                                {usuario.usuario_rol === 'admin' ? (
+                                                                                    <span className="flex items-center gap-0.5">
+                                                                                        <Shield className="w-2.5 h-2.5" />
+                                                                                        admin
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-gray-600">
+                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                                                                        {usuario.usuario_caja}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
-                                                            </td>
+                                                                </td>
 
-                                                            {todasLasCategorias.map((categoria, catIndex) => {
-                                                                const datos = obtenerDatosPorCategoria(usuario, categoria.nombre);
-                                                                return (
-                                                                    <Fragment key={`${usuario.usuario_id}-${categoria.nombre}-${catIndex}`}>
-                                                                        <td className="px-2 py-2 whitespace-nowrap text-center text-sm">
-                                                                            {datos.cantidad > 0 ? (
-                                                                                <span className="font-bold text-gray-700">
-                                                                                    {datos.cantidad}
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span className="text-black">—</span>
-                                                                            )}
-                                                                        </td>
-                                                                        <td className="px-2 py-2 whitespace-nowrap text-left font-bold text-sm">
-                                                                            {datos.comision > 0 ? (
-                                                                                <span className="font-bold text-emerald-600">
-                                                                                    Bs. {datos.comision.toFixed(0)}
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span className="text-black">—</span>
-                                                                            )}
-                                                                        </td>
-                                                                    </Fragment>
-                                                                );
-                                                            })}
+                                                                {todasLasCategorias.map((categoria, catIndex) => {
+                                                                    const datos = obtenerDatosPorCategoria(usuario, categoria.nombre);
+                                                                    return (
+                                                                        <Fragment key={`${usuario.usuario_id}-${categoria.nombre}-${catIndex}`}>
+                                                                            <td className="px-2 py-2 whitespace-nowrap text-center text-sm">
+                                                                                {datos.cantidad > 0 ? (
+                                                                                    <span className="font-bold text-gray-700">
+                                                                                        {datos.cantidad}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-black">—</span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="px-2 py-2 whitespace-nowrap text-left font-bold text-sm">
+                                                                                {datos.comision > 0 ? (
+                                                                                    <span className="font-bold text-emerald-600">
+                                                                                        Bs. {datos.comision.toFixed(0)}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-black">—</span>
+                                                                                )}
+                                                                            </td>
+                                                                        </Fragment>
+                                                                    );
+                                                                })}
 
-                                                            <td className="px-2 py-2 whitespace-nowrap text-center">
-                                                                <span className="font-semibold text-gray-800 text-sm">
-                                                                    {totalUsuario}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-3 py-2 whitespace-nowrap text-left">
-                                                                <span className="font-semibold text-emerald-700 text-sm">
-                                                                    Bs. {totalComisionUsuario.toFixed(0)}
-                                                                </span>
-                                                            </td>
-                                                        </motion.tr>
-                                                    );
-                                                })}
+                                                                <td className="px-2 py-2 whitespace-nowrap text-center">
+                                                                    <span className="font-semibold text-gray-800 text-sm">
+                                                                        {totalUsuario}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-3 py-2 whitespace-nowrap text-left">
+                                                                    <span className="font-semibold text-emerald-700 text-sm">
+                                                                        Bs. {totalComisionUsuario.toFixed(0)}
+                                                                    </span>
+                                                                </td>
+                                                            </motion.tr>
+                                                        );
+                                                    })}
                                             </tbody>
 
                                             {/* Footer */}
@@ -485,13 +486,9 @@ export default function ModalComisionesPorUsuario({ abierto, onCerrar }) {
                             {/* Footer con información y productos excluidos */}
                             <div className="px-5 py-2 border-t border-gray-100 bg-white flex justify-between items-center text-xs text-black">
                                 <div className="flex items-center gap-3">
-                                    <span className="flex items-center gap-1">
+                                    <span className="flex items-center gap-1 text-[12px] text-black font-semibold">
                                         <Calendar className="w-3 h-3" />
                                         {formatearMes(mesSeleccionado)}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                        <TrendingUp className="w-3 h-3" />
-                                        Total comisiones: Bs. {Object.values(totalesPorCategoria).reduce((a, b) => a + (b.comision || 0), 0).toFixed(0)}
                                     </span>
                                     {productosExcluidos > 0 && (
                                         <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">

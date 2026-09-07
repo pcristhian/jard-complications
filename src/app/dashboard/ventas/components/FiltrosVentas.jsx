@@ -2,45 +2,53 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
-import * as XLSX from 'xlsx'; // Importar XLSX
+import * as XLSX from 'xlsx';
 
-//////////////////////////////////////////////////////
-// Constantes de zona horaria
-const TIMEZONE_BOLIVIA = -4; // Bolivia está en UTC-4
+// ✅ IMPORTAR UTILIDADES DE FECHAS
+import {
+    formatUTCToBolivia,
+    getCurrentUTCTime,
+    getBoliviaDayRangeUTC,
+    utcToBoliviaDate
+} from '@/utils/dateUtils';
 
-// Funciones auxiliares de conversión de fechas
-const boliviaToUTC = (fechaBolivia) => {
-    if (!fechaBolivia) return null;
-    const date = new Date(fechaBolivia);
-    return new Date(date.getTime() + (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
-};
+// ❌ ELIMINAR estas constantes y funciones manuales
+// const TIMEZONE_BOLIVIA = -4;
+// const boliviaToUTC = ...
+// const utcToBolivia = ...
+// const formatearFechaParaMostrar = ...
 
-const utcToBolivia = (fechaUTC) => {
-    if (!fechaUTC) return null;
-    const date = new Date(fechaUTC);
-    return new Date(date.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
-};
-
-const formatearFechaParaMostrar = (fecha) => {
+// ✅ NUEVA función para formatear fecha para mostrar en inputs
+const formatearFechaParaInput = (fecha) => {
     if (!fecha) return '';
-    const date = new Date(fecha);
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    try {
+        const date = new Date(fecha);
+        if (isNaN(date.getTime())) return '';
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    } catch {
+        return '';
+    }
 };
 
-// Función para formatear fecha para el nombre del archivo
+// ✅ NUEVA función para formatear fecha para nombre de archivo
 const formatearFechaParaArchivo = (fecha) => {
     if (!fecha) return '';
-    const date = new Date(fecha);
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}${m}${d}`;
+    try {
+        const date = new Date(fecha);
+        if (isNaN(date.getTime())) return '';
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}${m}${d}`;
+    } catch {
+        return '';
+    }
 };
 
-// Variantes fuera del componente — no se recrean en cada render
+// Variantes de animación
 const containerVariants = {
     hidden: { opacity: 0, x: 40 },
     visible: {
@@ -68,7 +76,7 @@ const limpiarVariants = {
     exit: { scale: 0.8, opacity: 0, x: -10, transition: { duration: 0.12 } },
 };
 
-// Estilos compartidos para inputs y selects
+// Estilos compartidos
 const inputClass =
     "px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 transition-colors";
 
@@ -88,7 +96,7 @@ const FiltrosVentas = ({
     onFiltroFechaChange,
     mostrarSoloActivas,
     setMostrarSoloActivas,
-    ventasOriginales, // Recibir las ventas originales sin filtrar
+    ventasOriginales,
 }) => {
     const [mostrarCalendario, setMostrarCalendario] = useState(false);
     const [descargando, setDescargando] = useState(false);
@@ -103,7 +111,40 @@ const FiltrosVentas = ({
         return new Date(ahora.getFullYear(), ahora.getMonth(), 1);
     });
 
-    // ✅ Funciones de navegación
+    // src/app/dashboard/ventas/components/FiltrosVentas.jsx
+
+    const aplicarFiltroMes = (fecha) => {
+        // Asegurar que fecha es el primer día del mes
+        const primerDia = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+
+        console.log('📅 Aplicando filtro mes:', primerDia);
+
+        // Obtener rango UTC del mes completo
+        // Necesitamos el rango desde el primer día hasta el último día del mes
+        const ultimoDia = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
+
+        // Obtener inicio UTC del primer día
+        const rangeInicio = getBoliviaDayRangeUTC(primerDia);
+        // Obtener fin UTC del último día
+        const rangeFin = getBoliviaDayRangeUTC(ultimoDia);
+
+        console.log('📅 Rango inicio:', rangeInicio);
+        console.log('📅 Rango fin:', rangeFin);
+
+        if (rangeInicio && rangeFin) {
+            const filtro = {
+                inicio: rangeInicio.inicio,
+                fin: rangeFin.fin,
+                aplicadoManualmente: true
+            };
+
+            console.log('📅 Filtro final:', filtro);
+
+            onFiltroFechaChange(filtro);
+        }
+    };
+
+    // ✅ FUNCIONES DE NAVEGACIÓN MEJORADAS
     const mesAnterior = () => {
         const nuevoMes = new Date(mesSeleccionado);
         nuevoMes.setMonth(nuevoMes.getMonth() - 1);
@@ -118,33 +159,12 @@ const FiltrosVentas = ({
         aplicarFiltroMes(nuevoMes);
     };
 
-    const aplicarFiltroMes = (fecha) => {
-        const primerDia = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
-        const ultimoDia = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
-
-        const primerDiaBolivia = new Date(primerDia);
-        primerDiaBolivia.setHours(0, 0, 0, 0);
-
-        const ultimoDiaBolivia = new Date(ultimoDia);
-        ultimoDiaBolivia.setHours(23, 59, 59, 999);
-
-        const inicioUTC = boliviaToUTC(primerDiaBolivia);
-        const finUTC = boliviaToUTC(ultimoDiaBolivia);
-
-        onFiltroFechaChange({
-            inicio: inicioUTC,
-            fin: finUTC,
-            aplicadoManualmente: true
-        });
-    };
-
     const esMesActual = () => {
         const ahora = new Date();
         return mesSeleccionado.getMonth() === ahora.getMonth() &&
             mesSeleccionado.getFullYear() === ahora.getFullYear();
     };
 
-    // ✅ Formatear mes para mostrar
     const formatearMes = (fecha) => {
         return fecha.toLocaleString('es', {
             month: 'long',
@@ -152,65 +172,62 @@ const FiltrosVentas = ({
         });
     };
 
-    useEffect(() => {
-        const ahora = new Date();
-        const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-        setMesSeleccionado(mesActual);
-    }, []);
-
-    // Obtener el texto a mostrar para el rango de fechas
+    // ✅ FUNCIÓN MEJORADA: Obtener texto para mostrar
     const getFechaMostrar = () => {
         if (!filtroFecha?.inicio || !filtroFecha?.fin) return 'Seleccionar fechas';
 
-        const inicioBolivia = utcToBolivia(filtroFecha.inicio);
-        const finBolivia = utcToBolivia(filtroFecha.fin);
+        try {
+            const inicioBolivia = utcToBoliviaDate(filtroFecha.inicio);
+            const finBolivia = utcToBoliviaDate(filtroFecha.fin);
 
-        if (!inicioBolivia || !finBolivia) return 'Seleccionar fechas';
+            if (!inicioBolivia || !finBolivia) return 'Seleccionar fechas';
 
-        return `${formatearFechaParaMostrar(inicioBolivia)} — ${formatearFechaParaMostrar(finBolivia)}`;
+            return `${formatearFechaParaInput(inicioBolivia)} — ${formatearFechaParaInput(finBolivia)}`;
+        } catch {
+            return 'Seleccionar fechas';
+        }
     };
 
+    // ✅ FUNCIÓN MEJORADA: Limpiar filtros
     const limpiarFiltros = () => {
-        const ahoraBolivia = new Date();
-        const fechaBolivia = new Date(ahoraBolivia.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+        const ahora = new Date();
+        const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
 
-        const primerDiaBolivia = new Date(fechaBolivia.getFullYear(), fechaBolivia.getMonth(), 1);
-        primerDiaBolivia.setHours(0, 0, 0, 0);
-
-        const ultimoDiaBolivia = new Date(fechaBolivia.getFullYear(), fechaBolivia.getMonth() + 1, 0);
-        ultimoDiaBolivia.setHours(23, 59, 59, 999);
-
-        const inicioUTC = boliviaToUTC(primerDiaBolivia);
-        const finUTC = boliviaToUTC(ultimoDiaBolivia);
-
+        setMesSeleccionado(mesActual);
         onBusquedaChange('');
         onFiltroCategoriaChange('');
         onFiltroUsuariosChange('');
-        onFiltroFechaChange({
-            inicio: inicioUTC,
-            fin: finUTC,
-            aplicadoManualmente: true
-        });
+
+        // Aplicar filtro del mes actual
+        aplicarFiltroMes(mesActual);
     };
 
+    // ✅ FUNCIÓN MEJORADA: Manejar selección de fecha
     const manejarSeleccionFecha = (fechaInicioStr, fechaFinStr) => {
-        const [yearInicio, monthInicio, dayInicio] = fechaInicioStr.split('-');
-        const [yearFin, monthFin, dayFin] = fechaFinStr.split('-');
+        const [yearInicio, monthInicio, dayInicio] = fechaInicioStr.split('-').map(Number);
+        const [yearFin, monthFin, dayFin] = fechaFinStr.split('-').map(Number);
 
-        const inicioBolivia = new Date(parseInt(yearInicio), parseInt(monthInicio) - 1, parseInt(dayInicio), 0, 0, 0);
-        const finBolivia = new Date(parseInt(yearFin), parseInt(monthFin) - 1, parseInt(dayFin), 23, 59, 59, 999);
+        // Crear fechas en Bolivia
+        const inicioBolivia = new Date(yearInicio, monthInicio - 1, dayInicio, 0, 0, 0);
+        const finBolivia = new Date(yearFin, monthFin - 1, dayFin, 23, 59, 59, 999);
 
-        const inicioUTC = boliviaToUTC(inicioBolivia);
-        const finUTC = boliviaToUTC(finBolivia);
+        // Obtener rango UTC
+        const offset = 4 * 60 * 60 * 1000;
+        const inicioUTC = new Date(inicioBolivia.getTime() + offset);
+        const finUTC = new Date(finBolivia.getTime() + offset);
+
+        console.log('Fecha seleccionada - Inicio UTC:', inicioUTC.toISOString());
+        console.log('Fecha seleccionada - Fin UTC:', finUTC.toISOString());
 
         onFiltroFechaChange({
-            inicio: inicioUTC,
-            fin: finUTC,
+            inicio: inicioUTC.toISOString(),
+            fin: finUTC.toISOString(),
             aplicadoManualmente: true
         });
         setMostrarCalendario(false);
     };
 
+    // ✅ EFFECT: Click fuera del calendario
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (calendarioRef.current && !calendarioRef.current.contains(e.target)) {
@@ -221,25 +238,12 @@ const FiltrosVentas = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Inicializar fechas al cargar el componente
+    // ✅ EFFECT: Inicializar con el mes actual
     useEffect(() => {
-        const ahoraBolivia = new Date();
-        const fechaBolivia = new Date(ahoraBolivia.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
-
-        const primerDiaBolivia = new Date(fechaBolivia.getFullYear(), fechaBolivia.getMonth(), 1);
-        primerDiaBolivia.setHours(0, 0, 0, 0);
-
-        const ultimoDiaBolivia = new Date(fechaBolivia.getFullYear(), fechaBolivia.getMonth() + 1, 0);
-        ultimoDiaBolivia.setHours(23, 59, 59, 999);
-
-        const inicioUTC = boliviaToUTC(primerDiaBolivia);
-        const finUTC = boliviaToUTC(ultimoDiaBolivia);
-
-        onFiltroFechaChange({
-            inicio: inicioUTC,
-            fin: finUTC,
-            aplicadoManualmente: true
-        });
+        const ahora = new Date();
+        const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+        setMesSeleccionado(mesActual);
+        aplicarFiltroMes(mesActual);
     }, []);
 
     const hayFiltrosActivos =
@@ -248,10 +252,10 @@ const FiltrosVentas = ({
         terminoBusqueda ||
         (filtroFecha && filtroFecha.aplicadoManualmente);
 
-    // 🟢 FUNCIÓN PARA DESCARGAR EXCEL
+    // ✅ FUNCIÓN MEJORADA: Descargar Excel
     const descargarExcel = () => {
         if (!ventasOriginales || ventasOriginales.length === 0) {
-            toast.error('No hay ventas para descargar');
+            alert('No hay ventas para descargar');
             return;
         }
 
@@ -259,32 +263,27 @@ const FiltrosVentas = ({
 
         try {
             // Filtrar solo ventas activas
-            const ventasActivas = ventasOriginales.filter(v => v.estado === 'activa');
+            let ventasParaExportar = ventasOriginales.filter(v => v.estado === 'activa');
 
-            if (ventasActivas.length === 0) {
-                toast.error('No hay ventas activas para descargar');
+            if (ventasParaExportar.length === 0) {
+                alert('No hay ventas activas para descargar');
                 setDescargando(false);
                 return;
             }
 
-            // Aplicar filtros adicionales si existen
-            let ventasParaExportar = ventasActivas;
-
-            // Filtro por categoría
+            // Aplicar filtros adicionales
             if (filtroCategoria) {
                 ventasParaExportar = ventasParaExportar.filter(v =>
                     v.categoria_nombre === filtroCategoria
                 );
             }
 
-            // Filtro por usuario
             if (filtroUsuarios) {
                 ventasParaExportar = ventasParaExportar.filter(v =>
                     v.usuarios?.nombre === filtroUsuarios
                 );
             }
 
-            // Filtro por término de búsqueda
             if (terminoBusqueda) {
                 const termino = terminoBusqueda.toLowerCase();
                 ventasParaExportar = ventasParaExportar.filter(v =>
@@ -294,7 +293,6 @@ const FiltrosVentas = ({
                 );
             }
 
-            // Filtro por rango de fechas (mes seleccionado)
             if (filtroFecha?.inicio && filtroFecha?.fin) {
                 const inicioUTC = new Date(filtroFecha.inicio);
                 const finUTC = new Date(filtroFecha.fin);
@@ -313,17 +311,16 @@ const FiltrosVentas = ({
 
             // Preparar datos para Excel
             const datosExcel = ventasParaExportar.map((venta, index) => {
-                const fechaUTC = new Date(venta.fecha_venta);
-                const fechaBolivia = new Date(fechaUTC.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+                // ✅ Usar la fecha formateada en Bolivia
+                const fechaBolivia = formatUTCToBolivia(venta.fecha_venta, 'date');
 
                 return {
                     'N°': index + 1,
-                    'Fecha': fechaBolivia.toLocaleDateString('es-BO'),
+                    'Fecha': fechaBolivia,
                     'Código': venta.producto_codigo || '',
                     'Producto': venta.producto_nombre || '',
                     'Promotor': venta.usuarios?.nombre || '',
                     'Caja': venta.usuarios?.caja || '',
-                    // 'Rol': venta.rol_nombre || '',
                     'Cantidad': venta.cantidad || 0,
                     'Precio Unitario': parseFloat(venta.producto_precio || 0).toFixed(2),
                     'Total': parseFloat(venta.total_precio_venta || 0).toFixed(2),
@@ -336,15 +333,12 @@ const FiltrosVentas = ({
                     'Categoría': venta.categoria_nombre || '',
                     'Observaciones': venta.observaciones || '',
                     'Estado': venta.estado || '',
-                    // 'Depositado': venta.depositado ? 'Sí' : 'No',
                 };
             });
 
-            // Crear libro de trabajo
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(datosExcel);
 
-            // Ajustar anchos de columnas
             const colWidths = [
                 { wch: 6 },  // N°
                 { wch: 12 }, // Fecha
@@ -352,7 +346,6 @@ const FiltrosVentas = ({
                 { wch: 40 }, // Producto
                 { wch: 15 }, // Promotor
                 { wch: 12 }, // Caja
-                // { wch: 10 }, // Rol
                 { wch: 10 }, // Cantidad
                 { wch: 14 }, // Precio Unitario
                 { wch: 14 }, // Total
@@ -361,17 +354,14 @@ const FiltrosVentas = ({
                 { wch: 15 }, // Categoría
                 { wch: 25 }, // Observaciones
                 { wch: 10 }, // Estado
-                // { wch: 10 }, // Depositado
             ];
             ws['!cols'] = colWidths;
 
             XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
 
-            // Generar nombre del archivo con mes y año
             const mesNombre = mesSeleccionado.toLocaleString('es', { month: 'long', year: 'numeric' });
             const nombreArchivo = `Ventas_${mesNombre.replace(/ /g, '_')}.xlsx`;
 
-            // Descargar archivo
             XLSX.writeFile(wb, nombreArchivo);
 
         } catch (error) {
@@ -385,11 +375,13 @@ const FiltrosVentas = ({
     // Componente Calendario interno
     const Calendario = ({ onSeleccionar, onCerrar }) => {
         const hoy = new Date();
-        const hoyBolivia = new Date(hoy.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+        const hoyBolivia = utcToBoliviaDate(hoy.toISOString());
         const [fechaInicio, setFechaInicio] = useState('');
         const [fechaFin, setFechaFin] = useState('');
 
-        const todayStr = `${hoyBolivia.getFullYear()}-${String(hoyBolivia.getMonth() + 1).padStart(2, '0')}-${String(hoyBolivia.getDate()).padStart(2, '0')}`;
+        const todayStr = hoyBolivia ?
+            `${hoyBolivia.getFullYear()}-${String(hoyBolivia.getMonth() + 1).padStart(2, '0')}-${String(hoyBolivia.getDate()).padStart(2, '0')}`
+            : '';
 
         const manejarAplicar = () => {
             if (fechaInicio && fechaFin) {
@@ -399,7 +391,9 @@ const FiltrosVentas = ({
 
         const setUltimos7Dias = () => {
             const hoy = new Date();
-            const hoyBolivia = new Date(hoy.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
+            const hoyBolivia = utcToBoliviaDate(hoy.toISOString());
+            if (!hoyBolivia) return;
+
             const hace7 = new Date(hoyBolivia);
             hace7.setDate(hace7.getDate() - 7);
 
@@ -487,11 +481,10 @@ const FiltrosVentas = ({
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="bg-gray-800 divide-gray-700 px-3 py-2.5 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
+            className="bg-gray-800 divide-gray-700 px-3 py-1 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
         >
             <div className="flex flex-wrap items-center justify-between gap-3">
 
-                {/* Grupo de filtros — animación escalonada una sola vez */}
                 <motion.div
                     variants={filterGroupVariants}
                     initial="hidden"
@@ -500,7 +493,7 @@ const FiltrosVentas = ({
                 >
                     {/* Fecha */}
                     <motion.div variants={filterItemVariants} className="flex items-center gap-2">
-                        <label className={labelClass}>Fecha:</label>
+                        <label className={`${labelClass} text-white`}>Fecha:</label>
 
                         <button
                             onClick={mesAnterior}
@@ -547,7 +540,7 @@ const FiltrosVentas = ({
 
                     {/* Buscar */}
                     <motion.div variants={filterItemVariants} className="flex items-center gap-2">
-                        <label className={labelClass}>Buscar:</label>
+                        <label className={`${labelClass} text-white`}>Buscar:</label>
                         <input
                             type="text"
                             value={terminoBusqueda}
@@ -559,7 +552,7 @@ const FiltrosVentas = ({
 
                     {/* Categoría */}
                     <motion.div variants={filterItemVariants} className="flex items-center gap-2">
-                        <label className={labelClass}>Filtrar por:</label>
+                        <label className={`${labelClass} text-white`}>Filtrar por:</label>
                         <select
                             value={filtroCategoria}
                             onChange={manejarCambioCategoria}
@@ -573,7 +566,7 @@ const FiltrosVentas = ({
                     </motion.div>
 
                     <motion.div variants={filterItemVariants} className="flex items-center gap-2">
-                        <label className={labelClass}>ó</label>
+                        <label className={`${labelClass} text-white`}>ó</label>
                         <select
                             value={filtroUsuarios}
                             onChange={manejarCambioUsuarios}
@@ -588,7 +581,6 @@ const FiltrosVentas = ({
 
                     {/* Botones de acción */}
                     <motion.div variants={filterItemVariants} className="flex items-center gap-4">
-                        {/* Botón Limpiar Filtros */}
                         <AnimatePresence mode="popLayout">
                             {hayFiltrosActivos && (
                                 <motion.button
@@ -605,7 +597,6 @@ const FiltrosVentas = ({
                             )}
                         </AnimatePresence>
 
-                        {/* Botón Descargar Excel */}
                         <button
                             onClick={descargarExcel}
                             disabled={descargando}
@@ -622,7 +613,7 @@ const FiltrosVentas = ({
                             ) : (
                                 <>
                                     <Download className="w-3.5 h-3.5" />
-                                    Descargar Excel
+                                    Descargar Ventas
                                 </>
                             )}
                         </button>
@@ -634,12 +625,11 @@ const FiltrosVentas = ({
                     variants={filterItemVariants}
                     className="flex flex-col gap-1.5 items-end"
                 >
-                    <span className="text-xs font-semibold text-slate-300">
+                    <span className="text-xs font-semibold text-white">
                         Mostrando:{" "}
                         <span className="text-cyan-400">{ventasFiltradas?.length || 0}</span>{" "}
                         ventas
                     </span>
-
                     <label className="flex items-center gap-1.5 cursor-pointer select-none">
                         <input
                             type="checkbox"
@@ -656,7 +646,7 @@ const FiltrosVentas = ({
                                     }`}
                             />
                         </div>
-                        <span className="text-xs text-slate-400">Solo activas</span>
+                        <span className="text-xs text-white">Solo activas</span>
                     </label>
                 </motion.div>
 

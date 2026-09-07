@@ -113,11 +113,6 @@ export default function TablaInventario({
                 'Stock Actual'
             ];
 
-            columnas.forEach((col, idx) => {
-                const titulo = titulosLocales[col] || titulosColumnas[col] || `Conteo ${idx + 1}`;
-                encabezados.push(titulo);
-            });
-
             datosExcel.push(encabezados);
 
             productosFiltrados.forEach((producto, idx) => {
@@ -130,11 +125,6 @@ export default function TablaInventario({
                     producto.stock_actual || 0
                 ];
 
-                columnas.forEach((col) => {
-                    const valor = conteosLocales[producto.id]?.[col] || '';
-                    fila.push(valor);
-                });
-
                 datosExcel.push(fila);
             });
 
@@ -142,8 +132,8 @@ export default function TablaInventario({
             const ws = XLSX.utils.aoa_to_sheet(datosExcel);
 
             const colWidths = [
-                { wch: 6 }, { wch: 15 }, { wch: 30 },
-                { wch: 20 }, { wch: 12 }, { wch: 12 }
+                { wch: 4 }, { wch: 10 }, { wch: 53 },
+                { wch: 12 }, { wch: 12 }, { wch: 12 }
             ];
             columnas.forEach(() => colWidths.push({ wch: 15 }));
             ws['!cols'] = colWidths;

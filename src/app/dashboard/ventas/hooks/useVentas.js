@@ -3,21 +3,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener';
 
-// 🔹 CONSTANTES DE ZONA HORARIA BOLIVIA (UTC-4)
-const TIMEZONE_BOLIVIA = -4;
+// ✅ IMPORTAR UTILIDADES DE FECHAS
+import {
+    formatUTCToBolivia,
+    getCurrentUTCTime,
+    getBoliviaDayRangeUTC
+} from '@/utils/dateUtils';
 
-// 🔹 FUNCIONES DE CONVERSIÓN DE FECHAS
-const boliviaToUTC = (fechaBolivia) => {
-    if (!fechaBolivia) return null;
-    const date = new Date(fechaBolivia);
-    return new Date(date.getTime() + (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
-};
-
-const utcToBolivia = (fechaUTC) => {
-    if (!fechaUTC) return null;
-    const date = new Date(fechaUTC);
-    return new Date(date.getTime() - (Math.abs(TIMEZONE_BOLIVIA) * 60 * 60 * 1000));
-};
+// ❌ ELIMINAR estas líneas
+// const TIMEZONE_BOLIVIA = -4;
+// const boliviaToUTC = ...
+// const utcToBolivia = ...
 
 export const useVentas = () => {
     const [ventas, setVentas] = useState([]);
@@ -26,41 +22,34 @@ export const useVentas = () => {
     const [error, setError] = useState(null);
     const [sucursalCargada, setSucursalCargada] = useState(false);
 
-    // Listener para localStorage
     const { values: localStorageValues } = useMultiLocalStorageListener([
         'currentUser',
         'sucursalSeleccionada'
     ]);
 
-    // Obtener usuario actual desde localStorage
     const getCurrentUser = () => {
         return localStorageValues.currentUser || null;
     };
 
-    // Obtener sucursal seleccionada desde localStorage
     const getCurrentSucursal = () => {
         return localStorageValues.sucursalSeleccionada || null;
     };
 
-    // Verificar si el usuario puede confirmar depósitos (solo rol 1 - admin)
     const puedeConfirmarDepositos = () => {
         const currentUser = getCurrentUser();
         return currentUser && currentUser.rol_id === 1;
     };
 
-    // Obtener el nombre del rol para mostrar
     const getRolNombre = () => {
         const currentUser = getCurrentUser();
         return currentUser?.roles?.nombre || `Rol ${currentUser?.rol_id}`;
     };
 
-    // Verificar si el usuario puede marcar como depositado (todos los roles)
     const puedeMarcarDepositado = () => {
         const currentUser = getCurrentUser();
         return currentUser && currentUser.rol_id !== 1;
     };
 
-    // Obtener todos los productos para las ventas (con stock de la sucursal)
     const obtenerProductos = async () => {
         try {
             const currentSucursal = getCurrentSucursal();
@@ -130,6 +119,7 @@ export const useVentas = () => {
         }
     };
 
+    // ✅ MODIFICADO: Obtener ventas con fechas en Bolivia
     const obtenerMisVentas = async () => {
         const currentUser = getCurrentUser();
         const currentSucursal = getCurrentSucursal();
@@ -141,32 +131,32 @@ export const useVentas = () => {
             const { data: ventasData, error: supabaseError } = await supabase
                 .from('ventas')
                 .select(`
-                *,
-                productos:producto_id (
-                    id,
-                    nombre,
-                    codigo,
-                    precio,
-                    comision_variable,
-                    categoria_id,
-                    categorias:categoria_id (
+                    *,
+                    productos:producto_id (
                         id,
                         nombre,
-                        reglas_comision
-                    )
-                ),
-                usuarios:promotor_id (
-                    id,
-                    nombre,
-                    rol_id,
-                    caja,
-                    activo,
-                    roles:rol_id (
+                        codigo,
+                        precio,
+                        comision_variable,
+                        categoria_id,
+                        categorias:categoria_id (
+                            id,
+                            nombre,
+                            reglas_comision
+                        )
+                    ),
+                    usuarios:promotor_id (
                         id,
-                        nombre
+                        nombre,
+                        rol_id,
+                        caja,
+                        activo,
+                        roles:rol_id (
+                            id,
+                            nombre
+                        )
                     )
-                )
-            `)
+                `)
                 .eq('sucursal_id', currentSucursal.id)
                 .order('fecha_venta', { ascending: false });
 
@@ -174,10 +164,18 @@ export const useVentas = () => {
                 throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
             }
 
-            // Enriquecer datos y mantener la fecha original UTC
+            // ✅ ENRIQUECER CON FECHAS EN BOLIVIA
             const ventasEnriquecidas = (ventasData || []).map(venta => ({
                 ...venta,
-                fecha_venta_utc: venta.fecha_venta, // Guardar UTC original
+                // Mantener UTC original
+                fecha_venta_utc: venta.fecha_venta,
+
+                // ✅ Fechas en Bolivia para mostrar
+                fecha_venta_bolivia: formatUTCToBolivia(venta.fecha_venta, 'datetime'),
+                fecha_venta_bolivia_date: formatUTCToBolivia(venta.fecha_venta, 'date'),
+                fecha_venta_bolivia_time: formatUTCToBolivia(venta.fecha_venta, 'time'),
+
+                // Campos existentes
                 producto_nombre: venta.productos?.nombre || `Producto ${venta.producto_id}`,
                 comision_variable: venta.productos?.comision_variable || 'no var',
                 producto_codigo: venta.productos?.codigo || `COD-${venta.producto_id}`,
@@ -188,6 +186,12 @@ export const useVentas = () => {
                 rol_nombre: venta.usuarios?.roles?.nombre || `Rol ${venta.usuarios?.rol_id}`
             }));
 
+            console.log('✅ Ventas cargadas:', ventasEnriquecidas.length);
+            if (ventasEnriquecidas.length > 0) {
+                console.log('📅 Primera venta - UTC:', ventasEnriquecidas[0].fecha_venta_utc);
+                console.log('📅 Primera venta - Bolivia:', ventasEnriquecidas[0].fecha_venta_bolivia);
+            }
+
             setVentas(ventasEnriquecidas);
             setError(null);
         } catch (err) {
@@ -197,7 +201,6 @@ export const useVentas = () => {
         }
     };
 
-    // Función auxiliar para actualizar stock en productos_stock
     const actualizarStockProducto = async (productoId, cantidad, sucursalId) => {
         try {
             const { data: stockActual, error: errorStock } = await supabase
@@ -220,7 +223,7 @@ export const useVentas = () => {
                 .from('productos_stock')
                 .update({
                     stock_actual: nuevoStock,
-                    updated_at: new Date().toISOString()
+                    updated_at: getCurrentUTCTime()
                 })
                 .eq('id', stockActual.id);
 
@@ -235,7 +238,6 @@ export const useVentas = () => {
         }
     };
 
-    // Registrar movimiento de stock
     const registrarMovimientoStock = async (productoId, cantidad, motivo, sucursalId) => {
         try {
             const currentUser = getCurrentUser();
@@ -246,6 +248,7 @@ export const useVentas = () => {
                 .select('codigo, nombre')
                 .eq('id', productoId)
                 .single();
+
             const movimiento = {
                 usuario_id: currentUser.id,
                 tipo_movimiento: 'salida_stock',
@@ -257,7 +260,8 @@ export const useVentas = () => {
                     motivo: motivo || 'Venta realizada',
                     tipo: 'venta'
                 },
-                sucursal_id: sucursalId
+                sucursal_id: sucursalId,
+                created_at: getCurrentUTCTime()
             };
 
             const { error } = await supabase
@@ -272,7 +276,7 @@ export const useVentas = () => {
         }
     };
 
-    // Crear nueva venta
+    // ✅ MODIFICADO: Crear venta con UTC
     const crearVenta = async (ventaData) => {
         try {
             setLoading(true);
@@ -298,7 +302,6 @@ export const useVentas = () => {
                 throw new Error('Debe seleccionar un promotor/vendedor');
             }
 
-            // Verificar stock disponible ANTES de crear la venta
             const { data: stockActual, error: errorStock } = await supabase
                 .from('productos_stock')
                 .select('stock_actual')
@@ -314,15 +317,14 @@ export const useVentas = () => {
                 throw new Error(`Stock insuficiente. Disponible: ${stockActual.stock_actual}`);
             }
 
-            // 🔹 Obtener fecha actual en Bolivia y convertir a UTC
-            const ahoraBolivia = new Date();
-            const fechaUTC = boliviaToUTC(ahoraBolivia);
+            // ✅ USAR UTC DIRECTO
+            const fechaUTC = getCurrentUTCTime();
 
             const ventaCompleta = {
                 ...ventaData,
                 promotor_id: promotorId,
                 sucursal_id: currentSucursal.id,
-                fecha_venta: fechaUTC.toISOString(),
+                fecha_venta: fechaUTC,
                 estado: 'activa',
                 depositado: false,
                 confirmacion_depositado: false,
@@ -333,46 +335,46 @@ export const useVentas = () => {
                 .from('ventas')
                 .insert([ventaCompleta])
                 .select(`
-                *,
-                productos:producto_id (
-                    id,
-                    nombre,
-                    codigo,
-                    precio,
-                    comision_variable,
-                    categoria_id,
-                    categorias:categoria_id (
+                    *,
+                    productos:producto_id (
                         id,
                         nombre,
-                        reglas_comision
-                    )
-                ),
-                promotor:promotor_id (
-                    id,
-                    nombre,
-                    rol_id,
-                    caja,
-                    roles:rol_id (
+                        codigo,
+                        precio,
+                        comision_variable,
+                        categoria_id,
+                        categorias:categoria_id (
+                            id,
+                            nombre,
+                            reglas_comision
+                        )
+                    ),
+                    promotor:promotor_id (
                         id,
-                        nombre
+                        nombre,
+                        rol_id,
+                        caja,
+                        roles:rol_id (
+                            id,
+                            nombre
+                        )
                     )
-                )
-            `)
+                `)
                 .single();
 
             if (supabaseError) {
                 throw new Error(`Error al crear venta: ${supabaseError.message}`);
             }
 
-            // Actualizar stock (restar cantidad)
             await actualizarStockProducto(ventaData.producto_id, -cantidad, currentSucursal.id);
-
-            // Registrar movimiento
             await registrarMovimientoStock(ventaData.producto_id, cantidad, 'Venta realizada', currentSucursal.id);
 
             const ventaEnriquecida = {
                 ...data,
                 fecha_venta_utc: data.fecha_venta,
+                fecha_venta_bolivia: formatUTCToBolivia(data.fecha_venta, 'datetime'),
+                fecha_venta_bolivia_date: formatUTCToBolivia(data.fecha_venta, 'date'),
+                fecha_venta_bolivia_time: formatUTCToBolivia(data.fecha_venta, 'time'),
                 producto_nombre: data.productos?.nombre || `Producto ${data.producto_id}`,
                 comision_variable: data.productos?.comision_variable || 'no var',
                 producto_codigo: data.productos?.codigo || `COD-${data.producto_id}`,
@@ -385,7 +387,6 @@ export const useVentas = () => {
             };
 
             setVentas(prev => [ventaEnriquecida, ...prev]);
-
             await obtenerProductos();
 
             return ventaEnriquecida;
@@ -397,7 +398,7 @@ export const useVentas = () => {
         }
     };
 
-    // Crear múltiples ventas (para el carrito)
+    // ✅ MODIFICADO: Crear múltiples ventas
     const crearMultiplesVentas = async (ventasData) => {
         try {
             setLoading(true);
@@ -442,15 +443,13 @@ export const useVentas = () => {
                     throw new Error(`Stock insuficiente para producto ID ${ventaData.producto_id}`);
                 }
 
-                // 🔹 Obtener fecha actual en Bolivia y convertir a UTC
-                const ahoraBolivia = new Date();
-                const fechaUTC = boliviaToUTC(ahoraBolivia);
+                const fechaUTC = getCurrentUTCTime();
 
                 const ventaCompleta = {
                     ...ventaData,
                     promotor_id: promotorId,
                     sucursal_id: currentSucursal.id,
-                    fecha_venta: fechaUTC.toISOString(),
+                    fecha_venta: fechaUTC,
                     estado: 'activa',
                     depositado: false,
                     confirmacion_depositado: false,
@@ -461,31 +460,31 @@ export const useVentas = () => {
                     .from('ventas')
                     .insert([ventaCompleta])
                     .select(`
-                    *,
-                    productos:producto_id (
-                        id,
-                        nombre,
-                        codigo,
-                        precio,
-                        comision_variable,
-                        categoria_id,
-                        categorias:categoria_id (
+                        *,
+                        productos:producto_id (
                             id,
                             nombre,
-                            reglas_comision
-                        )
-                    ),
-                    promotor:promotor_id (
-                        id,
-                        nombre,
-                        rol_id,
-                        caja,
-                        roles:rol_id (
+                            codigo,
+                            precio,
+                            comision_variable,
+                            categoria_id,
+                            categorias:categoria_id (
+                                id,
+                                nombre,
+                                reglas_comision
+                            )
+                        ),
+                        promotor:promotor_id (
                             id,
-                            nombre
+                            nombre,
+                            rol_id,
+                            caja,
+                            roles:rol_id (
+                                id,
+                                nombre
+                            )
                         )
-                    )
-                `)
+                    `)
                     .single();
 
                 if (supabaseError) {
@@ -498,6 +497,9 @@ export const useVentas = () => {
                 const ventaEnriquecida = {
                     ...data,
                     fecha_venta_utc: data.fecha_venta,
+                    fecha_venta_bolivia: formatUTCToBolivia(data.fecha_venta, 'datetime'),
+                    fecha_venta_bolivia_date: formatUTCToBolivia(data.fecha_venta, 'date'),
+                    fecha_venta_bolivia_time: formatUTCToBolivia(data.fecha_venta, 'time'),
                     producto_nombre: data.productos?.nombre || `Producto ${data.producto_id}`,
                     comision_variable: data.productos?.comision_variable || 'no var',
                     producto_codigo: data.productos?.codigo || `COD-${data.producto_id}`,
@@ -524,7 +526,6 @@ export const useVentas = () => {
         }
     };
 
-    // Obtener vendedores de la sucursal
     const obtenerVendedores = async () => {
         try {
             const currentSucursal = getCurrentSucursal();
@@ -536,10 +537,10 @@ export const useVentas = () => {
             const { data, error: supabaseError } = await supabase
                 .from('usuarios')
                 .select(`
-                id, 
-                nombre,
-                roles!inner (id, nombre)
-            `)
+                    id, 
+                    nombre,
+                    roles!inner (id, nombre)
+                `)
                 .eq('sucursal_id', currentSucursal.id)
                 .eq('roles.nombre', 'promotor')
                 .eq('activo', true)
@@ -556,7 +557,7 @@ export const useVentas = () => {
         }
     };
 
-    // Anular venta
+    // ✅ MODIFICADO: Anular venta
     const anularVenta = async (ventaId, motivoAnulacion) => {
         try {
             setLoading(true);
@@ -589,7 +590,7 @@ export const useVentas = () => {
                     estado: 'anulada',
                     motivo_anulacion: motivoAnulacion,
                     usuario_anulacion: currentUser.id,
-                    fecha_anulacion: new Date().toISOString()
+                    fecha_anulacion: getCurrentUTCTime()
                 })
                 .eq('id', ventaId)
                 .select(`
@@ -619,6 +620,7 @@ export const useVentas = () => {
 
             const ventaEnriquecida = {
                 ...data,
+                fecha_venta_bolivia: formatUTCToBolivia(data.fecha_venta, 'datetime'),
                 producto_nombre: data.productos?.nombre || `Producto ${data.producto_id}`,
                 promotor_nombre: data.promotor?.nombre || `Usuario ${data.promotor_id}`,
                 usuario_anulacion_nombre: data.usuario_anulacion?.nombre || `Usuario ${data.usuario_anulacion}`
@@ -641,7 +643,6 @@ export const useVentas = () => {
         }
     };
 
-    // Actualizar estado de depositado
     const actualizarDepositado = async (ventaId, depositado) => {
         try {
             setError(null);
@@ -675,7 +676,6 @@ export const useVentas = () => {
         }
     };
 
-    // Actualizar confirmación de depositado (para auditor)
     const actualizarConfirmacionDepositado = async (ventaId, confirmacionDepositado) => {
         try {
             setError(null);
@@ -709,7 +709,6 @@ export const useVentas = () => {
         }
     };
 
-    // Obtener venta por ID
     const obtenerVentaPorId = async (ventaId) => {
         try {
             setLoading(true);
@@ -739,7 +738,6 @@ export const useVentas = () => {
         }
     };
 
-    // Obtener productos disponibles para venta (con stock > 0)
     const obtenerProductosParaVenta = () => {
         return productos.filter(producto =>
             producto.activo &&
@@ -747,41 +745,45 @@ export const useVentas = () => {
         );
     };
 
-    // 🔹 FUNCIÓN CORREGIDA: Filtrar ventas por fecha (manejo de zona horaria)
+    // ✅ FUNCIÓN DE FILTRO CORREGIDA
     const filtrarVentasFecha = (ventasArray, filtroFecha) => {
         if (!filtroFecha || !filtroFecha.inicio || !filtroFecha.fin) {
+            console.log('⚠️ Sin filtro de fecha');
             return ventasArray;
         }
 
-        // Las fechas del filtro ya vienen en UTC (convertidas en FiltrosVentas)
+        console.log('🔍 Filtrar por fecha:');
+        console.log('  Inicio UTC:', filtroFecha.inicio);
+        console.log('  Fin UTC:', filtroFecha.fin);
+
         const inicioUTC = new Date(filtroFecha.inicio);
         const finUTC = new Date(filtroFecha.fin);
 
-        return ventasArray.filter(venta => {
+        const resultado = ventasArray.filter(venta => {
             const fechaVentaUTC = new Date(venta.fecha_venta);
             return fechaVentaUTC >= inicioUTC && fechaVentaUTC <= finUTC;
         });
+
+        console.log('  Ventas en rango:', resultado.length, 'de', ventasArray.length);
+
+        return resultado;
     };
 
-    // Filtrar ventas por categoría
     const filtrarVentasPorCategoria = (ventasArray, categoria) => {
         if (!categoria) return ventasArray;
         return ventasArray.filter(venta => venta.categoria_nombre === categoria);
     };
 
-    // Filtrar ventas por usuario
     const filtrarVentasPorUsuarios = (ventasArray, usuario) => {
         if (!usuario) return ventasArray;
         return ventasArray.filter(venta => venta.usuario_nombre === usuario);
     };
 
-    // Filtrar ventas activas
     const filtrarVentasActivas = (ventasArray, estado) => {
         if (!estado) return ventasArray;
         return ventasArray.filter(venta => venta.estado === 'activa');
     };
 
-    // Filtrar ventas por búsqueda
     const filtrarVentasPorBusqueda = (ventasArray, terminoBusqueda) => {
         if (!terminoBusqueda || typeof terminoBusqueda !== 'string' || terminoBusqueda.trim() === '') {
             return ventasArray;
@@ -796,29 +798,24 @@ export const useVentas = () => {
         );
     };
 
-    // Filtrar ventas por depositado
     const filtrarVentasPorDepositado = (depositado) => {
         return ventas.filter(venta => venta.depositado === depositado);
     };
 
-    // Filtrar ventas por confirmación de depositado
     const filtrarVentasPorConfirmacionDepositado = (confirmacionDepositado) => {
         return ventas.filter(venta => venta.confirmacion_depositado === confirmacionDepositado);
     };
 
-    // Filtrar ventas por producto
     const filtrarVentasPorProducto = (productoId) => {
         return ventas.filter(venta => venta.producto_id === productoId);
     };
 
-    // Obtener ventas del usuario actual
     const obtenerVentasDelUsuarioActual = () => {
         const currentUser = getCurrentUser();
         if (!currentUser) return [];
         return ventas.filter(venta => venta.promotor_id === currentUser.id);
     };
 
-    // Obtener estadísticas
     const obtenerEstadisticas = useCallback(() => {
         const currentUser = getCurrentUser();
         const esAdmin = puedeConfirmarDepositos();
@@ -862,12 +859,10 @@ export const useVentas = () => {
         };
     }, [ventas]);
 
-    // Verificar si hay sucursal seleccionada
     const haySucursalSeleccionada = () => {
         return !!getCurrentSucursal();
     };
 
-    // Cargar datos cuando haya sucursal seleccionada
     useEffect(() => {
         const currentSucursal = getCurrentSucursal();
         if (currentSucursal) {
@@ -882,7 +877,6 @@ export const useVentas = () => {
     }, [localStorageValues.sucursalSeleccionada]);
 
     return {
-        // Estado
         ventas,
         productos: obtenerProductosParaVenta(),
         loading,
@@ -891,29 +885,24 @@ export const useVentas = () => {
         currentSucursal: getCurrentSucursal(),
         sucursalCargada: haySucursalSeleccionada(),
 
-        // Permisos
         puedeConfirmarDepositos: puedeConfirmarDepositos(),
         puedeMarcarDepositado: puedeMarcarDepositado(),
         rolNombre: getRolNombre(),
 
-        // Acciones principales
         obtenerMisVentas,
         crearVenta,
         crearMultiplesVentas,
         anularVenta,
 
-        // Acciones de depósito
         actualizarDepositado,
         actualizarConfirmacionDepositado,
 
-        // Utilidades
         obtenerVendedores,
 
-        // Consultas
         obtenerVentaPorId,
         filtrarVentasPorCategoria,
         filtrarVentasPorUsuarios,
-        filtrarVentasFecha,  // ✅ Función corregida
+        filtrarVentasFecha,
         filtrarVentasPorBusqueda,
         filtrarVentasPorDepositado,
         filtrarVentasPorConfirmacionDepositado,
@@ -922,7 +911,6 @@ export const useVentas = () => {
         obtenerVentasDelUsuarioActual,
         obtenerEstadisticas,
 
-        // Refetch
         refetch: obtenerMisVentas
     };
 };
