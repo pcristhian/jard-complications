@@ -187,6 +187,86 @@ export const useTraspasos = () => {
     }, []);
 
     /**
+ * Obtiene el movimiento "par" de un traspaso.
+ * Un traspaso genera 2 movimientos:
+ *  - salida_traspaso (en sucursal origen)
+ *  - entrada_traspaso (en sucursal destino)
+ * Dado uno, devuelve el otro.
+ */
+    const obtenerMovimientoParTraspaso = useCallback(async (movimiento) => {
+        try {
+            const datos = movimiento?.datos || {};
+            const tipo = datos.tipo; // 'salida_traspaso' | 'entrada_traspaso'
+            const esMultiple = datos.es_multiple === true;
+
+            // Si no es traspaso, no hay par
+            if (movimiento.tipo_movimiento !== TIPO_MOVIMIENTO.TRASLADO_SUCURSAL) {
+                return null;
+            }
+
+            // Determinar sucursal y dirección del par
+            const sucursalOrigenId = tipo === 'salida_traspaso'
+                ? movimiento.sucursal_id
+                : datos.sucursal_origen_id;
+
+            const sucursalDestinoId = tipo === 'salida_traspaso'
+                ? datos.sucursal_destino_id
+                : movimiento.sucursal_id;
+
+            if (!sucursalOrigenId || !sucursalDestinoId) return null;
+
+            // Buscar el movimiento par: mismo producto, misma cantidad,
+            // sucursal opuesta, tipo TRASLADO_SUCURSAL, estado activo,
+            // y creado en un margen de tiempo cercano (±2 min)
+            const fechaMovimiento = new Date(movimiento.created_at || movimiento.fecha || Date.now());
+            const margen = 2 * 60 * 1000;
+            const desde = new Date(fechaMovimiento.getTime() - margen).toISOString();
+            const hasta = new Date(fechaMovimiento.getTime() + margen).toISOString();
+
+            const sucursalParId = tipo === 'salida_traspaso'
+                ? sucursalDestinoId
+                : sucursalOrigenId;
+
+            const productoId = datos.producto_id;
+
+            let query = supabase
+                .from('movimientos')
+                .select('*')
+                .eq('tipo_movimiento', TIPO_MOVIMIENTO.TRASLADO_SUCURSAL)
+                .eq('sucursal_id', sucursalParId)
+                .eq('estado', 'activo')
+                .neq('id', movimiento.id)
+                .gte('created_at', desde)
+                .lte('created_at', hasta);
+
+            if (productoId) {
+                query = query.eq('datos->>producto_id', productoId.toString());
+            }
+
+            const { data, error } = await query.limit(5);
+
+            if (error) throw error;
+            if (!data || data.length === 0) return null;
+
+            // Filtrar el que tenga tipo opuesto
+            const tipoParEsperado = tipo === 'salida_traspaso'
+                ? 'entrada_traspaso'
+                : 'salida_traspaso';
+
+            const par = data.find(m => {
+                const d = m.datos || {};
+                return d.tipo === tipoParEsperado
+                    && Number(d.cantidad) === Number(datos.cantidad);
+            });
+
+            return par || null;
+        } catch (err) {
+            console.error('Error obteniendo movimiento par del traspaso:', err);
+            return null;
+        }
+    }, []);
+
+    /**
      * Realiza un aumento de stock (entrada)
      */
     const aumentarStock = useCallback(async ({
@@ -514,6 +594,186 @@ export const useTraspasos = () => {
         }
     }, [obtenerMovimientoPorId, getStockActual, actualizarStock, registrarMovimiento, registrarAuditoria]);
 
+
+    /**
+ * Revierte un traspaso entre sucursales.
+ * Maneja ambos lados: devuelve stock a origen y lo quita de destino.
+ */
+    const revertirTraspasoStock = useCallback(async ({
+        movimientoId,
+        usuarioId,
+        motivo = 'Anulación de traspaso entre sucursales'
+    }) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const movimiento = await obtenerMovimientoPorId(movimientoId);
+
+            if (!movimiento) {
+                throw new Error('Movimiento no encontrado');
+            }
+
+            if (movimiento.estado === 'anulado') {
+                throw new Error('Este movimiento ya fue anulado');
+            }
+
+            if (movimiento.tipo_movimiento !== TIPO_MOVIMIENTO.TRASLADO_SUCURSAL) {
+                throw new Error('Este movimiento no es un traspaso entre sucursales');
+            }
+
+            const datos = movimiento.datos || {};
+            const tipo = datos.tipo; // 'salida_traspaso' | 'entrada_traspaso'
+
+            const sucursalOrigenId = tipo === 'salida_traspaso'
+                ? movimiento.sucursal_id
+                : datos.sucursal_origen_id;
+
+            const sucursalDestinoId = tipo === 'salida_traspaso'
+                ? datos.sucursal_destino_id
+                : movimiento.sucursal_id;
+
+            if (!sucursalOrigenId || !sucursalDestinoId) {
+                throw new Error('No se pudo determinar el origen/destino del traspaso');
+            }
+
+            const producto = {
+                id: datos.producto_id,
+                codigo: datos.producto_codigo,
+                nombre: datos.producto_nombre
+            };
+
+            const cantidad = Number(datos.cantidad) || 0;
+
+            if (cantidad <= 0) {
+                throw new Error('Cantidad inválida en el movimiento');
+            }
+
+            // Verificar stock en destino (necesitamos quitar lo que se envió)
+            const stockDestino = await getStockActual(producto.id, sucursalDestinoId);
+
+            if (stockDestino < cantidad) {
+                throw new Error(
+                    `No se puede anular el traspaso: la sucursal destino tiene ${stockDestino} unidades de "${producto.nombre}", ` +
+                    `pero se necesitan al menos ${cantidad} para revertir.`
+                );
+            }
+
+            // Buscar el movimiento par (el otro lado del traspaso)
+            const movimientoPar = await obtenerMovimientoParTraspaso(movimiento);
+
+            // Stock actual en origen
+            const stockOrigen = await getStockActual(producto.id, sucursalOrigenId);
+
+            // Calcular nuevos stocks: revertir el traspaso
+            const nuevoStockOrigen = stockOrigen + cantidad;    // devolvemos
+            const nuevoStockDestino = stockDestino - cantidad;  // quitamos
+
+            // Actualizar stocks
+            await actualizarStock(producto.id, sucursalOrigenId, nuevoStockOrigen);
+            await actualizarStock(producto.id, sucursalDestinoId, nuevoStockDestino);
+
+            // Registrar movimiento de reversión en ORIGEN (entrada por anulación)
+            await registrarMovimiento({
+                usuarioId,
+                sucursalId: sucursalOrigenId,
+                tipoMovimiento: TIPO_MOVIMIENTO.ANULACION,
+                producto,
+                cantidad,
+                observaciones: `${motivo} - Devolución a origen`,
+                stockNuevo: nuevoStockOrigen,
+                datosAdicionales: {
+                    motivo_anulacion: motivo,
+                    movimiento_anulado_id: movimiento.id,
+                    movimiento_par_anulado_id: movimientoPar?.id || null,
+                    tipo_original: TIPO_MOVIMIENTO.TRASLADO_SUCURSAL,
+                    subtipo_original: tipo,
+                    sucursal_destino_id: sucursalDestinoId,
+                    es_reversion_traspaso: true
+                },
+                movimientoAnuladoId: movimiento.id
+            });
+
+            // Registrar movimiento de reversión en DESTINO (salida por anulación)
+            await registrarMovimiento({
+                usuarioId,
+                sucursalId: sucursalDestinoId,
+                tipoMovimiento: TIPO_MOVIMIENTO.ANULACION,
+                producto,
+                cantidad,
+                observaciones: `${motivo} - Retiro de destino`,
+                stockNuevo: nuevoStockDestino,
+                datosAdicionales: {
+                    motivo_anulacion: motivo,
+                    movimiento_anulado_id: movimientoPar?.id || movimiento.id,
+                    movimiento_par_anulado_id: movimiento.id,
+                    tipo_original: TIPO_MOVIMIENTO.TRASLADO_SUCURSAL,
+                    subtipo_original: tipo === 'salida_traspaso' ? 'entrada_traspaso' : 'salida_traspaso',
+                    sucursal_origen_id: sucursalOrigenId,
+                    es_reversion_traspaso: true
+                },
+                movimientoAnuladoId: movimientoPar?.id || null
+            });
+
+            // Marcar el movimiento actual como anulado
+            await supabase
+                .from('movimientos')
+                .update({
+                    estado: 'anulado',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', movimiento.id);
+
+            // Marcar el movimiento par como anulado (si existe)
+            if (movimientoPar?.id) {
+                await supabase
+                    .from('movimientos')
+                    .update({
+                        estado: 'anulado',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', movimientoPar.id);
+            }
+
+            // Auditoría
+            await registrarAuditoria({
+                usuarioId,
+                movimientoId: movimiento.id,
+                movimientoOriginal: movimiento,
+                motivo,
+                datosAnteriores: {
+                    stock_origen_antes: stockOrigen,
+                    stock_destino_antes: stockDestino,
+                    estado: 'activo'
+                },
+                datosNuevos: {
+                    stock_origen_despues: nuevoStockOrigen,
+                    stock_destino_despues: nuevoStockDestino,
+                    estado: 'anulado',
+                    movimiento_par_id: movimientoPar?.id || null
+                }
+            });
+
+            return {
+                success: true,
+                message: 'Traspaso anulado correctamente',
+                detalles: {
+                    producto: producto.nombre,
+                    cantidad,
+                    sucursalOrigen: { id: sucursalOrigenId, stockNuevo: nuevoStockOrigen },
+                    sucursalDestino: { id: sucursalDestinoId, stockNuevo: nuevoStockDestino },
+                    movimientoParAnulado: !!movimientoPar?.id
+                }
+            };
+        } catch (err) {
+            setError(err.message);
+            return { success: false, error: err.message };
+        } finally {
+            setLoading(false);
+        }
+    }, [obtenerMovimientoPorId, obtenerMovimientoParTraspaso, getStockActual, actualizarStock, registrarMovimiento, registrarAuditoria]);
+
+
     /**
      * Función genérica para anular cualquier movimiento
      */
@@ -542,6 +802,7 @@ export const useTraspasos = () => {
                 case TIPO_MOVIMIENTO.ENTRADA_STOCK:
                     resultado = await revertirAumentoStock({ movimientoId, usuarioId, motivo });
                     break;
+
                 case TIPO_MOVIMIENTO.SALIDA_STOCK:
                     // Similar a revertirAumentoStock pero sumando
                     resultado = await (async () => {
@@ -576,6 +837,12 @@ export const useTraspasos = () => {
                         return { success: true, message: 'Salida de stock anulada correctamente' };
                     })();
                     break;
+
+                // 🔥 NUEVO: Traspaso entre sucursales
+                case TIPO_MOVIMIENTO.TRASLADO_SUCURSAL:
+                    resultado = await revertirTraspasoStock({ movimientoId, usuarioId, motivo });
+                    break;
+
                 default:
                     throw new Error(`No se puede anular movimientos de tipo: ${movimiento.tipo_movimiento}`);
             }

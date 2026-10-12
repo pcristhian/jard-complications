@@ -58,7 +58,6 @@ export default function ControlTraspasos() {
         }
         return resultado;
     };
-
     const handleTraspaso = async ({ producto, cantidad, sucursalDestinoId, observaciones }) => {
         if (!currentUser?.id) {
             return { success: false, error: 'No hay usuario logueado' };
@@ -76,6 +75,12 @@ export default function ControlTraspasos() {
             cantidad,
             observaciones
         });
+
+        // 🔥 NUEVO: recargar tabla si el traspaso fue exitoso
+        if (result.success) {
+            handleRecargar();
+        }
+
         return result;
     };
 
@@ -93,8 +98,15 @@ export default function ControlTraspasos() {
             sucursalOrigenId: sucursalSeleccionada.id,
             items
         });
+
+        // 🔥 NUEVO: recargar tabla si el traspaso fue exitoso
+        if (result.success) {
+            handleRecargar();
+        }
+
         return result;
     };
+
 
     return (
         <div className="h-screen flex flex-col p-3 space-y-3 text-gray-800 overflow-hidden">

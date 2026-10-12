@@ -311,8 +311,8 @@ export default function ModalAgregarStock({
                                             key={producto.id}
                                             onClick={() => handleSeleccionarProducto(producto)}
                                             className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${productoSeleccionado?.id === producto.id
-                                                    ? 'bg-emerald-50 border-emerald-300'
-                                                    : 'border-gray-200'
+                                                ? 'bg-emerald-50 border-emerald-300'
+                                                : 'border-gray-200'
                                                 }`}
                                         >
                                             <div className="flex justify-between items-start gap-5 group">

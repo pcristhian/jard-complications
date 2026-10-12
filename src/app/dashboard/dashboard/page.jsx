@@ -20,6 +20,17 @@ export default function DashboardPage() {
     // Ref para evitar actualizaciones innecesarias
     const isUpdatingRef = useRef(false);
 
+    // 🔥 NUEVO: Obtener el nombre del rol del usuario (ajusta según tu estructura real)
+    const rolNombre = useMemo(() => {
+        if (!currentUser) return null;
+        // Ajusta esta línea según cómo venga el rol en tu objeto currentUser
+        return currentUser.rolNombre
+            || currentUser.rol_nombre
+            || currentUser.roles?.nombre
+            || currentUser.role
+            || null;
+    }, [currentUser]);
+
     // Función para resetear filtros
     const resetFilters = useCallback(() => {
         setSelectedMonth(null);
@@ -203,7 +214,8 @@ export default function DashboardPage() {
                     >
                         <span className="text-base">🎯</span>
                         <span className="font-medium text-black">
-                            Editar Metas
+                            {/* 🔥 NUEVO: Texto dinámico según rol */}
+                            {rolNombre === 'admin' ? 'Editar Metas' : 'Ver Metas'}
                         </span>
                     </button>
                 </div>
@@ -239,27 +251,15 @@ export default function DashboardPage() {
                         />
                     </div>
                 </div>
-
-                {/* Footer */}
-                {/* {dashboardData.stats && (
-                    <div className="text-center">
-                        <p className="text-xs text-gray-400">
-                            Datos actualizados al {new Date().toLocaleDateString('es-ES', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric'
-                            })}
-                        </p>
-                    </div>
-                )} */}
             </div>
 
             {/* Modal de Metas con BD */}
             <ModalMeta
                 isOpen={showModalMeta}
                 onClose={() => setShowModalMeta(false)}
-                categories={dashboardData?.categories || []}  // ← Agregar fallback a array vacío
-                currentMonth={dashboardData?.currentMonth || 'Enero'}  // ← También agregar fallback para currentMonth
+                categories={dashboardData?.categories || []}
+                currentMonth={dashboardData?.currentMonth || 'Enero'}
+                rolNombre={rolNombre}  // 🔥 NUEVO: pasar el rol al modal
             />
         </div>
     );

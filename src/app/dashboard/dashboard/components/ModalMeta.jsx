@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
-export default function ModalMeta({ isOpen, onClose, categories, currentMonth }) {
+export default function ModalMeta({ isOpen, onClose, categories, currentMonth, rolNombre }) {
     const [localMetas, setLocalMetas] = useState({});
     const [localTypes, setLocalTypes] = useState({});
     const [loading, setLoading] = useState(true);
@@ -18,6 +18,9 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
 
     // 🔥 NUEVO: Estado para datos de ventas por categoría
     const [ventasPorCategoria, setVentasPorCategoria] = useState({});
+
+    // 🔥 NUEVO: Verificar si el usuario es administrador
+    const isAdmin = rolNombre === 'admin';
 
     const getMonthNumber = (monthName) => {
         const meses = {
@@ -240,6 +243,10 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
             setAvailableMonths([currentMonthName]);
         }
     };
+    const recargarSoloVentas = useCallback(async (mes, anio) => {
+        const ventasData = await cargarVentasPorCategoria(mes, anio);
+        setVentasPorCategoria(ventasData);
+    }, [cargarVentasPorCategoria]);
 
     // Cargar metas y ventas
     const cargarDatos = useCallback(async () => {
@@ -277,7 +284,7 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
             });
             setLocalTypes(types);
 
-            // 2. 🔥 Cargar ventas por categoría
+            // 2. Cargar ventas por categoría
             const ventasData = await cargarVentasPorCategoria(selectedMonth, selectedYear);
             setVentasPorCategoria(ventasData);
 
@@ -288,9 +295,14 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
             setLoading(false);
         }
     }, [categories, selectedMonth, selectedYear, cargarVentasPorCategoria]);
-
     // Guardar metas
     const guardarTodo = async () => {
+        // 🔥 NUEVO: Bloquear si no es admin
+        if (!isAdmin) {
+            setMessage({ type: 'error', text: '⛔ Solo los administradores pueden modificar metas' });
+            return;
+        }
+
         setSaving(true);
         const mesNumero = getMonthNumber(selectedMonth);
 
@@ -354,8 +366,9 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
             setSaving(false);
         }
     };
-
     const handleMetaChange = (categoriaId, value) => {
+        if (!isAdmin) return;
+
         const cleanValue = value.replace(/[^0-9]/g, '');
         const numValue = cleanValue === '' ? null : parseInt(cleanValue, 10);
 
@@ -369,11 +382,15 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
         });
     };
 
+    // 🔥 CORREGIDO: solo recarga ventas, no sobreescribe localTypes
     const handleTypeChange = (categoriaId, type) => {
+        if (!isAdmin) return;
+
         setLocalTypes(prev => ({ ...prev, [categoriaId]: type }));
-        // Recargar ventas para actualizar la visualización
-        cargarDatos();
+        // Recargar SOLO ventas para actualizar la visualización
+        recargarSoloVentas(selectedMonth, selectedYear);
     };
+
 
     const handleYearChange = async (year) => {
         setSelectedYear(parseInt(year));
@@ -428,6 +445,12 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                 <div className="flex items-center gap-2">
                                     <span className="text-2xl">🎯</span>
                                     <h2 className="text-xl font-bold">Configurar Metas</h2>
+                                    {/* 🔥 NUEVO: Badge de solo lectura */}
+                                    {!isAdmin && (
+                                        <span className="ml-2 px-2 py-1 bg-white/20 text-xs rounded-full">
+                                            👁️ Solo lectura
+                                        </span>
+                                    )}
                                 </div>
                                 <button onClick={onClose} className="text-white/80 hover:text-white cursor-pointer">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -521,7 +544,11 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                                     <select
                                                         value={currentType}
                                                         onChange={(e) => handleTypeChange(category.id, e.target.value)}
-                                                        className="text-xs px-2 py-1 border rounded-lg bg-white text-black cursor-pointer"
+                                                        disabled={!isAdmin}
+                                                        className={`text-xs px-2 py-1 border rounded-lg bg-white text-black ${isAdmin
+                                                            ? 'cursor-pointer'
+                                                            : 'cursor-not-allowed opacity-60 bg-gray-100'
+                                                            }`}
                                                     >
                                                         <option value="quantity">📦 Cantidad</option>
                                                         <option value="revenue">💰 Ingresos</option>
@@ -532,8 +559,12 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                                                         inputMode="numeric"
                                                         value={currentValue}
                                                         onChange={(e) => handleMetaChange(category.id, e.target.value)}
-                                                        className="w-28 px-2 py-1 border text-black rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                        placeholder="Sin meta"
+                                                        disabled={!isAdmin}
+                                                        className={`w-28 px-2 py-1 border text-black rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500 ${isAdmin
+                                                            ? ''
+                                                            : 'cursor-not-allowed opacity-60 bg-gray-100'
+                                                            }`}
+                                                        placeholder={isAdmin ? "Sin meta" : "—"}
                                                     />
                                                 </div>
                                             </div>
@@ -546,24 +577,33 @@ export default function ModalMeta({ isOpen, onClose, categories, currentMonth })
                         {/* Footer */}
                         <div className="px-6 py-4 bg-gray-50 border-t flex justify-between items-center shrink-0">
                             <div className="flex-1">
-                                <p className="text-xs text-amber-600">
-                                    💡 Las metas se guardan cuando presionas "Guardar Cambios"
-                                </p>
+                                {isAdmin ? (
+                                    <p className="text-xs text-amber-600">
+                                        💡 Las metas se guardan cuando presionas "Guardar Cambios"
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-gray-500">
+                                        🔒 Solo los administradores pueden editar las metas
+                                    </p>
+                                )}
                             </div>
                             <div className="flex gap-3">
                                 <button
                                     onClick={onClose}
                                     className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
                                 >
-                                    Cancelar
+                                    {isAdmin ? 'Cancelar' : 'Cerrar'}
                                 </button>
-                                <button
-                                    onClick={guardarTodo}
-                                    disabled={saving}
-                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium shadow-sm cursor-pointer"
-                                >
-                                    {saving ? 'Guardando...' : '💾 Guardar Cambios'}
-                                </button>
+                                {/* 🔥 NUEVO: Solo mostrar botón de guardar si es admin */}
+                                {isAdmin && (
+                                    <button
+                                        onClick={guardarTodo}
+                                        disabled={saving}
+                                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium shadow-sm cursor-pointer"
+                                    >
+                                        {saving ? 'Guardando...' : '💾 Guardar Cambios'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </motion.div>

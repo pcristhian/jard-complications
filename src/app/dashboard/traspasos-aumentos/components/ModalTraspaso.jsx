@@ -5,15 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     MagnifyingGlassIcon,
     CubeIcon,
-    DocumentTextIcon,
-    BuildingOfficeIcon,
     TruckIcon,
     ExclamationCircleIcon,
     CheckCircleIcon,
     MapPinIcon,
     PlusCircleIcon,
     TrashIcon,
-    ShoppingCartIcon
+    ShoppingCartIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline';
 
 export default function ModalTraspaso({
@@ -26,7 +25,9 @@ export default function ModalTraspaso({
     loading,
     currentUser
 }) {
-    // Estado para el carrito
+    // ============================================================
+    // 🧠 LÓGICA (SIN CAMBIOS)
+    // ============================================================
     const [carrito, setCarrito] = useState([]);
     const [productoSeleccionado, setProductoSeleccionado] = useState(null);
     const [busqueda, setBusqueda] = useState('');
@@ -47,7 +48,6 @@ export default function ModalTraspaso({
     const inputRef = useRef(null);
     const selectRef = useRef(null);
 
-    // Cargar productos con stock de la sucursal actual
     useEffect(() => {
         if (abierto && sucursalActual) {
             cargarProductosConStock();
@@ -65,7 +65,6 @@ export default function ModalTraspaso({
         }
     }, [abierto, sucursalActual]);
 
-    // Cerrar resultados al hacer click fuera
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (searchRef.current && !searchRef.current.contains(event.target) &&
@@ -78,7 +77,6 @@ export default function ModalTraspaso({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Filtrar productos en tiempo real
     useEffect(() => {
         if (busqueda.trim() === '') {
             setProductosFiltrados([]);
@@ -151,7 +149,14 @@ export default function ModalTraspaso({
     const handleAgregarAlCarrito = () => {
         if (!productoSeleccionado) return;
 
-        const cantidad = parseInt(formTraspaso.cantidad) || 1;
+        // 🔥 Validar cantidad
+        const cantidadRaw = formTraspaso.cantidad;
+        const cantidad = parseInt(cantidadRaw, 10);
+
+        if (!cantidadRaw || isNaN(cantidad) || cantidad < 1) {
+            setError('Debes ingresar una cantidad válida (mínimo 1)');
+            return;
+        }
 
         if (productoSeleccionado.stock_actual < cantidad) {
             setError(`Stock insuficiente. Disponible: ${productoSeleccionado.stock_actual} unidades`);
@@ -179,7 +184,7 @@ export default function ModalTraspaso({
         setBusqueda('');
         setFormTraspaso(prev => ({
             ...prev,
-            cantidad: 1,
+            cantidad: 1, // 🔥 Resetear a 1 para el próximo producto
             observaciones: ''
         }));
         setError('');
@@ -212,12 +217,28 @@ export default function ModalTraspaso({
 
     const handleChangeForm = (e) => {
         const { name, value } = e.target;
+
+        if (name === 'cantidad') {
+            // 🔥 Aceptar '' como valor temporal (input vacío)
+            if (value === '' || value === 0) {
+                setFormTraspaso(prev => ({ ...prev, cantidad: '' }));
+                setError('');
+                return;
+            }
+
+            const num = parseInt(value, 10);
+            setFormTraspaso(prev => ({ ...prev, cantidad: isNaN(num) ? '' : num }));
+            setError('');
+            return;
+        }
+
         setFormTraspaso(prev => ({
             ...prev,
-            [name]: name === 'cantidad' ? parseInt(value) || 1 : value
+            [name]: value
         }));
         setError('');
     };
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -269,7 +290,7 @@ export default function ModalTraspaso({
             setTimeout(() => {
                 setCarrito([]);
                 onCerrar();
-            }, 1500);
+            }, 800);
 
         } catch (err) {
             setError(err.message);
@@ -300,6 +321,9 @@ export default function ModalTraspaso({
 
     if (!abierto) return null;
 
+    // ============================================================
+    // 🎨 UI (ESTILOS NUEVOS - PALETA AZUL)
+    // ============================================================
     return (
         <AnimatePresence mode="wait">
             <motion.div
@@ -318,66 +342,86 @@ export default function ModalTraspaso({
                     exit={{ opacity: 0, scale: 0.98, y: 10 }}
                     transition={{ duration: 0.2 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-white rounded-xl shadow-xl max-w-6xl w-full h-[85vh] flex flex-col overflow-hidden"
+                    className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full h-[85vh] flex flex-col overflow-hidden"
                 >
-                    {/* Tamaño fijo con flex y h-[85vh] */}
                     <div className="flex flex-1 min-h-0 overflow-hidden">
-                        {/* Lado Izquierdo - Selección de productos */}
-                        <div className="w-1/2 border-r border-gray-200 flex flex-col bg-gray-50">
-                            <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center space-x-2">
-                                        <TruckIcon className="h-5 w-5 text-blue-600" />
+
+                        {/* ==================== LADO IZQUIERDO ==================== */}
+                        <div className="w-1/2 bg-sky-50 border-r border-gray-200 flex flex-col min-h-0">
+
+                            {/* Header */}
+                            <div className="p-3 pb-2 border-b border-sky-100 flex-shrink-0">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="bg-blue-100 p-1.5 rounded-lg">
+                                            <TruckIcon className="h-5 w-5 text-blue-600" />
+                                        </div>
                                         <h2 className="text-lg font-bold text-gray-900">Nuevo Traspaso</h2>
                                     </div>
                                     <button
                                         onClick={onCerrar}
-                                        className="p-1.5 hover:bg-gray-100 rounded-full transition-colors text-gray-500 hover:text-gray-700"
+                                        className="p-1.5 hover:bg-red-50 rounded-full transition-colors text-gray-400 hover:text-red-500 cursor-pointer"
                                     >
-                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
+                                        <XMarkIcon className="h-5 w-5" />
                                     </button>
                                 </div>
 
-                                <div className="bg-blue-50 p-2.5 rounded-lg mb-3">
-                                    <div className="flex items-center gap-2 text-sm">
+                                {/* Info sucursal origen */}
+                                <div className="bg-white p-2.5 rounded-lg ring-1 ring-blue-100 mb-2">
+                                    <div className="flex items-center gap-2 text-sm border-l-[3px] border-blue-400 pl-2">
                                         <MapPinIcon className="h-4 w-4 text-blue-600" />
                                         <span className="font-semibold text-blue-700">Origen:</span>
-                                        <span className="text-blue-900">{sucursalActual?.nombre}</span>
+                                        <span className="font-medium text-blue-900">{sucursalActual?.nombre}</span>
                                     </div>
                                 </div>
 
-                                <div className="relative" ref={searchRef}>
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={busqueda}
-                                        onChange={(e) => {
-                                            setBusqueda(e.target.value);
-                                            setMostrarResultados(true);
-                                        }}
-                                        onFocus={() => setMostrarResultados(true)}
-                                        placeholder="Buscar producto por código o nombre..."
-                                        className="w-full px-4 py-2 pl-9 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                                        disabled={cargandoProductos}
-                                    />
-                                    <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                                    {cargandoProductos && (
-                                        <div className="absolute right-3 top-2.5">
-                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
-                                        </div>
-                                    )}
+                                {/* Buscador */}
+                                <div className="relative w-full flex items-center gap-3" ref={searchRef}>
+                                    <span className="text-sm font-medium text-gray-700">Buscar:</span>
+                                    <div className="relative flex-1">
+                                        <input
+                                            ref={inputRef}
+                                            type="text"
+                                            value={busqueda}
+                                            onChange={(e) => {
+                                                setBusqueda(e.target.value);
+                                                setMostrarResultados(true);
+                                            }}
+                                            onFocus={() => setMostrarResultados(true)}
+                                            placeholder="Producto por nombre o código..."
+                                            className="w-full ring-1 ring-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 pl-9 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={cargandoProductos}
+                                        />
+                                        <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                                        {cargandoProductos && (
+                                            <div className="absolute right-3 top-2.5">
+                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                                            </div>
+                                        )}
+                                        {busqueda && !cargandoProductos && (
+                                            <button
+                                                onClick={() => setBusqueda('')}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 text-lg cursor-pointer hover:text-gray-700"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Lista de Productos - scrollable y altura fija */}
+                            {/* Lista de productos */}
                             {!productoSeleccionado && (
-                                <div className="flex-1 overflow-y-auto p-3 min-h-0">
-                                    {productosFiltrados.length === 0 && busqueda ? (
-                                        <div className="text-center py-8">
-                                            <CubeIcon className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                                            <p className="text-gray-500 text-sm">No se encontraron productos</p>
+                                <div className="flex-1 overflow-y-auto p-2 pt-2 min-h-0">
+                                    {cargandoProductos ? (
+                                        <div className="flex justify-center items-center py-10">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                        </div>
+                                    ) : productosFiltrados.length === 0 && busqueda ? (
+                                        <div className="flex flex-col items-center justify-center py-10 gap-3">
+                                            <CubeIcon className="h-12 w-12 text-blue-200" />
+                                            <p className="text-sm font-medium text-slate-500">Sin resultados</p>
+                                            <p className="text-xs text-slate-400">Intenta con otro nombre o código</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
@@ -385,17 +429,22 @@ export default function ModalTraspaso({
                                                 <div
                                                     key={producto.id}
                                                     onClick={() => handleSeleccionarProducto(producto)}
-                                                    className="p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
+                                                    className="p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all group"
                                                 >
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="font-medium text-gray-900 text-sm truncate">{producto.nombre}</div>
-                                                            <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500">
-                                                                <span>Código: {producto.codigo}</span>
-                                                                <span className="text-green-600">Stock: {producto.stock_actual}</span>
+                                                    <div className="flex justify-between items-start gap-5">
+                                                        <div className="flex-1 text-left min-w-0">
+                                                            <div className="relative w-full h-6 overflow-hidden">
+                                                                <h3 className="absolute left-0 top-0 whitespace-nowrap font-semibold text-gray-900 transition-none group-hover:transition-transform group-hover:duration-[6000ms] group-hover:ease-linear group-hover:-translate-x-full">
+                                                                    {producto.nombre}
+                                                                </h3>
                                                             </div>
+                                                            <p className="text-xs text-gray-500">Código: {producto.codigo}</p>
+                                                            <p className="text-xs text-gray-500">Categoría: {producto.categoria}</p>
+                                                            <p className="text-xs font-medium text-blue-600">
+                                                                Stock: {producto.stock_actual} unidades
+                                                            </p>
                                                         </div>
-                                                        <div className="text-right ml-3">
+                                                        <div className="text-right shrink-0">
                                                             <p className="text-xs text-gray-500">Costo</p>
                                                             <p className="font-bold text-gray-900 text-sm">Bs. {producto.precio?.toFixed(2) || 'N/A'}</p>
                                                         </div>
@@ -407,7 +456,7 @@ export default function ModalTraspaso({
                                 </div>
                             )}
 
-                            {/* Formulario para producto seleccionado */}
+                            {/* Formulario producto seleccionado */}
                             <AnimatePresence mode="wait">
                                 {productoSeleccionado && (
                                     <motion.div
@@ -416,11 +465,12 @@ export default function ModalTraspaso({
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: 30 }}
                                         transition={{ duration: 0.2 }}
-                                        className="border-t border-gray-200 bg-white flex-shrink-0"
+                                        className="border-t border-sky-200 bg-stone-50 flex-shrink-0 max-h-[70vh] overflow-y-auto"
                                     >
-                                        <div className="p-3 border-b border-gray-100 bg-gray-50">
-                                            <div className="flex justify-between items-center">
-                                                <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wide">
+                                        {/* Header producto seleccionado */}
+                                        <div className="p-3 border-b border-sky-200 bg-sky-100/50">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="font-semibold text-blue-700 text-xs uppercase tracking-wide">
                                                     Producto Seleccionado
                                                 </h3>
                                                 <button
@@ -428,21 +478,34 @@ export default function ModalTraspaso({
                                                         setProductoSeleccionado(null);
                                                         setBusqueda('');
                                                     }}
-                                                    className="text-red-500 hover:text-red-700 text-xs font-medium"
+                                                    className="text-red-500 hover:text-red-700 text-xs font-semibold cursor-pointer"
                                                 >
-                                                    Cancelar
+                                                    ✕ Cancelar
                                                 </button>
-                                            </div>
-                                            <div className="mt-2">
-                                                <div className="font-medium text-gray-900 text-sm">{productoSeleccionado.nombre}</div>
-                                                <div className="flex gap-3 mt-1 text-xs text-gray-500">
-                                                    <span>Código: {productoSeleccionado.codigo}</span>
-                                                    <span className="text-green-600">Stock: {productoSeleccionado.stock_actual}</span>
-                                                </div>
                                             </div>
                                         </div>
 
                                         <div className="p-3 space-y-3">
+                                            {/* Card del producto */}
+                                            <div className="flex bg-sky-50 ring-1 ring-sky-200 rounded-lg p-2 items-start gap-5 group">
+                                                <div className="flex-1 text-left min-w-0">
+                                                    <div className="relative w-full h-6 overflow-hidden">
+                                                        <h3 className="absolute left-0 top-0 whitespace-nowrap font-semibold text-gray-900 transition-none group-hover:transition-transform group-hover:duration-[6000ms] group-hover:ease-linear group-hover:-translate-x-full">
+                                                            {productoSeleccionado.nombre}
+                                                        </h3>
+                                                    </div>
+                                                    <p className="text-xs text-gray-600">Código: {productoSeleccionado.codigo}</p>
+                                                    <p className="text-xs text-gray-600">Categoría: {productoSeleccionado.categoria}</p>
+                                                    <p className="text-xs font-medium text-blue-600">
+                                                        Stock: {productoSeleccionado.stock_actual} unidades
+                                                    </p>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <p className="font-bold text-gray-900 text-sm">Bs. {productoSeleccionado.precio?.toFixed(2)}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Cantidad + Sucursal destino */}
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
                                                     <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -450,29 +513,76 @@ export default function ModalTraspaso({
                                                     </label>
                                                     <div className="flex items-center gap-1">
                                                         <input
-                                                            type="number"
+                                                            type="text"
                                                             name="cantidad"
-                                                            min="1"
-                                                            max={stockDisponible}
-                                                            value={formTraspaso.cantidad || 1}
-                                                            onChange={handleChangeForm}
-                                                            className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            value={formTraspaso.cantidad === 0 ? '' : formTraspaso.cantidad}
+                                                            onChange={(e) => {
+                                                                const valor = e.target.value;
+
+                                                                // 🔥 Permitir vacío temporalmente
+                                                                if (valor === '') {
+                                                                    handleChangeForm({ target: { name: 'cantidad', value: '' } });
+                                                                    return;
+                                                                }
+
+                                                                // 🔥 Solo dígitos
+                                                                const soloDigitos = valor.replace(/[^0-9]/g, '');
+                                                                if (soloDigitos === '') return;
+
+                                                                // 🔥 Limitar al stock disponible
+                                                                const stockMax = productoSeleccionado?.stock_actual || 999999;
+                                                                let numero = parseInt(soloDigitos, 10);
+                                                                if (numero > stockMax) numero = stockMax;
+                                                                if (numero < 1) numero = 1;
+
+                                                                handleChangeForm({ target: { name: 'cantidad', value: numero } });
+                                                            }}
+                                                            onKeyPress={(e) => {
+                                                                const charCode = e.which ? e.which : e.keyCode;
+                                                                if (charCode < 48 || charCode > 57) {
+                                                                    e.preventDefault();
+                                                                    return false;
+                                                                }
+                                                                return true;
+                                                            }}
+                                                            onPaste={(e) => {
+                                                                e.preventDefault();
+                                                                const texto = e.clipboardData.getData('text');
+                                                                const soloDigitos = texto.replace(/[^0-9]/g, '');
+                                                                if (soloDigitos) {
+                                                                    const stockMax = productoSeleccionado?.stock_actual || 999999;
+                                                                    let numero = parseInt(soloDigitos, 10);
+                                                                    if (numero > stockMax) numero = stockMax;
+                                                                    if (numero < 1) numero = 1;
+                                                                    handleChangeForm({ target: { name: 'cantidad', value: numero } });
+                                                                }
+                                                            }}
+                                                            onBlur={(e) => {
+                                                                // 🔥 Si el usuario sale sin escribir nada, restaurar a 1
+                                                                if (e.target.value === '' || parseInt(e.target.value, 10) < 1) {
+                                                                    handleChangeForm({ target: { name: 'cantidad', value: 1 } });
+                                                                }
+                                                            }}
+                                                            pattern="[0-9]*"
+                                                            inputMode="numeric"
+                                                            required
+                                                            className="flex-1 ring-1 ring-blue-200 bg-white rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
                                                         />
                                                         <button
                                                             type="button"
                                                             onClick={() => handleChangeForm({
                                                                 target: { name: 'cantidad', value: Math.max(1, (formTraspaso.cantidad || 1) - 1) }
                                                             })}
-                                                            className="px-3 py-1.5 bg-gray-200 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                                            className="px-2.5 py-1.5 bg-gray-200 rounded-md hover:bg-gray-300 text-sm font-bold cursor-pointer"
                                                         >
-                                                            -
+                                                            −
                                                         </button>
                                                         <button
                                                             type="button"
                                                             onClick={() => handleChangeForm({
                                                                 target: { name: 'cantidad', value: Math.min(stockDisponible, (formTraspaso.cantidad || 1) + 1) }
                                                             })}
-                                                            className="px-3 py-1.5 bg-gray-200 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                                            className="px-2.5 py-1.5 bg-gray-200 rounded-md hover:bg-gray-300 text-sm font-bold cursor-pointer"
                                                         >
                                                             +
                                                         </button>
@@ -488,7 +598,7 @@ export default function ModalTraspaso({
                                                         name="sucursal_destino_id"
                                                         value={formTraspaso.sucursal_destino_id}
                                                         onChange={handleChangeForm}
-                                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                                        className="w-full ring-1 ring-blue-200 bg-white rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                                         style={{ WebkitAppearance: 'menulist', appearance: 'menulist' }}
                                                     >
                                                         <option value="">Seleccionar</option>
@@ -501,6 +611,7 @@ export default function ModalTraspaso({
                                                 </div>
                                             </div>
 
+                                            {/* Observaciones */}
                                             <div>
                                                 <label className="block text-xs font-medium text-gray-700 mb-1">
                                                     Observaciones (Opcional)
@@ -510,28 +621,34 @@ export default function ModalTraspaso({
                                                     value={formTraspaso.observaciones}
                                                     onChange={handleChangeForm}
                                                     rows={2}
-                                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                                    className="w-full ring-1 ring-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                                                     placeholder="Motivo del traspaso..."
                                                 />
                                             </div>
 
-                                            <div className="bg-gray-50 rounded-lg p-2 text-sm">
+                                            {/* Subtotal */}
+                                            <div className="bg-white ring-1 ring-sky-200 rounded-lg p-2 text-sm">
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-600">Subtotal:</span>
-                                                    <span className="font-semibold">Bs. {valorTotalItemSeleccionado.toFixed(2)}</span>
+                                                    <span className="font-semibold text-blue-700">Bs. {valorTotalItemSeleccionado.toFixed(2)}</span>
                                                 </div>
                                                 {sucursalDestinoSeleccionada && (
                                                     <div className="flex justify-between text-xs text-gray-500 mt-1">
                                                         <span>Destino:</span>
-                                                        <span>{sucursalDestinoSeleccionada.nombre}</span>
+                                                        <span className="font-medium text-blue-600">{sucursalDestinoSeleccionada.nombre}</span>
                                                     </div>
                                                 )}
                                             </div>
 
+                                            {/* Botón agregar */}
                                             <button
                                                 onClick={handleAgregarAlCarrito}
-                                                disabled={!formTraspaso.sucursal_destino_id || formTraspaso.cantidad < 1 || formTraspaso.cantidad > stockDisponible}
-                                                className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                                                disabled={
+                                                    !formTraspaso.sucursal_destino_id ||
+                                                    !formTraspaso.cantidad ||
+                                                    parseInt(formTraspaso.cantidad, 10) < 1 ||
+                                                    parseInt(formTraspaso.cantidad, 10) > stockDisponible
+                                                } className="w-full py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer shadow-sm"
                                             >
                                                 <PlusCircleIcon className="h-4 w-4" />
                                                 Agregar al Carrito
@@ -541,105 +658,139 @@ export default function ModalTraspaso({
                                 )}
                             </AnimatePresence>
 
-                            {/* Espacio para mantener altura cuando no hay producto seleccionado */}
+                            {/* Placeholder cuando no hay producto */}
                             {!productoSeleccionado && (
-                                <div className="flex-shrink-0 p-3 text-center text-xs text-gray-400 border-t border-gray-200 bg-gray-50">
-                                    Selecciona un producto para continuar
+                                <div className="flex-shrink-0 p-3 text-center text-xs text-gray-400 border-t border-sky-100 bg-white">
+                                    👆 Selecciona un producto para continuar
                                 </div>
                             )}
                         </div>
 
-                        {/* Lado Derecho - Carrito de Traspasos - Tamaño fijo */}
+                        {/* ==================== LADO DERECHO - CARRITO ==================== */}
                         <div className="w-1/2 flex flex-col bg-white min-h-0">
+
+                            {/* Header carrito */}
                             <div className="p-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                                 <div className="flex items-center gap-2">
-                                    <ShoppingCartIcon className="h-5 w-5 text-blue-600" />
-                                    <h3 className="text-base font-bold text-gray-900">Carrito</h3>
+                                    <div className="bg-blue-100 p-1.5 rounded-lg">
+                                        <ShoppingCartIcon className="h-5 w-5 text-blue-600" />
+                                    </div>
+                                    <h3 className="text-base font-bold text-gray-900">Carrito de Traspasos</h3>
                                     {totalTraspasos > 0 && (
-                                        <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                            {totalTraspasos}
+                                        <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">
+                                            {totalTraspasos} {totalTraspasos === 1 ? 'producto' : 'productos'} · {totalCantidad} u.
                                         </span>
                                     )}
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-3 min-h-0">
+                            {/* Lista carrito */}
+                            <div className="flex-1 overflow-y-auto p-3 min-h-0 bg-white">
                                 {carrito.length === 0 ? (
                                     <div className="text-center text-gray-500 mt-8">
-                                        <TruckIcon className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                                        <p className="text-sm">Carrito vacío</p>
-                                        <p className="text-xs">Selecciona productos del lado izquierdo</p>
+                                        <div className="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <TruckIcon className="h-10 w-10 text-blue-300" />
+                                        </div>
+                                        <p className="text-sm font-medium">Carrito vacío</p>
+                                        <p className="text-xs text-gray-400 mt-1">Selecciona productos del lado izquierdo</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {carrito.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                className="border border-gray-200 rounded-lg p-2 bg-gray-50"
-                                            >
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <div className="flex-1 min-w-0">
-                                                        <h4 className="font-medium text-gray-900 text-sm truncate">{item.producto.nombre}</h4>
-                                                        <p className="text-xs text-gray-500">Código: {item.producto.codigo}</p>
+                                        <AnimatePresence>
+                                            {[...carrito].reverse().map((item) => (
+                                                <motion.div
+                                                    key={item.id}
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: -20 }}
+                                                    transition={{ duration: 0.2 }}
+                                                    className="ring-1 ring-blue-100 rounded-lg px-3 py-2 bg-blue-50/50 group"
+                                                >
+                                                    {/* Header item */}
+                                                    <div className="flex justify-between items-start mb-2 gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="relative w-full h-5 overflow-hidden">
+                                                                <h4 className="absolute left-0 top-0 whitespace-nowrap font-semibold text-gray-900 text-sm transition-none group-hover:transition-transform group-hover:duration-[6000ms] group-hover:ease-linear group-hover:-translate-x-full">
+                                                                    {item.producto.nombre}
+                                                                </h4>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500">Código: {item.producto.codigo}</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleEliminarDelCarrito(item.id)}
+                                                            className="cursor-pointer bg-red-50 hover:bg-red-100 px-2 py-1 rounded-md text-red-600 hover:text-red-700 text-xs font-semibold transition-colors shrink-0 flex items-center gap-1"
+                                                        >
+                                                            <TrashIcon className="h-3.5 w-3.5" />
+                                                            Eliminar
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        onClick={() => handleEliminarDelCarrito(item.id)}
-                                                        className="text-red-500 hover:text-red-700 p-0.5"
-                                                    >
-                                                        <TrashIcon className="h-4 w-4" />
-                                                    </button>
-                                                </div>
 
-                                                <div className="flex items-center justify-between mt-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs text-gray-500">Cant:</span>
-                                                        <div className="flex items-center gap-1">
-                                                            <button
-                                                                onClick={() => handleActualizarCantidadCarrito(item.id, item.cantidad - 1)}
-                                                                className="px-2 py-0.5 bg-gray-200 rounded hover:bg-gray-300 text-xs"
-                                                            >
-                                                                -
-                                                            </button>
-                                                            <span className="text-sm font-medium w-6 text-center">{item.cantidad}</span>
-                                                            <button
-                                                                onClick={() => handleActualizarCantidadCarrito(item.id, item.cantidad + 1)}
-                                                                className="px-2 py-0.5 bg-gray-200 rounded hover:bg-gray-300 text-xs"
-                                                            >
-                                                                +
-                                                            </button>
+                                                    {/* Cantidad */}
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-gray-500 font-medium">Cant:</span>
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    onClick={() => handleActualizarCantidadCarrito(item.id, item.cantidad - 1)}
+                                                                    className="w-6 h-6 bg-white ring-1 ring-gray-300 rounded hover:bg-gray-100 text-xs font-bold cursor-pointer flex items-center justify-center"
+                                                                >
+                                                                    −
+                                                                </button>
+                                                                <span className="text-sm font-semibold w-8 text-center text-gray-900">{item.cantidad}</span>
+                                                                <button
+                                                                    onClick={() => handleActualizarCantidadCarrito(item.id, item.cantidad + 1)}
+                                                                    className="w-6 h-6 bg-white ring-1 ring-gray-300 rounded hover:bg-gray-100 text-xs font-bold cursor-pointer flex items-center justify-center"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-xs text-gray-500">Total: </span>
+                                                            <span className="text-sm font-semibold text-blue-700">Bs. {item.total_linea.toFixed(2)}</span>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <span className="text-xs text-gray-500">Total:</span>
-                                                        <span className="ml-1 text-sm font-semibold text-blue-600">Bs. {item.total_linea.toFixed(2)}</span>
+
+                                                    {/* Destino + Observaciones */}
+                                                    <div className="pt-1.5 border-t border-blue-100 space-y-1">
+                                                        <p className="text-xs text-blue-700 flex items-center gap-1">
+                                                            <MapPinIcon className="h-3 w-3" />
+                                                            <strong>Destino:</strong>
+                                                            <span className="truncate">{sucursales?.find(s => s.id === item.sucursal_destino_id)?.nombre || '—'}</span>
+                                                        </p>
+                                                        {item.observaciones && (
+                                                            <p className="text-xs text-gray-500 italic">
+                                                                💬 {item.observaciones}
+                                                            </p>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                                </motion.div>
+                                            ))}
+                                        </AnimatePresence>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Footer del carrito - siempre visible */}
+                            {/* Footer carrito */}
                             <div className="border-t border-gray-200 p-3 bg-gray-50 flex-shrink-0">
                                 {carrito.length > 0 ? (
                                     <>
-                                        <div className="space-y-1 mb-3">
+                                        <div className="space-y-1.5 mb-3 bg-white rounded-lg p-2.5 ring-1 ring-gray-200">
                                             <div className="flex justify-between text-xs">
                                                 <span className="text-gray-600">Productos:</span>
-                                                <span className="font-medium">{totalTraspasos}</span>
+                                                <span className="font-semibold text-gray-900">{totalTraspasos}</span>
                                             </div>
                                             <div className="flex justify-between text-xs">
                                                 <span className="text-gray-600">Unidades:</span>
-                                                <span className="font-medium">{totalCantidad}</span>
+                                                <span className="font-semibold text-gray-900">{totalCantidad}</span>
                                             </div>
                                             <div className="flex justify-between text-xs">
                                                 <span className="text-gray-600">Destino:</span>
-                                                <span className="font-medium text-blue-600 truncate max-w-[150px]">{sucursalDestinoNombre || '—'}</span>
+                                                <span className="font-semibold text-blue-700 truncate max-w-[150px]">{sucursalDestinoNombre || '—'}</span>
                                             </div>
-                                            <div className="flex justify-between text-base font-bold pt-1 border-t border-gray-200">
-                                                <span>Total:</span>
-                                                <span className="text-green-600">Bs. {totalValor.toFixed(2)}</span>
+                                            <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200 mt-1">
+                                                <span className="text-gray-800">Total:</span>
+                                                <span className="text-blue-700">Bs. {totalValor.toFixed(2)}</span>
                                             </div>
                                         </div>
 
@@ -649,36 +800,43 @@ export default function ModalTraspaso({
                                                     initial={{ opacity: 0, height: 0 }}
                                                     animate={{ opacity: 1, height: 'auto' }}
                                                     exit={{ opacity: 0, height: 0 }}
-                                                    className={`mb-2 p-2 rounded-lg text-xs ${error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}
+                                                    className={`mb-2 p-2 rounded-lg text-xs ring-1 ${error
+                                                        ? 'bg-red-50 text-red-700 ring-red-200'
+                                                        : 'bg-green-50 text-green-700 ring-green-200'
+                                                        }`}
                                                 >
-                                                    <div className="flex items-center gap-1">
-                                                        {error ? <ExclamationCircleIcon className="h-3 w-3" /> : <CheckCircleIcon className="h-3 w-3" />}
-                                                        <p>{error || successMessage}</p>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {error ? (
+                                                            <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
+                                                        ) : (
+                                                            <CheckCircleIcon className="h-4 w-4 shrink-0" />
+                                                        )}
+                                                        <p className="font-medium">{error || successMessage}</p>
                                                     </div>
                                                 </motion.div>
                                             )}
                                         </AnimatePresence>
                                     </>
                                 ) : (
-                                    <div className="h-16" />
+                                    <div className="h-20" />
                                 )}
 
                                 <div className="flex gap-2">
                                     <button
                                         type="button"
                                         onClick={onCerrar}
-                                        className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg transition-colors text-sm font-medium"
+                                        className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2.5 rounded-md transition-colors text-sm font-semibold cursor-pointer"
                                     >
                                         Cancelar
                                     </button>
                                     <button
                                         onClick={handleSubmit}
                                         disabled={creando || carrito.length === 0}
-                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-md transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                                     >
                                         {creando ? (
                                             <>
-                                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                                                <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
                                                 <span>Procesando...</span>
                                             </>
                                         ) : (
