@@ -6,12 +6,14 @@ export const useProductos = (sucursalId) => {
     const [productos, setProductos] = useState([]);
     const sucursal_id = sucursalId;
     const [categorias, setCategorias] = useState([]);
+    const [catalogoGlobal, setCatalogoGlobal] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         cargarProductos();
         cargarCategorias();
+        cargarCatalogoGlobal();
     }, [sucursalId]);
 
     const cargarProductos = async () => {
@@ -46,22 +48,18 @@ export const useProductos = (sucursalId) => {
                 )
             `)
                 .eq('sucursal_id', sucursal_id)
-                // .eq('producto.activo', true) // Comentado para mostrar todos
                 .order('producto(codigo)', { ascending: true });
 
             if (error) throw error;
 
-            // Obtener datos de la sucursal actual
             const { data: sucursalData, error: errorSucursal } = await supabase
                 .from('sucursales')
                 .select('id, nombre')
                 .eq('id', sucursal_id)
                 .maybeSingle();
 
-            // 🔹 Transformar datos manteniendo la estructura original
-            // FILTRAR productos que tienen datos válidos
             const productosFormateados = data
-                .filter(item => item.producto !== null) // 👈 FILTRO IMPORTANTE
+                .filter(item => item.producto !== null)
                 .map(item => ({
                     id: item.producto.id,
                     codigo: item.producto.codigo,
@@ -95,7 +93,22 @@ export const useProductos = (sucursalId) => {
         }
     };
 
-    // Listener para localStorage
+    // 🔹 Catálogo global: TODOS los productos (sin importar stock en sucursal)
+    // Se usa para validar códigos únicos globalmente
+    const cargarCatalogoGlobal = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('productos')
+                .select('id, codigo, nombre, activo')
+                .order('codigo', { ascending: true });
+
+            if (error) throw error;
+            setCatalogoGlobal(data || []);
+        } catch (error) {
+            console.error('Error cargando catálogo global:', error);
+        }
+    };
+
     const { values: localStorageValues } = useMultiLocalStorageListener([
         'currentUser'
     ]);
@@ -161,7 +174,7 @@ export const useProductos = (sucursalId) => {
         };
     };
 
-    // Crear nuevo producto
+    // Crear nuevo producto (global + stock en todas las sucursales)
     const crearProducto = async (productoData) => {
         setLoading(true);
         setError(null);
@@ -176,113 +189,128 @@ export const useProductos = (sucursalId) => {
 
         try {
             const stockInicial = parseInt(productoData.stock_inicial) || 0;
+            const stockMinimo = parseInt(productoData.stock_minimo) || 0;
+            const codigoNormalizado = productoData.codigo.trim();
 
-            // 1. Verificar si ya existe el código en catálogo
+            // 1. Verificar si el código ya existe en el catálogo GLOBAL
             const { data: catalogoExistente, error: errorBusquedaCatalogo } = await supabase
                 .from('productos')
-                .select('id, codigo')
-                .eq('codigo', productoData.codigo.trim())
+                .select('id, codigo, nombre')
+                .eq('codigo', codigoNormalizado)
                 .maybeSingle();
 
             if (errorBusquedaCatalogo && errorBusquedaCatalogo.code !== 'PGRST116') {
                 throw errorBusquedaCatalogo;
             }
 
-            let productoId;
-
             if (catalogoExistente) {
-                productoId = catalogoExistente.id;
-
-                // Verificar si ya tiene stock en esta sucursal
-                const { data: stockExistente } = await supabase
-                    .from('productos_stock')
-                    .select('id')
-                    .eq('producto_id', productoId)
-                    .eq('sucursal_id', sucursal_id)
-                    .maybeSingle();
-
-                if (stockExistente) {
-                    return {
-                        success: false,
-                        error: `El producto con código "${productoData.codigo}" ya existe en esta sucursal`
-                    };
-                }
-            } else {
-                // Crear nuevo producto en catálogo
-                const { data: nuevoCatalogo, error: errorCatalogo } = await supabase
-                    .from('productos')
-                    .insert({
-                        codigo: productoData.codigo.trim(),
-                        nombre: productoData.nombre.trim(),
-                        descripcion: productoData.descripcion?.trim() || null,
-                        categoria_id: parseInt(productoData.categoria_id),
-                        precio: parseFloat(productoData.precio),
-                        costo: productoData.costo ? parseFloat(productoData.costo) : null,
-                        comision_variable: categoriaPermiteComisionVariable(productoData.categoria_id) && productoData.comision_variable
-                            ? parseFloat(productoData.comision_variable)
-                            : null,
-                        activo: true
-                    })
-                    .select()
-                    .single();
-
-                if (errorCatalogo) throw errorCatalogo;
-                productoId = nuevoCatalogo.id;
+                const msg = `El código "${codigoNormalizado}" ya existe en el catálogo (producto: "${catalogoExistente.nombre}"). Los códigos son únicos globalmente para todas las sucursales.`;
+                setError(msg);
+                setLoading(false);
+                return { success: false, error: msg, errors: { codigo: msg } };
             }
 
-            // Obtener datos de la sucursal
-            const { data: sucursalInfo } = await supabase
-                .from('sucursales')
-                .select('id, nombre')
-                .eq('id', sucursal_id)
+            // 2. Crear producto en catálogo global
+            const { data: nuevoCatalogo, error: errorCatalogo } = await supabase
+                .from('productos')
+                .insert({
+                    codigo: codigoNormalizado,
+                    nombre: productoData.nombre.trim(),
+                    descripcion: productoData.descripcion?.trim() || null,
+                    categoria_id: parseInt(productoData.categoria_id),
+                    precio: parseFloat(productoData.precio),
+                    costo: productoData.costo ? parseFloat(productoData.costo) : null,
+                    comision_variable: categoriaPermiteComisionVariable(productoData.categoria_id) && productoData.comision_variable
+                        ? parseFloat(productoData.comision_variable)
+                        : null,
+                    activo: true
+                })
+                .select()
                 .single();
 
-            // 2. Crear stock en la sucursal actual
-            const { data: nuevoStock, error: errorStock } = await supabase
+            if (errorCatalogo) throw errorCatalogo;
+            const productoId = nuevoCatalogo.id;
+
+            // 3. Obtener TODAS las sucursales activas
+            const { data: sucursalesActivas, error: errorSucursales } = await supabase
+                .from('sucursales')
+                .select('id, nombre')
+                .eq('activo', true);
+
+            if (errorSucursales) throw errorSucursales;
+            if (!sucursalesActivas || sucursalesActivas.length === 0) {
+                // Rollback del producto recién creado
+                await supabase.from('productos').delete().eq('id', productoId);
+                throw new Error('No hay sucursales activas para asignar stock');
+            }
+
+            // 4. Crear fila de stock en TODAS las sucursales
+            //    Stock inicial/mínimo solo en la sucursal actual; el resto en 0
+            const stocksAInsertar = sucursalesActivas.map(s => ({
+                producto_id: productoId,
+                sucursal_id: s.id,
+                stock_actual: s.id === sucursal_id ? stockInicial : 0,
+                stock_inicial: s.id === sucursal_id ? stockInicial : 0,
+                stock_minimo: s.id === sucursal_id ? stockMinimo : 0
+            }));
+
+            const { data: stocksCreados, error: errorStock } = await supabase
                 .from('productos_stock')
-                .insert({
-                    producto_id: productoId,
-                    sucursal_id: sucursal_id,
-                    stock_actual: stockInicial,
-                    stock_inicial: stockInicial,
-                    stock_minimo: parseInt(productoData.stock_minimo) || 0
-                })
+                .insert(stocksAInsertar)
                 .select(`
                     *,
                     producto:producto_id (
                         *,
                         categorias (*)
                     )
-                `)
-                .single();
+                `);
 
-            if (errorStock) throw errorStock;
+            if (errorStock) {
+                // Rollback manual: borrar el producto recién creado
+                await supabase.from('productos').delete().eq('id', productoId);
+                throw errorStock;
+            }
 
-            // Formatear respuesta
+            // 5. Formatear el producto de la sucursal actual para el state local
+            const stockActual = stocksCreados.find(s => s.sucursal_id === sucursal_id);
+            const sucursalInfo = sucursalesActivas.find(s => s.id === sucursal_id);
+
             const productoCompleto = {
-                id: nuevoStock.producto.id,
-                codigo: nuevoStock.producto.codigo,
-                nombre: nuevoStock.producto.nombre,
-                descripcion: nuevoStock.producto.descripcion,
-                precio: nuevoStock.producto.precio,
-                costo: nuevoStock.producto.costo,
-                comision_variable: nuevoStock.producto.comision_variable,
-                stock_actual: nuevoStock.stock_actual,
-                stock_inicial: nuevoStock.stock_inicial,
-                stock_minimo: nuevoStock.stock_minimo,
-                activo: nuevoStock.producto.activo,
-                created_at: nuevoStock.producto.created_at,
-                updated_at: nuevoStock.producto.updated_at,
-                categoria_id: nuevoStock.producto.categoria_id,
+                id: nuevoCatalogo.id,
+                codigo: nuevoCatalogo.codigo,
+                nombre: nuevoCatalogo.nombre,
+                descripcion: nuevoCatalogo.descripcion,
+                precio: nuevoCatalogo.precio,
+                costo: nuevoCatalogo.costo,
+                comision_variable: nuevoCatalogo.comision_variable,
+                stock_actual: stockActual?.stock_actual ?? 0,
+                stock_inicial: stockActual?.stock_inicial ?? 0,
+                stock_minimo: stockActual?.stock_minimo ?? 0,
+                activo: nuevoCatalogo.activo,
+                created_at: nuevoCatalogo.created_at,
+                updated_at: nuevoCatalogo.updated_at,
+                categoria_id: nuevoCatalogo.categoria_id,
                 sucursal_id: sucursal_id,
-                categorias: nuevoStock.producto.categorias,
-                sucursales: sucursalInfo,
-                stock_id: nuevoStock.id,
-                stock_created_at: nuevoStock.created_at,
-                stock_updated_at: nuevoStock.updated_at
+                categorias: stockActual?.producto?.categorias ?? null,
+                sucursales: sucursalInfo ? { id: sucursalInfo.id, nombre: sucursalInfo.nombre } : null,
+                stock_id: stockActual?.id,
+                stock_created_at: stockActual?.created_at,
+                stock_updated_at: stockActual?.updated_at
             };
 
             setProductos(prev => [productoCompleto, ...prev]);
+
+            // 🔹 Actualizar catálogo global en memoria para que la próxima validación lo vea
+            setCatalogoGlobal(prev => [
+                ...prev,
+                {
+                    id: nuevoCatalogo.id,
+                    codigo: nuevoCatalogo.codigo,
+                    nombre: nuevoCatalogo.nombre,
+                    activo: nuevoCatalogo.activo
+                }
+            ]);
+
             return { success: true, data: productoCompleto };
         } catch (error) {
             const errorMessage = error.message || error.details || JSON.stringify(error);
@@ -298,8 +326,7 @@ export const useProductos = (sucursalId) => {
         }
     };
 
-
-    // Actualizar producto existente    
+    // Actualizar producto existente
     const actualizarProducto = async (id, productoData) => {
         setLoading(true);
         setError(null);
@@ -313,11 +340,32 @@ export const useProductos = (sucursalId) => {
         }
 
         try {
+            const codigoNormalizado = productoData.codigo.trim();
+
+            // 🔹 Validar código duplicado globalmente (excluyendo el producto actual)
+            const { data: codigoExistente, error: errorCodigo } = await supabase
+                .from('productos')
+                .select('id, codigo, nombre')
+                .eq('codigo', codigoNormalizado)
+                .neq('id', id)
+                .maybeSingle();
+
+            if (errorCodigo && errorCodigo.code !== 'PGRST116') {
+                throw errorCodigo;
+            }
+
+            if (codigoExistente) {
+                const msg = `El código "${codigoNormalizado}" ya existe en el catálogo (producto: "${codigoExistente.nombre}"). Los códigos son únicos globalmente.`;
+                setError(msg);
+                setLoading(false);
+                return { success: false, error: msg, errors: { codigo: msg } };
+            }
+
             // 1. Actualizar en catálogo
             const { data: catalogoActualizado, error: errorCatalogo } = await supabase
                 .from('productos')
                 .update({
-                    codigo: productoData.codigo.trim(),
+                    codigo: codigoNormalizado,
                     nombre: productoData.nombre.trim(),
                     descripcion: productoData.descripcion?.trim() || null,
                     categoria_id: parseInt(productoData.categoria_id),
@@ -326,7 +374,7 @@ export const useProductos = (sucursalId) => {
                     comision_variable: categoriaPermiteComisionVariable(productoData.categoria_id) && productoData.comision_variable
                         ? parseFloat(productoData.comision_variable)
                         : null,
-                    activo: productoData.activo, // 👈 AGREGAR ESTA LÍNEA
+                    activo: productoData.activo,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', id)
@@ -338,7 +386,7 @@ export const useProductos = (sucursalId) => {
 
             if (errorCatalogo) throw errorCatalogo;
 
-            // 2. Actualizar stock_minimo en productos_stock
+            // 2. Actualizar stock_minimo en productos_stock (solo sucursal actual)
             const { error: errorStock } = await supabase
                 .from('productos_stock')
                 .update({
@@ -384,6 +432,13 @@ export const useProductos = (sucursalId) => {
                 prod.id === id ? productoCompleto : prod
             ));
 
+            // 🔹 Sincronizar catálogo global en memoria
+            setCatalogoGlobal(prev => prev.map(cat =>
+                cat.id === id
+                    ? { ...cat, codigo: catalogoActualizado.codigo, nombre: catalogoActualizado.nombre, activo: catalogoActualizado.activo }
+                    : cat
+            ));
+
             return { success: true, data: productoCompleto };
         } catch (error) {
             const errorMessage = error.message || error.details || JSON.stringify(error);
@@ -414,6 +469,10 @@ export const useProductos = (sucursalId) => {
             if (error) throw error;
 
             setProductos(prev => prev.filter(prod => prod.id !== id));
+            setCatalogoGlobal(prev => prev.map(cat =>
+                cat.id === id ? { ...cat, activo: false } : cat
+            ));
+
             return { success: true };
         } catch (error) {
             const errorMessage = error.message || error.details || JSON.stringify(error);
@@ -440,6 +499,7 @@ export const useProductos = (sucursalId) => {
 
     return {
         productos,
+        catalogoGlobal,
         categorias,
         loading,
         error,
@@ -451,6 +511,9 @@ export const useProductos = (sucursalId) => {
         validarProducto,
         obtenerStock,
         tieneStockSuficiente,
-        recargarProductos: cargarProductos
+        recargarProductos: () => {
+            cargarProductos();
+            cargarCatalogoGlobal();
+        }
     };
 };

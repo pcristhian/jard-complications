@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Header from './components/Header';
 import FiltroProductos from './components/FiltroProductos';
 import Tabla from './components/Tabla';
@@ -13,7 +13,6 @@ export default function GestionProductos() {
     const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
     const [productoEditando, setProductoEditando] = useState(null);
 
-    // Estados para filtros
     const [filtro, setFiltro] = useState('');
     const [categoriaFiltro, setCategoriaFiltro] = useState('');
     const [soloActivos, setSoloActivos] = useState(true);
@@ -23,6 +22,7 @@ export default function GestionProductos() {
 
     const {
         productos,
+        catalogoGlobal,
         categorias,
         loading,
         error,
@@ -31,11 +31,6 @@ export default function GestionProductos() {
         eliminarProducto,
         recargarProductos
     } = useProductos(sucursalSeleccionada?.id);
-
-    // Filtrar productos SOLO de la sucursal seleccionada para la validación
-    const productosDeSucursal = sucursalSeleccionada
-        ? productos.filter(producto => producto.sucursal_id === sucursalSeleccionada.id)
-        : [];
 
     const handleCrearProducto = async (datosProducto) => {
         const productoConSucursal = {
@@ -84,7 +79,6 @@ export default function GestionProductos() {
                 </div>
             )}
 
-            {/* Componente de filtros separado */}
             <FiltroProductos
                 productos={productos}
                 sucursalSeleccionada={sucursalSeleccionada}
@@ -93,7 +87,6 @@ export default function GestionProductos() {
                 onSoloActivosChange={setSoloActivos}
             />
 
-            {/* Tabla simplificada */}
             <Tabla
                 productos={productos}
                 onEditar={setProductoEditando}
@@ -111,7 +104,7 @@ export default function GestionProductos() {
                 categorias={categorias}
                 loading={loading}
                 sucursalSeleccionada={sucursalSeleccionada}
-                productosExistentes={productosDeSucursal} // ← Solo productos de esta sucursal
+                productosExistentes={catalogoGlobal}   // 🔹 Catálogo global completo
             />
 
             {productoEditando && (
@@ -122,8 +115,7 @@ export default function GestionProductos() {
                     categorias={categorias}
                     loading={loading}
                     sucursalSeleccionada={sucursalSeleccionada}
-                    productosExistentes={productosDeSucursal} // ← Solo productos de esta sucursal
-
+                    productosExistentes={catalogoGlobal}   // 🔹 Catálogo global completo
                 />
             )}
         </div>

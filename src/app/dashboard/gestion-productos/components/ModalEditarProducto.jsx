@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+    GlobeAltIcon,
     XMarkIcon,
     PencilSquareIcon,
     TagIcon,
