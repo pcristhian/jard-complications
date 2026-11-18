@@ -97,6 +97,7 @@ const FiltrosVentas = ({
     mostrarSoloActivas,
     setMostrarSoloActivas,
     ventasOriginales,
+    obtenerVentasParaExportar,   // ⬅️ NUEVA
 }) => {
     const [mostrarCalendario, setMostrarCalendario] = useState(false);
     const [descargando, setDescargando] = useState(false);
@@ -238,12 +239,13 @@ const FiltrosVentas = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // ✅ EFFECT: Inicializar con el mes actual
+    // ✅ EFFECT: Inicializar con el mes actual (SOLO visual, no dispara fetch)
     useEffect(() => {
         const ahora = new Date();
         const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
         setMesSeleccionado(mesActual);
-        aplicarFiltroMes(mesActual);
+        // ⚠️ NO llamar aplicarFiltroMes aquí:
+        // useVentas ya carga el mes actual por defecto.
     }, []);
 
     const hayFiltrosActivos =
@@ -253,25 +255,27 @@ const FiltrosVentas = ({
         (filtroFecha && filtroFecha.aplicadoManualmente);
 
     // ✅ FUNCIÓN MEJORADA: Descargar Excel
-    const descargarExcel = () => {
-        if (!ventasOriginales || ventasOriginales.length === 0) {
-            alert('No hay ventas para descargar');
+    const descargarExcel = async () => {
+        if (!obtenerVentasParaExportar) {
+            alert('Función de exportación no disponible');
             return;
         }
 
         setDescargando(true);
 
         try {
-            // Filtrar solo ventas activas
-            let ventasParaExportar = ventasOriginales.filter(v => v.estado === 'activa');
+            // ⬅️ Consulta fresca al servidor (paginada internamente)
+            let ventasParaExportar = await obtenerVentasParaExportar(filtroFecha);
+
+            // Solo activas
+            ventasParaExportar = ventasParaExportar.filter(v => v.estado === 'activa');
 
             if (ventasParaExportar.length === 0) {
-                alert('No hay ventas activas para descargar');
-                setDescargando(false);
+                alert('No hay ventas activas para descargar en el rango seleccionado');
                 return;
             }
 
-            // Aplicar filtros adicionales
+            // Filtros adicionales (en cliente, sobre el rango ya traído)
             if (filtroCategoria) {
                 ventasParaExportar = ventasParaExportar.filter(v =>
                     v.categoria_nombre === filtroCategoria
@@ -293,25 +297,13 @@ const FiltrosVentas = ({
                 );
             }
 
-            if (filtroFecha?.inicio && filtroFecha?.fin) {
-                const inicioUTC = new Date(filtroFecha.inicio);
-                const finUTC = new Date(filtroFecha.fin);
-
-                ventasParaExportar = ventasParaExportar.filter(v => {
-                    const fechaVenta = new Date(v.fecha_venta);
-                    return fechaVenta >= inicioUTC && fechaVenta <= finUTC;
-                });
-            }
-
             if (ventasParaExportar.length === 0) {
                 alert('No hay ventas que coincidan con los filtros aplicados');
-                setDescargando(false);
                 return;
             }
 
             // Preparar datos para Excel
             const datosExcel = ventasParaExportar.map((venta, index) => {
-                // ✅ Usar la fecha formateada en Bolivia
                 const fechaBolivia = formatUTCToBolivia(venta.fecha_venta, 'date');
 
                 return {
@@ -339,23 +331,11 @@ const FiltrosVentas = ({
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(datosExcel);
 
-            const colWidths = [
-                { wch: 6 },  // N°
-                { wch: 12 }, // Fecha
-                { wch: 12 }, // Código
-                { wch: 40 }, // Producto
-                { wch: 15 }, // Promotor
-                { wch: 12 }, // Caja
-                { wch: 10 }, // Cantidad
-                { wch: 14 }, // Precio Unitario
-                { wch: 14 }, // Total
-                { wch: 14 }, // Descuento
-                { wch: 14 }, // Comisión
-                { wch: 15 }, // Categoría
-                { wch: 25 }, // Observaciones
-                { wch: 10 }, // Estado
+            ws['!cols'] = [
+                { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 40 }, { wch: 15 },
+                { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+                { wch: 14 }, { wch: 15 }, { wch: 25 }, { wch: 10 },
             ];
-            ws['!cols'] = colWidths;
 
             XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
 

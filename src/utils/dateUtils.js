@@ -165,3 +165,30 @@ export const isSameDayInBolivia = (fecha1, fecha2) => {
         return false;
     }
 };
+/**
+ * Obtiene el rango UTC que abarca un año completo en hora Bolivia
+ * @param {number} anio - Año (ej. 2026). Si no se pasa, usa el año actual.
+ * @returns {Object} { inicio: string, fin: string } en UTC ISO
+ */
+export const getBoliviaYearRangeUTC = (anio = new Date().getFullYear()) => {
+    try {
+        // Inicio: 1 enero 00:00 hora Bolivia
+        const inicioBolivia = new Date(anio, 0, 1, 0, 0, 0, 0);
+        // Fin: 31 diciembre 23:59:59.999 hora Bolivia
+        const finBolivia = new Date(anio, 11, 31, 23, 59, 59, 999);
+
+        // Bolivia es UTC-4 fijo (sin DST): UTC = Bolivia + 4h
+        const offsetMs = 4 * 60 * 60 * 1000;
+
+        const inicioUTC = new Date(inicioBolivia.getTime() + offsetMs);
+        const finUTC = new Date(finBolivia.getTime() + offsetMs);
+
+        return {
+            inicio: inicioUTC.toISOString(),
+            fin: finUTC.toISOString()
+        };
+    } catch (error) {
+        console.error('Error obteniendo rango UTC del año:', error);
+        return null;
+    }
+};

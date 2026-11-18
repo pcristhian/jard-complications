@@ -3,17 +3,29 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener';
 
-// ✅ IMPORTAR UTILIDADES DE FECHAS
+// ✅ UTILIDADES DE FECHAS
 import {
     formatUTCToBolivia,
     getCurrentUTCTime,
     getBoliviaDayRangeUTC
 } from '@/utils/dateUtils';
 
-// ❌ ELIMINAR estas líneas
-// const TIMEZONE_BOLIVIA = -4;
-// const boliviaToUTC = ...
-// const utcToBolivia = ...
+// ✅ HELPER LOCAL: rango UTC del mes Bolivia (usa getBoliviaDayRangeUTC que ya funciona)
+const getBoliviaMonthRangeUTC = (fecha = new Date()) => {
+    const y = fecha.getFullYear();
+    const m = fecha.getMonth();
+    const primerDia = new Date(y, m, 1);
+    const ultimoDia = new Date(y, m + 1, 0);
+
+    const rangeInicio = getBoliviaDayRangeUTC(primerDia);
+    const rangeFin = getBoliviaDayRangeUTC(ultimoDia);
+
+    if (!rangeInicio || !rangeFin) return null;
+    return { inicio: rangeInicio.inicio, fin: rangeFin.fin };
+};
+
+// ✅ Paginación interna para no chocar con el límite de Supabase (1000 filas)
+const PAGE_SIZE = 1000;
 
 export const useVentas = () => {
     const [ventas, setVentas] = useState([]);
@@ -21,19 +33,15 @@ export const useVentas = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [sucursalCargada, setSucursalCargada] = useState(false);
+    const [rangoActual, setRangoActual] = useState(null); // trazabilidad
 
     const { values: localStorageValues } = useMultiLocalStorageListener([
         'currentUser',
         'sucursalSeleccionada'
     ]);
 
-    const getCurrentUser = () => {
-        return localStorageValues.currentUser || null;
-    };
-
-    const getCurrentSucursal = () => {
-        return localStorageValues.sucursalSeleccionada || null;
-    };
+    const getCurrentUser = () => localStorageValues.currentUser || null;
+    const getCurrentSucursal = () => localStorageValues.sucursalSeleccionada || null;
 
     const puedeConfirmarDepositos = () => {
         const currentUser = getCurrentUser();
@@ -50,6 +58,9 @@ export const useVentas = () => {
         return currentUser && currentUser.rol_id !== 1;
     };
 
+    // ─────────────────────────────────────────────
+    // PRODUCTOS
+    // ─────────────────────────────────────────────
     const obtenerProductos = async () => {
         try {
             const currentSucursal = getCurrentSucursal();
@@ -119,16 +130,16 @@ export const useVentas = () => {
         }
     };
 
-    // ✅ MODIFICADO: Obtener ventas con fechas en Bolivia
-    const obtenerMisVentas = async () => {
-        const currentUser = getCurrentUser();
-        const currentSucursal = getCurrentSucursal();
-        if (!currentUser || !currentSucursal) return;
+    // ─────────────────────────────────────────────
+    // VENTAS — fetch paginado por rango
+    // ─────────────────────────────────────────────
+    const fetchVentasPorRango = async (sucursalId, inicioUTC, finUTC) => {
+        let all = [];
+        let from = 0;
+        let hasMore = true;
 
-        try {
-            setLoading(true);
-
-            const { data: ventasData, error: supabaseError } = await supabase
+        while (hasMore) {
+            const { data, error: supabaseError } = await supabase
                 .from('ventas')
                 .select(`
                     *,
@@ -157,34 +168,64 @@ export const useVentas = () => {
                         )
                     )
                 `)
-                .eq('sucursal_id', currentSucursal.id)
-                .order('fecha_venta', { ascending: false });
+                .eq('sucursal_id', sucursalId)
+                .gte('fecha_venta', inicioUTC)
+                .lte('fecha_venta', finUTC)
+                .order('fecha_venta', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1);
 
             if (supabaseError) {
                 throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
             }
 
-            // ✅ ENRIQUECER CON FECHAS EN BOLIVIA
-            const ventasEnriquecidas = (ventasData || []).map(venta => ({
-                ...venta,
-                // Mantener UTC original
-                fecha_venta_utc: venta.fecha_venta,
+            all = all.concat(data || []);
+            hasMore = (data?.length || 0) === PAGE_SIZE;
+            from += PAGE_SIZE;
+        }
 
-                // ✅ Fechas en Bolivia para mostrar
-                fecha_venta_bolivia: formatUTCToBolivia(venta.fecha_venta, 'datetime'),
-                fecha_venta_bolivia_date: formatUTCToBolivia(venta.fecha_venta, 'date'),
-                fecha_venta_bolivia_time: formatUTCToBolivia(venta.fecha_venta, 'time'),
+        return all;
+    };
 
-                // Campos existentes
-                producto_nombre: venta.productos?.nombre || `Producto ${venta.producto_id}`,
-                comision_variable: venta.productos?.comision_variable || 'no var',
-                producto_codigo: venta.productos?.codigo || `COD-${venta.producto_id}`,
-                producto_precio: venta.productos?.precio || 0,
-                categoria_nombre: venta.productos?.categorias?.nombre || `Categoría ${venta.productos?.categoria_id}`,
-                usuario_nombre: venta.usuarios?.nombre || `Usuario ${venta.promotor_id}`,
-                usuario_activo: venta.usuarios?.activo || false,
-                rol_nombre: venta.usuarios?.roles?.nombre || `Rol ${venta.usuarios?.rol_id}`
-            }));
+    const enriquecerVenta = (venta) => ({
+        ...venta,
+        fecha_venta_utc: venta.fecha_venta,
+        fecha_venta_bolivia: formatUTCToBolivia(venta.fecha_venta, 'datetime'),
+        fecha_venta_bolivia_date: formatUTCToBolivia(venta.fecha_venta, 'date'),
+        fecha_venta_bolivia_time: formatUTCToBolivia(venta.fecha_venta, 'time'),
+        producto_nombre: venta.productos?.nombre || `Producto ${venta.producto_id}`,
+        comision_variable: venta.productos?.comision_variable || 'no var',
+        producto_codigo: venta.productos?.codigo || `COD-${venta.producto_id}`,
+        producto_precio: venta.productos?.precio || 0,
+        categoria_nombre: venta.productos?.categorias?.nombre || `Categoría ${venta.productos?.categoria_id}`,
+        usuario_nombre: venta.usuarios?.nombre || `Usuario ${venta.promotor_id}`,
+        usuario_activo: venta.usuarios?.activo || false,
+        rol_nombre: venta.usuarios?.roles?.nombre || `Rol ${venta.usuarios?.rol_id}`
+    });
+
+    // ✅ Acepta filtroFecha opcional. Sin args → mes actual Bolivia.
+    const obtenerMisVentas = useCallback(async (filtroFecha = null) => {
+        const currentUser = getCurrentUser();
+        const currentSucursal = getCurrentSucursal();
+        if (!currentUser || !currentSucursal) return;
+
+        try {
+            setLoading(true);
+
+            const rango = (filtroFecha && filtroFecha.inicio && filtroFecha.fin)
+                ? { inicio: filtroFecha.inicio, fin: filtroFecha.fin }
+                : getBoliviaMonthRangeUTC(new Date());
+
+            if (!rango) throw new Error('No se pudo calcular el rango de fechas');
+
+            console.log('📅 obtenerMisVentas — rango:', rango);
+
+            const ventasData = await fetchVentasPorRango(
+                currentSucursal.id,
+                rango.inicio,
+                rango.fin
+            );
+
+            const ventasEnriquecidas = (ventasData || []).map(enriquecerVenta);
 
             console.log('✅ Ventas cargadas:', ventasEnriquecidas.length);
             if (ventasEnriquecidas.length > 0) {
@@ -193,14 +234,39 @@ export const useVentas = () => {
             }
 
             setVentas(ventasEnriquecidas);
+            setRangoActual(rango);
             setError(null);
         } catch (err) {
             setError(err.message);
+            setVentas([]);
         } finally {
             setLoading(false);
         }
-    };
+    }, [localStorageValues.sucursalSeleccionada, localStorageValues.currentUser]);
 
+    // ✅ Consulta fresca para exportar (no depende del array en memoria)
+    const obtenerVentasParaExportar = useCallback(async (filtroFecha = null) => {
+        const currentSucursal = getCurrentSucursal();
+        if (!currentSucursal) return [];
+
+        const rango = (filtroFecha && filtroFecha.inicio && filtroFecha.fin)
+            ? { inicio: filtroFecha.inicio, fin: filtroFecha.fin }
+            : getBoliviaMonthRangeUTC(new Date());
+
+        if (!rango) return [];
+
+        const data = await fetchVentasPorRango(
+            currentSucursal.id,
+            rango.inicio,
+            rango.fin
+        );
+
+        return (data || []).map(enriquecerVenta);
+    }, [localStorageValues.sucursalSeleccionada]);
+
+    // ─────────────────────────────────────────────
+    // STOCK / MOVIMIENTOS
+    // ─────────────────────────────────────────────
     const actualizarStockProducto = async (productoId, cantidad, sucursalId) => {
         try {
             const { data: stockActual, error: errorStock } = await supabase
@@ -276,7 +342,9 @@ export const useVentas = () => {
         }
     };
 
-    // ✅ MODIFICADO: Crear venta con UTC
+    // ─────────────────────────────────────────────
+    // CREAR VENTA
+    // ─────────────────────────────────────────────
     const crearVenta = async (ventaData) => {
         try {
             setLoading(true);
@@ -285,22 +353,14 @@ export const useVentas = () => {
             const currentUser = getCurrentUser();
             const currentSucursal = getCurrentSucursal();
 
-            if (!currentUser) {
-                throw new Error('No hay usuario logueado');
-            }
-            if (!currentSucursal) {
-                throw new Error('No hay sucursal seleccionada');
-            }
-            if (!ventaData.producto_id) {
-                throw new Error('Debe seleccionar un producto');
-            }
+            if (!currentUser) throw new Error('No hay usuario logueado');
+            if (!currentSucursal) throw new Error('No hay sucursal seleccionada');
+            if (!ventaData.producto_id) throw new Error('Debe seleccionar un producto');
 
             const cantidad = ventaData.cantidad || 1;
             const promotorId = ventaData.promotor_id;
 
-            if (!promotorId) {
-                throw new Error('Debe seleccionar un promotor/vendedor');
-            }
+            if (!promotorId) throw new Error('Debe seleccionar un promotor/vendedor');
 
             const { data: stockActual, error: errorStock } = await supabase
                 .from('productos_stock')
@@ -317,7 +377,6 @@ export const useVentas = () => {
                 throw new Error(`Stock insuficiente. Disponible: ${stockActual.stock_actual}`);
             }
 
-            // ✅ USAR UTC DIRECTO
             const fechaUTC = getCurrentUTCTime();
 
             const ventaCompleta = {
@@ -369,6 +428,7 @@ export const useVentas = () => {
             await actualizarStockProducto(ventaData.producto_id, -cantidad, currentSucursal.id);
             await registrarMovimientoStock(ventaData.producto_id, cantidad, 'Venta realizada', currentSucursal.id);
 
+            // Enriquecer reutilizando el mapper (mapea 'promotor' a 'usuarios' del select)
             const ventaEnriquecida = {
                 ...data,
                 fecha_venta_utc: data.fecha_venta,
@@ -386,7 +446,17 @@ export const useVentas = () => {
                 promotor_nombre: data.promotor?.nombre || `Vendedor ${promotorId}`
             };
 
-            setVentas(prev => [ventaEnriquecida, ...prev]);
+            // Si la venta cae dentro del rango actual, la insertamos en memoria.
+            // Si el rango no incluye hoy (usuario viendo otro mes), no ensuciamos el array.
+            const dentroDelRango = rangoActual
+                ? new Date(data.fecha_venta) >= new Date(rangoActual.inicio) &&
+                new Date(data.fecha_venta) <= new Date(rangoActual.fin)
+                : true;
+
+            if (dentroDelRango) {
+                setVentas(prev => [ventaEnriquecida, ...prev]);
+            }
+
             await obtenerProductos();
 
             return ventaEnriquecida;
@@ -398,7 +468,6 @@ export const useVentas = () => {
         }
     };
 
-    // ✅ MODIFICADO: Crear múltiples ventas
     const crearMultiplesVentas = async (ventasData) => {
         try {
             setLoading(true);
@@ -407,26 +476,18 @@ export const useVentas = () => {
             const currentUser = getCurrentUser();
             const currentSucursal = getCurrentSucursal();
 
-            if (!currentUser) {
-                throw new Error('No hay usuario logueado');
-            }
-            if (!currentSucursal) {
-                throw new Error('No hay sucursal seleccionada');
-            }
+            if (!currentUser) throw new Error('No hay usuario logueado');
+            if (!currentSucursal) throw new Error('No hay sucursal seleccionada');
 
             const ventasCreadas = [];
 
             for (const ventaData of ventasData) {
-                if (!ventaData.producto_id) {
-                    throw new Error('Debe seleccionar un producto');
-                }
+                if (!ventaData.producto_id) throw new Error('Debe seleccionar un producto');
 
                 const cantidad = ventaData.cantidad || 1;
                 const promotorId = ventaData.promotor_id;
 
-                if (!promotorId) {
-                    throw new Error('Debe seleccionar un promotor/vendedor');
-                }
+                if (!promotorId) throw new Error('Debe seleccionar un promotor/vendedor');
 
                 const { data: stockActual, error: errorStock } = await supabase
                     .from('productos_stock')
@@ -514,7 +575,18 @@ export const useVentas = () => {
                 ventasCreadas.push(ventaEnriquecida);
             }
 
-            setVentas(prev => [...ventasCreadas, ...prev]);
+            // Solo insertamos en memoria las que caen dentro del rango actual
+            const dentroDelRango = (fechaVenta) => {
+                if (!rangoActual) return true;
+                const f = new Date(fechaVenta);
+                return f >= new Date(rangoActual.inicio) && f <= new Date(rangoActual.fin);
+            };
+
+            const visibles = ventasCreadas.filter(v => dentroDelRango(v.fecha_venta));
+            if (visibles.length > 0) {
+                setVentas(prev => [...visibles, ...prev]);
+            }
+
             await obtenerProductos();
 
             return ventasCreadas;
@@ -526,6 +598,9 @@ export const useVentas = () => {
         }
     };
 
+    // ─────────────────────────────────────────────
+    // VENDEDORES
+    // ─────────────────────────────────────────────
     const obtenerVendedores = async () => {
         try {
             const currentSucursal = getCurrentSucursal();
@@ -557,7 +632,9 @@ export const useVentas = () => {
         }
     };
 
-    // ✅ MODIFICADO: Anular venta
+    // ─────────────────────────────────────────────
+    // ANULAR
+    // ─────────────────────────────────────────────
     const anularVenta = async (ventaId, motivoAnulacion) => {
         try {
             setLoading(true);
@@ -566,9 +643,7 @@ export const useVentas = () => {
             const currentUser = getCurrentUser();
             const currentSucursal = getCurrentSucursal();
 
-            if (!currentUser) {
-                throw new Error('No hay usuario logueado');
-            }
+            if (!currentUser) throw new Error('No hay usuario logueado');
 
             const { data: venta, error: errorVenta } = await supabase
                 .from('ventas')
@@ -620,7 +695,10 @@ export const useVentas = () => {
 
             const ventaEnriquecida = {
                 ...data,
+                fecha_venta_utc: data.fecha_venta,
                 fecha_venta_bolivia: formatUTCToBolivia(data.fecha_venta, 'datetime'),
+                fecha_venta_bolivia_date: formatUTCToBolivia(data.fecha_venta, 'date'),
+                fecha_venta_bolivia_time: formatUTCToBolivia(data.fecha_venta, 'time'),
                 producto_nombre: data.productos?.nombre || `Producto ${data.producto_id}`,
                 promotor_nombre: data.promotor?.nombre || `Usuario ${data.promotor_id}`,
                 usuario_anulacion_nombre: data.usuario_anulacion?.nombre || `Usuario ${data.usuario_anulacion}`
@@ -628,7 +706,7 @@ export const useVentas = () => {
 
             setVentas(prev =>
                 prev.map(ventaItem =>
-                    ventaItem.id === ventaId ? ventaEnriquecida : ventaItem
+                    ventaItem.id === ventaId ? { ...ventaItem, ...ventaEnriquecida } : ventaItem
                 )
             );
 
@@ -643,14 +721,15 @@ export const useVentas = () => {
         }
     };
 
+    // ─────────────────────────────────────────────
+    // DEPÓSITOS
+    // ─────────────────────────────────────────────
     const actualizarDepositado = async (ventaId, depositado) => {
         try {
             setError(null);
 
             const currentUser = getCurrentUser();
-            if (!currentUser) {
-                throw new Error('No hay usuario logueado');
-            }
+            if (!currentUser) throw new Error('No hay usuario logueado');
 
             const { data, error: supabaseError } = await supabase
                 .from('ventas')
@@ -681,9 +760,7 @@ export const useVentas = () => {
             setError(null);
 
             const currentUser = getCurrentUser();
-            if (!currentUser) {
-                throw new Error('No hay usuario logueado');
-            }
+            if (!currentUser) throw new Error('No hay usuario logueado');
 
             const { data, error: supabaseError } = await supabase
                 .from('ventas')
@@ -738,35 +815,11 @@ export const useVentas = () => {
         }
     };
 
+    // ─────────────────────────────────────────────
+    // FILTROS EN CLIENTE (sobre el array del rango cargado)
+    // ─────────────────────────────────────────────
     const obtenerProductosParaVenta = () => {
-        return productos.filter(producto =>
-            producto.activo &&
-            producto.stock_actual > 0
-        );
-    };
-
-    // ✅ FUNCIÓN DE FILTRO CORREGIDA
-    const filtrarVentasFecha = (ventasArray, filtroFecha) => {
-        if (!filtroFecha || !filtroFecha.inicio || !filtroFecha.fin) {
-            console.log('⚠️ Sin filtro de fecha');
-            return ventasArray;
-        }
-
-        console.log('🔍 Filtrar por fecha:');
-        console.log('  Inicio UTC:', filtroFecha.inicio);
-        console.log('  Fin UTC:', filtroFecha.fin);
-
-        const inicioUTC = new Date(filtroFecha.inicio);
-        const finUTC = new Date(filtroFecha.fin);
-
-        const resultado = ventasArray.filter(venta => {
-            const fechaVentaUTC = new Date(venta.fecha_venta);
-            return fechaVentaUTC >= inicioUTC && fechaVentaUTC <= finUTC;
-        });
-
-        console.log('  Ventas en rango:', resultado.length, 'de', ventasArray.length);
-
-        return resultado;
+        return productos.filter(producto => producto.activo && producto.stock_actual > 0);
     };
 
     const filtrarVentasPorCategoria = (ventasArray, categoria) => {
@@ -788,7 +841,6 @@ export const useVentas = () => {
         if (!terminoBusqueda || typeof terminoBusqueda !== 'string' || terminoBusqueda.trim() === '') {
             return ventasArray;
         }
-
         const termino = terminoBusqueda.toLowerCase().trim();
         return ventasArray.filter(venta =>
             venta.producto_codigo?.toLowerCase().includes(termino) ||
@@ -819,12 +871,11 @@ export const useVentas = () => {
     const obtenerEstadisticas = useCallback(() => {
         const currentUser = getCurrentUser();
         const esAdmin = puedeConfirmarDepositos();
-
         const ventasActuales = ventas;
 
-        const ventasFiltradas = currentUser && !esAdmin ?
-            ventasActuales.filter(v => v.promotor_id === currentUser.id) :
-            ventasActuales;
+        const ventasFiltradas = currentUser && !esAdmin
+            ? ventasActuales.filter(v => v.promotor_id === currentUser.id)
+            : ventasActuales;
 
         const totalVentas = ventasFiltradas.length;
         const ventasActivas = ventasFiltradas.filter(v => v.estado === 'activa').length;
@@ -859,21 +910,24 @@ export const useVentas = () => {
         };
     }, [ventas]);
 
-    const haySucursalSeleccionada = () => {
-        return !!getCurrentSucursal();
-    };
+    const haySucursalSeleccionada = () => !!getCurrentSucursal();
 
+    // ─────────────────────────────────────────────
+    // EFECTOS
+    // ─────────────────────────────────────────────
     useEffect(() => {
         const currentSucursal = getCurrentSucursal();
         if (currentSucursal) {
             setSucursalCargada(true);
-            obtenerMisVentas();
+            obtenerMisVentas();   // mes actual por defecto
             obtenerProductos();
         } else {
             setSucursalCargada(false);
             setVentas([]);
             setProductos([]);
+            setRangoActual(null);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [localStorageValues.sucursalSeleccionada]);
 
     return {
@@ -884,12 +938,14 @@ export const useVentas = () => {
         currentUser: getCurrentUser(),
         currentSucursal: getCurrentSucursal(),
         sucursalCargada: haySucursalSeleccionada(),
+        rangoActual,
 
         puedeConfirmarDepositos: puedeConfirmarDepositos(),
         puedeMarcarDepositado: puedeMarcarDepositado(),
         rolNombre: getRolNombre(),
 
         obtenerMisVentas,
+        obtenerVentasParaExportar,
         crearVenta,
         crearMultiplesVentas,
         anularVenta,
@@ -902,7 +958,6 @@ export const useVentas = () => {
         obtenerVentaPorId,
         filtrarVentasPorCategoria,
         filtrarVentasPorUsuarios,
-        filtrarVentasFecha,
         filtrarVentasPorBusqueda,
         filtrarVentasPorDepositado,
         filtrarVentasPorConfirmacionDepositado,
@@ -910,7 +965,6 @@ export const useVentas = () => {
         filtrarVentasActivas,
         obtenerVentasDelUsuarioActual,
         obtenerEstadisticas,
-
-        refetch: obtenerMisVentas
+        refetch: () => obtenerMisVentas()
     };
 };

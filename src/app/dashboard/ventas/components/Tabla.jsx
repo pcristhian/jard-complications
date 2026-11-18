@@ -491,22 +491,14 @@ export default function Tabla({
                                 </td>
                                 {/* fecha */}
                                 <td className="px-1 py-2 leading-[16px] text-center w-18">
-                                    {(() => {
-                                        const fechaUTC = new Date(venta.fecha_venta);
-                                        const fechaBolivia = new Date(fechaUTC.getTime() - (4 * 60 * 60 * 1000));
-                                        return (
-                                            <>
-                                                <span className="text-xs font-bold text-black block">
-                                                    {fechaBolivia.toLocaleDateString('es-BO')}
-                                                </span>
-                                                {rolNombre === "admin" && (
-                                                    <span className="text-[12px] font-semibold text-amber-600">
-                                                        #{venta.id}
-                                                    </span>
-                                                )}
-                                            </>
-                                        );
-                                    })()}
+                                    <span className="text-xs font-bold text-black block">
+                                        {venta.fecha_venta_bolivia_date || '--/--/----'}
+                                    </span>
+                                    {rolNombre === "admin" && (
+                                        <span className="text-[12px] font-semibold text-amber-600">
+                                            #{venta.id}
+                                        </span>
+                                    )}
                                 </td>
                                 {/* codigo */}
                                 <td className="px-1 py-2 w-18 ">
@@ -747,19 +739,29 @@ export default function Tabla({
                                             <input
                                                 type="checkbox"
                                                 checked={venta.depositado || false}
-                                                onChange={(e) => {
+                                                onChange={async (e) => {
                                                     e.stopPropagation();
-                                                    onActualizarDepositado(venta.id, e.target.checked);
+                                                    setActualizando(venta.id);
+                                                    try {
+                                                        await onActualizarDepositado(venta.id, e.target.checked);
+                                                    } catch (err) {
+                                                        toast.error(`Error al actualizar depósito: ${err.message}`);
+                                                    } finally {
+                                                        setActualizando(null);
+                                                    }
                                                 }}
                                                 disabled={actualizando === venta.id || venta.estado === "anulada"}
                                                 className={`
-                    w-4 h-4 rounded border-gray-300 
-                    text-blue-600 focus:ring-blue-500 
-                    transition-all duration-150
-                    ${actualizando === venta.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                    ${venta.estado === "anulada" ? 'opacity-30 cursor-not-allowed' : ''}
-                `}
+        w-4 h-4 rounded border-gray-300 
+        text-blue-600 focus:ring-blue-500 
+        transition-all duration-150
+        ${actualizando === venta.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+        ${venta.estado === "anulada" ? 'opacity-30 cursor-not-allowed' : ''}
+    `}
                                             />
+                                            {actualizando === venta.id && (
+                                                <span className="ml-1.5 text-xs text-gray-400 animate-pulse">⏳</span>
+                                            )}
                                             {actualizando === venta.id && (
                                                 <span className="ml-1.5 text-xs text-gray-400 animate-pulse">⏳</span>
                                             )}

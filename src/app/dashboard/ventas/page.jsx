@@ -1,7 +1,6 @@
 // src/app/dashboard/ventas/page.jsx
 "use client";
-/////////////////////////////////////////////////
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useVentas } from "./hooks/useVentas";
 import Header from "./components/Header";
 import Tabla from "./components/Tabla";
@@ -10,7 +9,6 @@ import ModalComisionesPorUsuario from "./components/ModalComisionesPorUsuario";
 import FiltroVentas from "./components/FiltrosVentas";
 
 export default function VentasPage() {
-    // 1. TODOS los Hooks primero
     const [modalAbierto, setModalAbierto] = useState(false);
     const [modalVenta, setModalVenta] = useState(false);
     const [filtroCategoria, setFiltroCategoria] = useState('');
@@ -25,7 +23,7 @@ export default function VentasPage() {
         currentSucursal,
         sucursalCargada,
         rolNombre,
-        ventas,  // ⬅️ Estas son las ventas originales (sin filtrar)
+        ventas,
         crearVenta,
         crearMultiplesVentas,
         obtenerVendedores,
@@ -35,28 +33,40 @@ export default function VentasPage() {
         filtrarVentasPorCategoria,
         filtrarVentasPorUsuarios,
         filtrarVentasPorBusqueda,
-        filtrarVentasFecha,
-        obtenerMisVentas
+        obtenerMisVentas,
+        obtenerVentasParaExportar
     } = useVentas();
 
-    // 2. Funciones de manejo
+    // Ref para evitar doble fetch cuando FiltrosVentas setea el mes actual al montar
+    const ultimoFiltroRef = useRef(undefined);
+
+    // Refetch cuando cambia el rango de fecha (Opción 1: page orquesta)
+    useEffect(() => {
+        if (!sucursalCargada) return;
+
+        const prev = ultimoFiltroRef.current;
+        ultimoFiltroRef.current = filtroFecha;
+
+        // null → useVentas ya cargó el mes actual por defecto
+        if (filtroFecha === null) return;
+
+        // Si es el mismo rango que ya se aplicó, no refetch
+        if (prev !== undefined &&
+            prev?.inicio === filtroFecha?.inicio &&
+            prev?.fin === filtroFecha?.fin) return;
+
+        obtenerMisVentas(filtroFecha);
+    }, [filtroFecha, sucursalCargada, obtenerMisVentas]);
+
     const handleVentaCreada = useCallback(async () => {
         await obtenerMisVentas();
     }, [obtenerMisVentas]);
 
-    const manejarFiltroCategoria = (categoria) => {
-        setFiltroCategoria(categoria);
-    };
+    const manejarFiltroCategoria = (categoria) => setFiltroCategoria(categoria);
+    const manejarFiltroUsuarios = (usuario) => setFiltroUsuarios(usuario);
+    const manejarBusqueda = (termino) => setTerminoBusqueda(termino);
 
-    const manejarFiltroUsuarios = (usuario) => {
-        setFiltroUsuarios(usuario);
-    };
-
-    const manejarBusqueda = (termino) => {
-        setTerminoBusqueda(termino);
-    };
-
-    // 3. Obtener categorías únicas de ventas
+    // Categorías del rango actualmente cargado
     const obtenerCategoriasUnicas = () => {
         const categorias = [...new Set(ventas
             .filter(venta => venta.categoria_nombre && venta.categoria_nombre.trim() !== '')
@@ -65,29 +75,24 @@ export default function VentasPage() {
         return categorias;
     };
 
-    // 4. Ventas filtradas (para la tabla)
     const ventasFiltradas = useMemo(() => {
-        let ventasFiltradas = ventas;  // ⬅️ Partimos de las ventas originales
+        let result = ventas;
 
         if (filtroCategoria) {
-            ventasFiltradas = filtrarVentasPorCategoria(ventasFiltradas, filtroCategoria);
+            result = filtrarVentasPorCategoria(result, filtroCategoria);
         }
         if (filtroUsuarios) {
-            ventasFiltradas = filtrarVentasPorUsuarios(ventasFiltradas, filtroUsuarios);
+            result = filtrarVentasPorUsuarios(result, filtroUsuarios);
         }
         if (terminoBusqueda) {
-            ventasFiltradas = filtrarVentasPorBusqueda(ventasFiltradas, terminoBusqueda);
-        }
-        if (filtroFecha) {
-            ventasFiltradas = filtrarVentasFecha(ventasFiltradas, filtroFecha);
+            result = filtrarVentasPorBusqueda(result, terminoBusqueda);
         }
         if (mostrarSoloActivas) {
-            ventasFiltradas = ventasFiltradas.filter(v => v.estado === "activa");
+            result = result.filter(v => v.estado === "activa");
         }
-        return ventasFiltradas;
-    }, [ventas, filtroCategoria, filtroUsuarios, terminoBusqueda, filtroFecha, mostrarSoloActivas]);
+        return result;
+    }, [ventas, filtroCategoria, filtroUsuarios, terminoBusqueda, mostrarSoloActivas]);
 
-    // ✅ Usuarios de las ventas filtradas (incluye inactivos si tienen ventas en el período)
     const usuariosDeVentasFiltradas = useMemo(() => {
         const usuarios = [...new Set(ventasFiltradas
             .filter(venta =>
@@ -96,11 +101,9 @@ export default function VentasPage() {
             )
             .map(venta => venta.usuarios.nombre)
         )].sort();
-
         return usuarios;
     }, [ventasFiltradas]);
 
-    // 5. Returns condicionales (DESPUÉS de todos los Hooks)
     if (!currentUser) {
         return (
             <div className="p-6">
@@ -121,7 +124,6 @@ export default function VentasPage() {
         );
     }
 
-    // 6. Return principal
     return (
         <div className="min-h-screen p-1 space-y-1 text-gray-800 text-gray-500">
             <Header
@@ -147,8 +149,8 @@ export default function VentasPage() {
                 onFiltroFechaChange={setFiltroFecha}
                 mostrarSoloActivas={mostrarSoloActivas}
                 setMostrarSoloActivas={setMostrarSoloActivas}
-                // ⬇️ PASAR LAS VENTAS ORIGINALES PARA LA DESCARGA ⬇️
-                ventasOriginales={ventas}  // 🔥 NUEVA PROP
+                ventasOriginales={ventas}
+                obtenerVentasParaExportar={obtenerVentasParaExportar}
             />
 
             <Tabla

@@ -2,6 +2,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
+// ✅ NUEVO: helper compartido para rango anual en Bolivia
+import { getBoliviaYearRangeUTC } from '@/utils/dateUtils';
+
+// ✅ Paginación interna (mismo patrón que useVentas)
+const PAGE_SIZE = 1000;
+
 const fetchWithRetry = async (fn, retries = 3, delay = 1000) => {
     for (let i = 0; i < retries; i++) {
         try {
@@ -26,7 +32,6 @@ export const useDashboardData = () => {
     const [rawVentas, setRawVentas] = useState([]);
     const [rawProductos, setRawProductos] = useState([]);
 
-    // Ref para evitar múltiples cargas
     const isMounted = useRef(true);
     const loadingRef = useRef(false);
 
@@ -36,44 +41,68 @@ export const useDashboardData = () => {
             const sucursal = localStorage.getItem('sucursalSeleccionada');
             setCurrentUser(user ? JSON.parse(user) : null);
             setCurrentSucursal(sucursal ? JSON.parse(sucursal) : null);
-            return { user: user ? JSON.parse(user) : null, sucursal: sucursal ? JSON.parse(sucursal) : null };
+            return {
+                user: user ? JSON.parse(user) : null,
+                sucursal: sucursal ? JSON.parse(sucursal) : null
+            };
         } catch (err) {
             console.error('Error leyendo localStorage:', err);
             return { user: null, sucursal: null };
         }
     }, []);
 
+    // ✅ MODIFICADO: rango año actual + paginación interna
     const obtenerVentas = useCallback(async (sucursalId) => {
         if (!sucursalId) return [];
 
-        const { data, error: supabaseError } = await supabase
-            .from('ventas')
-            .select(`
-                id,
-                total_precio_venta,
-                fecha_venta,
-                estado,
-                cantidad,
-                producto_id,
-                productos:producto_id (
-                    id,
-                    nombre,
-                    categoria_id,
-                    categorias:categoria_id (
-                        id,
-                        nombre
-                    )
-                )
-            `)
-            .eq('sucursal_id', sucursalId)
-            .eq('estado', 'activa')
-            .order('fecha_venta', { ascending: false });
+        const rango = getBoliviaYearRangeUTC(new Date().getFullYear());
+        if (!rango) throw new Error('No se pudo calcular el rango anual');
 
-        if (supabaseError) {
-            throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
+        console.log('📅 useDashboardData — rango ventas:', rango);
+
+        let all = [];
+        let from = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const { data, error: supabaseError } = await supabase
+                .from('ventas')
+                .select(`
+                    id,
+                    total_precio_venta,
+                    fecha_venta,
+                    estado,
+                    cantidad,
+                    producto_id,
+                    productos:producto_id (
+                        id,
+                        nombre,
+                        categoria_id,
+                        categorias:categoria_id (
+                            id,
+                            nombre
+                        )
+                    )
+                `)
+                .eq('sucursal_id', sucursalId)
+                .eq('estado', 'activa')
+                .gte('fecha_venta', rango.inicio)
+                .lte('fecha_venta', rango.fin)
+                .order('fecha_venta', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1);
+
+            if (supabaseError) {
+                throw new Error(`Error al obtener ventas: ${supabaseError.message}`);
+            }
+
+            all = all.concat(data || []);
+            hasMore = (data?.length || 0) === PAGE_SIZE;
+            from += PAGE_SIZE;
         }
 
-        return (data || []).map(venta => ({
+        console.log('✅ useDashboardData — ventas cargadas:', all.length);
+
+        return all.map(venta => ({
             ...venta,
             producto_nombre: venta.productos?.nombre || `Producto ${venta.producto_id}`,
             categoria_nombre: venta.productos?.categorias?.nombre || 'Sin Categoría',
@@ -81,7 +110,7 @@ export const useDashboardData = () => {
         }));
     }, []);
 
-    // 🔹 MODIFICADO: Obtener productos desde productos_stock (solo stock de la sucursal actual)
+    // ✅ SIN CAMBIOS (ya trae productos activos con stock; con ~200 productos no es problema)
     const obtenerProductos = useCallback(async (sucursalId) => {
         if (!sucursalId) return [];
 
@@ -89,17 +118,17 @@ export const useDashboardData = () => {
             const { data, error: supabaseError } = await supabase
                 .from('productos_stock')
                 .select(`
-                stock_actual,
-                producto:producto_id (
-                    id,
-                    nombre,
-                    categoria_id,
-                    categorias:categoria_id (
+                    stock_actual,
+                    producto:producto_id (
                         id,
-                        nombre
+                        nombre,
+                        categoria_id,
+                        categorias:categoria_id (
+                            id,
+                            nombre
+                        )
                     )
-                )
-            `)
+                `)
                 .eq('sucursal_id', sucursalId)
                 .eq('producto.activo', true);
 
@@ -108,10 +137,8 @@ export const useDashboardData = () => {
                 return [];
             }
 
-            // Validar y transformar datos
             const productosValidos = (data || [])
                 .filter(item => {
-                    // Verificar que el producto existe
                     if (!item.producto) {
                         console.warn('Registro con producto null encontrado:', item);
                         return false;
@@ -124,18 +151,17 @@ export const useDashboardData = () => {
                     stock_actual: item.stock_actual,
                     categoria_id: item.producto.categoria_id,
                     categorias: item.producto.categorias,
-                    // Añadir flag para identificar si el producto es válido
                     es_valido: true
                 }));
 
             console.log(`✅ Productos cargados: ${productosValidos.length}`);
             return productosValidos;
-
         } catch (error) {
             console.error('Error en obtenerProductos:', error);
             return [];
         }
     }, []);
+
     const getCurrentMonth = useCallback(() => {
         const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -150,18 +176,18 @@ export const useDashboardData = () => {
         return meses[monthName] !== undefined ? meses[monthName] : new Date().getMonth();
     }, []);
 
-    // Calcular ventas por categoría para un mes específico (o año completo si monthName es null)
+    // ─────────────────────────────────────────────
+    // CÁLCULOS EN CLIENTE (sin cambios — operan sobre rawVentas que ahora sí está completo)
+    // ─────────────────────────────────────────────
     const calcularVentasPorCategoria = useCallback((ventas, productos, monthName = null) => {
         if (!ventas.length) return [];
 
-        // Filtrar ventas por mes si se especifica
         let ventasFiltradas = ventas;
         let añoActual = new Date().getFullYear();
 
         if (monthName) {
             const mesNumero = getMonthNumber(monthName);
 
-            // Ajustar año si el mes seleccionado es mayor al mes actual
             const ahora = new Date();
             if (mesNumero > ahora.getMonth()) {
                 añoActual = añoActual - 1;
@@ -175,7 +201,6 @@ export const useDashboardData = () => {
 
         const categoriasMap = new Map();
 
-        // Obtener categorías de productos
         productos.forEach(producto => {
             const categoriaNombre = producto.categorias?.nombre || 'Sin Categoría';
             const categoriaId = producto.categorias?.id || 0;
@@ -199,7 +224,6 @@ export const useDashboardData = () => {
             }
         });
 
-        // Contar productos por categoría
         productos.forEach(producto => {
             const categoriaNombre = producto.categorias?.nombre || 'Sin Categoría';
             const categoria = categoriasMap.get(categoriaNombre);
@@ -208,7 +232,6 @@ export const useDashboardData = () => {
             }
         });
 
-        // Acumular ventas filtradas por categoría
         ventasFiltradas.forEach(venta => {
             const categoriaNombre = venta.categoria_nombre || 'Sin Categoría';
             const unidades = venta.cantidad || 1;
@@ -236,7 +259,6 @@ export const useDashboardData = () => {
             categoria.totalUnidades += unidades;
             categoria.totalSalesCount++;
 
-            // Producto más vendido (por unidades)
             const productoNombre = venta.producto_nombre;
             if (unidades > categoria.topProductSales) {
                 categoria.topProductSales = unidades;
@@ -244,7 +266,6 @@ export const useDashboardData = () => {
             }
         });
 
-        // Calcular tendencia (comparar mes actual vs mes anterior)
         let mesActualKey = null;
         let mesAnteriorKey = null;
 
@@ -265,7 +286,6 @@ export const useDashboardData = () => {
             mesAnteriorKey = `${añoAnterior}-${mesAnterior}`;
         }
 
-        // Recolectar ventas por mes para tendencia (de todas las ventas, no filtradas)
         const ventasPorMes = new Map();
         ventas.forEach(venta => {
             const fecha = new Date(venta.fecha_venta);
@@ -308,14 +328,13 @@ export const useDashboardData = () => {
         return categoriasArray.sort((a, b) => b.sales - a.sales);
     }, [getMonthNumber]);
 
-    // Calcular ventas mensuales (para el gráfico)
     const calcularVentasMensuales = useCallback((ventas) => {
         if (!ventas.length) return [];
 
         const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
         const añoActual = new Date().getFullYear();
 
-        const monthlyData = meses.map((month, index) => ({
+        const monthlyData = meses.map((month) => ({
             month,
             ventas: 0,
             unidades: 0,
@@ -415,7 +434,6 @@ export const useDashboardData = () => {
         return topProductsByCategory;
     }, [getMonthNumber]);
 
-    // Función para obtener categorías filtradas por un mes específico
     const getCategoriesByMonth = useCallback((monthName) => {
         if (!rawVentas.length || !rawProductos.length) return [];
         return calcularVentasPorCategoria(rawVentas, rawProductos, monthName);
@@ -426,9 +444,7 @@ export const useDashboardData = () => {
         return calcularTopProductosPorMes(rawVentas, monthName);
     }, [rawVentas, calcularTopProductosPorMes]);
 
-    // Función principal para cargar datos - optimizada
     const cargarDatos = useCallback(async () => {
-        // Evitar ejecución múltiple simultánea
         if (loadingRef.current) {
             console.log('Carga ya en progreso, omitiendo...');
             return;
@@ -437,7 +453,7 @@ export const useDashboardData = () => {
         loadingRef.current = true;
 
         try {
-            const { user, sucursal } = getLocalStorageData();
+            const { sucursal } = getLocalStorageData();
 
             if (!sucursal) {
                 if (isMounted.current) {
@@ -453,17 +469,18 @@ export const useDashboardData = () => {
                 setError(null);
             }
 
-            const [ventas, productos] = await Promise.all([
-                obtenerVentas(sucursal.id),
-                obtenerProductos(sucursal.id)
-            ]);
+            const [ventas, productos] = await fetchWithRetry(() =>
+                Promise.all([
+                    obtenerVentas(sucursal.id),
+                    obtenerProductos(sucursal.id)
+                ])
+            );
 
             if (!isMounted.current) return;
 
             setRawVentas(ventas);
             setRawProductos(productos);
 
-            // Datos del año completo (vista global)
             const categories = calcularVentasPorCategoria(ventas, productos, null);
             const monthlySales = calcularVentasMensuales(ventas);
             const topProducts = calcularTopProductosPorMes(ventas, null);
@@ -497,21 +514,16 @@ export const useDashboardData = () => {
         }
     }, [getLocalStorageData, obtenerVentas, obtenerProductos, calcularVentasPorCategoria, calcularVentasMensuales, calcularTopProductosPorMes, getCurrentMonth]);
 
-    // Efecto principal con dependencias mínimas
     useEffect(() => {
         isMounted.current = true;
-
-        // Cargar datos iniciales
         cargarDatos();
 
-        // Event listener para cambios en localStorage
         const handleStorageChange = () => {
             cargarDatos();
         };
 
         window.addEventListener('storage', handleStorageChange);
 
-        // Intervalo para recargar cada 5 minutos
         const interval = setInterval(() => {
             cargarDatos();
         }, 5 * 60 * 1000);
